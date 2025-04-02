@@ -1,79 +1,76 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSearchResults } from '@/lib/api-client';
-import { getCachedData, setCachedData, generateCacheKey, CACHE_TTL } from '@/lib/cache';
-
-// Define an interface for the search parameters
-interface SearchParams {
-  query: string;
-  collection: string;
-  profile: string;
-  form: string;
-  [key: string]: string; // Allow additional string parameters
-}
-
 /**
- * Converts query parameters to a type-safe SearchParams object
- * @param query The query parameters from the request
- * @returns Processed SearchParams object
+ * @fileoverview Server-side API for rendered search results
+ * 
+ * This API endpoint handles search requests, fetches results from the backend API,
+ * and returns server-side rendered search results.
+ *
+ * @author Victor Chimenti
+ * @version 1.0.0
  */
-function getSearchParams(query: NextApiRequest['query']): SearchParams {
-  return {
-    query: Array.isArray(query.query) ? query.query[0] : query.query || '',
-    collection: Array.isArray(query.collection) ? query.collection[0] : 
-               query.collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
-    profile: Array.isArray(query.profile) ? query.profile[0] : 
-             query.profile || process.env.DEFAULT_PROFILE || '_default',
-    form: 'partial',
-    // Spread any additional string parameters
-    ...Object.fromEntries(
-      Object.entries(query)
-        .filter(([, value]) => typeof value === 'string' || 
-                (Array.isArray(value) && value.length > 0))
-        .map(([key, value]) => [key, Array.isArray(value) ? value[0] : value])
-    )
-  };
-}
+
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { backendApiClient } from '../../lib/api-client';
+import { getCachedData, setCachedData } from '../../lib/cache';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', 'https://www.seattleu.edu');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   // Only allow GET requests
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const { query, collection, profile, sessionId } = req.query;
+
+  // Basic validation
+  if (!query) {
+    res.status(400).json({ error: 'Query parameter is required' });
+    return;
   }
 
   try {
-    // Convert query parameters to type-safe object
-    const params = getSearchParams(req.query);
-    
-    // Validate required parameters
-    if (!params.query) {
-      return res.status(400).json({ error: 'Query parameter is required' });
-    }
-
     // Generate cache key
-    const cacheKey = generateCacheKey('search', params);
-    
-    // Try to get cached data first
-    const cachedData = await getCachedData(cacheKey);
-    if (cachedData) {
-      return res.status(200).json(cachedData);
+    const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
+
+    // Try to get from cache first
+    const cachedResult = await getCachedData(cacheKey);
+    if (cachedResult) {
+      console.log(`Cache hit for ${cacheKey}`);
+      return res.status(200).send(cachedResult);
     }
 
-    // If not cached, fetch from backend API
-    const response = await getSearchResults(params);
+    // Prepare parameters for backend API
+    const params = {
+      query,
+      collection: collection || 'seattleu~sp-search',
+      profile: profile || '_default',
+      sessionId: sessionId || '',
+      form: 'partial'
+    };
+
+    // Fetch from backend API
+    const result = await backendApiClient.get('/funnelback/search', { params });
     
-    // Cache the response
-    await setCachedData(cacheKey, response.data, CACHE_TTL.search);
+    // Cache the result
+    await setCachedData(cacheKey, result.data, 60 * 10); // 10 minutes TTL
     
-    // Return the response
-    return res.status(200).json(response.data);
-  } catch (error: any) {
+    // Return the result
+    res.status(200).send(result.data);
+  } catch (error) {
     console.error('Search API error:', error);
-    return res.status(500).json({ 
-      error: 'An error occurred while processing your request',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to fetch search results' });
   }
 }
