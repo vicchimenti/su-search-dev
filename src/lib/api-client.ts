@@ -1,86 +1,81 @@
-// src/lib/api-client.ts
+/**
+ * @fileoverview Client for backend API
+ * 
+ * This module provides a configured Axios client for communicating
+ * with the backend search API.
+ *
+ * @author Victor Chimenti
+ * @version 1.0.0
+ */
+
 import axios from 'axios';
 
-// Default base URL from environment variable
-const baseURL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy';
+// Get backend API URL from environment variables, with fallback
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy';
 
-// Create axios instance
-const apiClient = axios.create({
-  baseURL,
+// Create a configured Axios instance for backend API requests
+export const backendApiClient = axios.create({
+  baseURL: BACKEND_API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
-  },
+    'Accept': 'application/json'
+  }
 });
 
-// Types for search parameters
-interface SearchParams {
-  query: string;
-  collection?: string;
-  profile?: string;
-  [key: string]: any;
-}
+// Add request logging in development
+backendApiClient.interceptors.request.use(request => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Backend API Request:', {
+      url: request.url,
+      method: request.method,
+      params: request.params,
+      data: request.data
+    });
+  }
+  return request;
+});
 
-// Types for search response
-interface SearchResponse {
-  data: any;
-  status: number;
-}
+// Add response logging in development
+backendApiClient.interceptors.response.use(
+  response => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Backend API Response:', {
+        status: response.status,
+        dataLength: response.data ? 
+          (typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length) : 0
+      });
+    }
+    return response;
+  },
+  error => {
+    console.error('Backend API Error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    return Promise.reject(error);
+  }
+);
 
-// Get search results from the backend
-export async function getSearchResults(params: SearchParams): Promise<SearchResponse> {
+// Helper function for GET requests
+export async function fetchFromBackend(endpoint: string, params: any = {}) {
   try {
-    const response = await apiClient.get('/funnelback/search', { params });
-    return {
-      data: response.data,
-      status: response.status,
-    };
+    const response = await backendApiClient.get(endpoint, { params });
+    return response.data;
   } catch (error) {
-    console.error('Error fetching search results:', error);
+    console.error(`Error fetching from ${endpoint}:`, error);
     throw error;
   }
 }
 
-// Get search suggestions from the backend
-export async function getSearchSuggestions(params: SearchParams): Promise<SearchResponse> {
+// Helper function for POST requests
+export async function postToBackend(endpoint: string, data: any = {}, params: any = {}) {
   try {
-    const response = await apiClient.get('/funnelback/suggest', { params });
-    return {
-      data: response.data,
-      status: response.status,
-    };
+    const response = await backendApiClient.post(endpoint, data, { params });
+    return response.data;
   } catch (error) {
-    console.error('Error fetching search suggestions:', error);
+    console.error(`Error posting to ${endpoint}:`, error);
     throw error;
   }
 }
-
-// Get people search results from the backend
-export async function getPeopleResults(params: SearchParams): Promise<SearchResponse> {
-  try {
-    const response = await apiClient.get('/suggestPeople', { params });
-    return {
-      data: response.data,
-      status: response.status,
-    };
-  } catch (error) {
-    console.error('Error fetching people results:', error);
-    throw error;
-  }
-}
-
-// Get program search results from the backend
-export async function getProgramResults(params: SearchParams): Promise<SearchResponse> {
-  try {
-    const response = await apiClient.get('/suggestPrograms', { params });
-    return {
-      data: response.data,
-      status: response.status,
-    };
-  } catch (error) {
-    console.error('Error fetching program results:', error);
-    throw error;
-  }
-}
-
-export default apiClient;
