@@ -324,5 +324,3 @@ const DEFAULT_CONFIG = {
       }
     }
   }
-
-  export default ConfigManager;
