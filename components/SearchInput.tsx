@@ -5,7 +5,7 @@
  * as the user types. It supports three types of suggestions: general,
  * staff/faculty, and programs.
  *
- * @author Victor Chimenti
+ * @author Seattle University
  * @version 1.0.0
  */
 
@@ -174,11 +174,9 @@ export default function SearchInput({
           e.preventDefault();
           const item = getActiveSuggestion();
           if (item) {
-            handleSelectSuggestion(
-              item.title || item.display,
-              activeType,
-              'url' in item ? item.url : undefined
-            );
+            const text = getActiveSuggestionText();
+            const url = activeType !== 'general' && 'url' in item ? item.url : undefined;
+            handleSelectSuggestion(text, activeType, url);
           }
         }
         break;
@@ -290,6 +288,23 @@ export default function SearchInput({
     
     const items = getColumnItems(activeType);
     return items[activeIndex] || null;
+  };
+  
+  // Helper to get active suggestion text - fixed to handle different types
+  const getActiveSuggestionText = (): string => {
+    if (!activeType || activeIndex < 0) return '';
+    
+    const item = getActiveSuggestion();
+    if (!item) return '';
+    
+    // Handle different types
+    if (activeType === 'general') {
+      return (item as Suggestion).display;
+    } else if (activeType === 'staff' || activeType === 'programs') {
+      return (item as StaffSuggestion | ProgramSuggestion).title;
+    }
+    
+    return '';
   };
   
   // Check if we have any suggestions
