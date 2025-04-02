@@ -2,6 +2,38 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSearchResults } from '@/lib/api-client';
 import { getCachedData, setCachedData, generateCacheKey, CACHE_TTL } from '@/lib/cache';
 
+// Define an interface for the search parameters
+interface SearchParams {
+  query: string;
+  collection: string;
+  profile: string;
+  form: string;
+  [key: string]: string; // Allow additional string parameters
+}
+
+/**
+ * Converts query parameters to a type-safe SearchParams object
+ * @param query The query parameters from the request
+ * @returns Processed SearchParams object
+ */
+function getSearchParams(query: NextApiRequest['query']): SearchParams {
+  return {
+    query: Array.isArray(query.query) ? query.query[0] : query.query || '',
+    collection: Array.isArray(query.collection) ? query.collection[0] : 
+               query.collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
+    profile: Array.isArray(query.profile) ? query.profile[0] : 
+             query.profile || process.env.DEFAULT_PROFILE || '_default',
+    form: 'partial',
+    // Spread any additional string parameters
+    ...Object.fromEntries(
+      Object.entries(query)
+        .filter(([, value]) => typeof value === 'string' || 
+                (Array.isArray(value) && value.length > 0))
+        .map(([key, value]) => [key, Array.isArray(value) ? value[0] : value])
+    )
+  };
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -12,21 +44,13 @@ export default async function handler(
   }
 
   try {
-    const { query, collection, profile, ...rest } = req.query;
+    // Convert query parameters to type-safe object
+    const params = getSearchParams(req.query);
     
     // Validate required parameters
-    if (!query) {
+    if (!params.query) {
       return res.status(400).json({ error: 'Query parameter is required' });
     }
-
-    // Prepare parameters for backend API
-    const params = {
-      query,
-      collection: collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
-      profile: profile || process.env.DEFAULT_PROFILE || '_default',
-      form: 'partial',
-      ...rest
-    };
 
     // Generate cache key
     const cacheKey = generateCacheKey('search', params);
