@@ -2,6 +2,43 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSearchSuggestions } from '@/lib/api-client';
 import { getCachedData, setCachedData, generateCacheKey, CACHE_TTL } from '@/lib/cache';
 
+// Define an interface for the search suggestions parameters
+interface SearchParams {
+  query: string;
+  collection: string;
+  profile: string;
+  form?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * Converts query parameters to a type-safe SearchParams object
+ * @param query The query parameters from the request
+ * @returns Processed SearchParams object
+ */
+function getSuggestionsParams(query: NextApiRequest['query']): SearchParams {
+  // Handle 'partial_query' as 'query' to match the expected interface
+  const partialQuery = Array.isArray(query.partial_query) 
+    ? query.partial_query[0] 
+    : query.partial_query || '';
+
+  return {
+    query: partialQuery, // Use partial_query as query
+    collection: Array.isArray(query.collection) ? query.collection[0] : 
+               query.collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
+    profile: Array.isArray(query.profile) ? query.profile[0] : 
+             query.profile || process.env.DEFAULT_PROFILE || '_default',
+    form: 'partial',
+    // Spread any additional string parameters
+    ...Object.fromEntries(
+      Object.entries(query)
+        .filter(([, value]) => typeof value === 'string' || 
+                (Array.isArray(value) && value.length > 0))
+        .map(([key, value]) => [key, Array.isArray(value) ? value[0] : value])
+    )
+  };
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -12,23 +49,13 @@ export default async function handler(
   }
 
   try {
-    const { query, partial_query, collection, profile, ...rest } = req.query;
-    
-    // Use either query or partial_query
-    const searchQuery = query || partial_query;
+    // Convert query parameters to type-safe object
+    const params = getSuggestionsParams(req.query);
     
     // Validate required parameters
-    if (!searchQuery) {
+    if (!params.query) {
       return res.status(400).json({ error: 'Query parameter is required' });
     }
-
-    // Prepare parameters for backend API
-    const params = {
-      partial_query: searchQuery,
-      collection: collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
-      profile: profile || process.env.DEFAULT_PROFILE || '_default',
-      ...rest
-    };
 
     // Generate cache key
     const cacheKey = generateCacheKey('suggestions', params);
