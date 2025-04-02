@@ -4,7 +4,7 @@ import { getCachedData, setCachedData, generateCacheKey, CACHE_TTL } from '@/lib
 
 // Define an interface for the search suggestions parameters
 interface SearchParams {
-  query?: string;
+  query: string;
   partial_query?: string;
   collection: string;
   profile: string;
@@ -18,10 +18,19 @@ interface SearchParams {
  * @returns Processed SearchParams object
  */
 function getSuggestionsParams(query: NextApiRequest['query']): SearchParams {
+  // Prioritize 'query', fall back to 'partial_query'
+  const queryValue = Array.isArray(query.query) 
+    ? query.query[0] 
+    : query.query;
+
+  const partialQueryValue = Array.isArray(query.partial_query) 
+    ? query.partial_query[0] 
+    : query.partial_query;
+
   return {
-    // Preserve both query and partial_query if they exist
-    query: Array.isArray(query.query) ? query.query[0] : query.query,
-    partial_query: Array.isArray(query.partial_query) ? query.partial_query[0] : query.partial_query,
+    // Ensure 'query' is always a string, using either query or partial_query
+    query: queryValue || partialQueryValue || '',
+    partial_query: partialQueryValue,
     collection: Array.isArray(query.collection) ? query.collection[0] : 
                query.collection || process.env.DEFAULT_COLLECTION || 'seattleu~sp-search',
     profile: Array.isArray(query.profile) ? query.profile[0] : 
@@ -50,9 +59,9 @@ export default async function handler(
     // Convert query parameters to type-safe object
     const params = getSuggestionsParams(req.query);
     
-    // Validate required parameters - allow either query or partial_query
-    if (!params.query && !params.partial_query) {
-      return res.status(400).json({ error: 'Either query or partial_query parameter is required' });
+    // Validate required parameters - ensure query is not empty
+    if (!params.query) {
+      return res.status(400).json({ error: 'Query parameter is required' });
     }
 
     // Generate cache key
@@ -65,7 +74,11 @@ export default async function handler(
     }
 
     // If not cached, fetch from backend API
-    const response = await getSearchSuggestions(params);
+    // Use type assertion to match the expected input
+    const response = await getSearchSuggestions({
+      ...params,
+      query: params.query // Ensure query is always present
+    });
     
     // Cache the response
     await setCachedData(cacheKey, response.data, CACHE_TTL.suggestions);
