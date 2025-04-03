@@ -222,9 +222,7 @@
       console.log('🔍 Performing search for:', query);
       
       try {
-        // Show loading state
-        container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
-        
+         
         // Prepare URL with parameters
         const params = new URLSearchParams({
           query,
