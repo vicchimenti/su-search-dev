@@ -6,7 +6,7 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.1.1
+ * @version 1.1.2
  * @lastModified 2025-04-03
  */
 
@@ -253,10 +253,11 @@
         // Attach click handlers for tracking
         attachResultClickHandlers(container, sessionId);
         
-        // Scroll to results if not in viewport
-        if (!isElementInViewport(container)) {
+        // Scroll to results if not in viewport AND page is not already at the top
+        if (!isElementInViewport(container) && window.scrollY > 0) {
           container.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+
       } catch (error) {
         console.error('🔍 Search error:', error);
         container.innerHTML = `
