@@ -25,5 +25,3 @@ This project provides a frontend API for the Seattle University search system, a
 git clone https://github.com/your-org/su-search-dev.git
 cd su-search-dev
 ```
-
-Incomplete
