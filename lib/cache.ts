@@ -5,13 +5,16 @@
  * improving performance by caching API responses.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * last updated: 2025-04-02
  */
 
 import Redis from 'ioredis';
 
 // Initialize Redis client
-const redisClient = process.env.REDIS_URL
+const redisClient = process.env.front_dev_REDIS_URL
+  ? new Redis(process.env.front_dev_REDIS_URL)
+  : process.env.REDIS_URL
   ? new Redis(process.env.REDIS_URL)
   : null;
 
