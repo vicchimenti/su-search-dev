@@ -278,10 +278,6 @@
       console.log('🔍 Fetching suggestions for:', query);
       
       try {
-        // Show loading state
-        container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
-        container.hidden = false;
-        
         // Prepare URL with parameters
         const params = new URLSearchParams({
           query,
