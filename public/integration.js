@@ -6,7 +6,8 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.1
+ * @lastModified 2025-04-03
  */
 
 (function() {
