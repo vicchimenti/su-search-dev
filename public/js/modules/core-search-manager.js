@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.0.1
+ * @version 1.0.2
  * @lastModified 2025-04-04
  */
 
@@ -95,7 +95,7 @@ class SearchManager {
     const modulePromises = this.config.enabledModules.map(async (moduleName) => {
       try {
         // Dynamic import the module
-        const module = await import(`./modules/${moduleName}-manager.js`);
+        const module = await import(`./${moduleName}-manager.js`);
         const ModuleClass = module.default;
         
         // Initialize the module
