@@ -1,11 +1,11 @@
 /**
- * @fileoverview Tabs Manager
+ * @fileoverview Integrated Tabs Manager
  * 
- * A simplified tabs manager that directly mimics the behavior
- * of the original dynamic-results-manager.js implementation.
+ * This module works WITH the existing integration.js and search-bundle.js
+ * instead of competing with them for event handling.
  * 
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 3.0.0
  * @lastModified 2025-04-05
  */
 
@@ -20,72 +20,170 @@ class TabsManager {
   }
   
   /**
-   * Initialize tab functionality
+   * Initialize tab functionality by integrating with existing scripts
    */
   initialize() {
-    console.log('Initializing simplified TabsManager');
+    console.log('Initializing Integrated TabsManager');
     
-    // Set up global click handler
-    document.addEventListener('click', this.handleClick.bind(this));
+    // Instead of adding our own event listeners, we'll replace the existing
+    // performSearch function in the window scope to intercept tab navigation
     
-    console.log('Tab click handler registered');
+    if (window.performSearch) {
+      // Store the original function
+      this.originalPerformSearch = window.performSearch;
+      
+      // Replace it with our enhanced version
+      window.performSearch = this.enhancedPerformSearch.bind(this);
+      console.log('Enhanced performSearch function installed');
+    } else {
+      console.warn('Window performSearch function not found');
+    }
+    
+    // Override the URL update function to prevent URL changes
+    if (window.updateSearchUrl || window.updateUrl) {
+      this.originalUpdateUrl = window.updateSearchUrl || window.updateUrl;
+      
+      // Only replace if coming from our tabs
+      const originalFn = this.originalUpdateUrl;
+      const self = this;
+      
+      window.updateSearchUrl = window.updateUrl = function(query) {
+        // If query contains tab navigation markers, don't update the URL
+        if (self.isFromTabNavigation) {
+          console.log('Skipping URL update for tab navigation');
+          self.isFromTabNavigation = false;
+          return;
+        }
+        
+        // Otherwise use the original function
+        return originalFn(query);
+      };
+      
+      console.log('Enhanced URL update function installed');
+    }
+    
+    // Set up minimal click detection to flag tab clicks
+    document.addEventListener('click', this.flagTabClick.bind(this));
+    
+    console.log('Tab click detection active');
   }
   
   /**
-   * Handle all clicks and filter for tabs
+   * Flag clicks on tab elements to prevent URL updates
    * @param {Event} e - The click event
    */
-  async handleClick(e) {
-    // Look for tab clicks using the exact original selector
-    const tabElement = e.target.closest('.tab-list__nav a');
+  flagTabClick(e) {
+    // Try various tab selectors
+    const possibleTabSelectors = [
+      '.tab-list__nav a',
+      '.tab__button',
+      'a[role="tab"]'
+    ];
     
-    if (tabElement) {
-      console.log('Tab click detected:', tabElement.textContent.trim());
-      e.preventDefault();
-      
-      const href = tabElement.getAttribute('href');
-      if (href) {
-        try {
-          console.log('Fetching tab content for:', href);
-          
-          // Show loading state if needed
-          const resultsContainer = document.getElementById('results');
-          if (resultsContainer) {
-            resultsContainer.classList.add('loading');
-          }
-          
-          // Fetch content exactly as the original code did
-          const response = await this.core.fetchFromProxy(href, 'search');
-          
-          // Update results container
-          this.core.updateResults(response);
-          
-          console.log('Tab content updated');
-        } catch (error) {
-          console.error('Error handling tab click:', error);
-        } finally {
-          // Remove loading state
-          const resultsContainer = document.getElementById('results');
-          if (resultsContainer) {
-            resultsContainer.classList.remove('loading');
-          }
-        }
+    for (const selector of possibleTabSelectors) {
+      const element = e.target.closest(selector);
+      if (element) {
+        // Mark that this is a tab navigation
+        this.isFromTabNavigation = true;
+        console.log('Tab click flagged:', element.textContent.trim());
+        break;
       }
     }
   }
   
   /**
-   * Handle DOM changes (required interface method)
+   * Enhanced performSearch function that handles tab content specially
+   * @param {string} query - The search query or tab URL
+   * @param {HTMLElement|string} containerId - Results container or its ID
+   * @param {string} sessionId - Session ID for tracking
    */
-  handleDomChanges() {
-    // Nothing to do here in this simplified version
+  async enhancedPerformSearch(query, containerId, sessionId) {
+    // Determine if this is a tab navigation by checking for tab-specific URL patterns
+    const isTabNavigation = query.includes('form=partial') && 
+                           (query.includes('tab=') || query.includes('Tab='));
+    
+    // Get container reference
+    const container = typeof containerId === 'string' ? 
+                     document.getElementById(containerId) : containerId;
+    
+    if (!container) {
+      console.error('Container not found for search/tab navigation');
+      return;
+    }
+    
+    if (!sessionId) {
+      // Use the available session ID retrieval function
+      if (window.getOrCreateSearchSessionId) {
+        sessionId = window.getOrCreateSearchSessionId();
+      } else if (window.getOrCreateSessionId) {
+        sessionId = window.getOrCreateSessionId();
+      } else if (this.core && this.core.sessionId) {
+        sessionId = this.core.sessionId;
+      }
+    }
+    
+    if (isTabNavigation) {
+      console.log('Tab navigation detected, using our specialized handler');
+      
+      // Set the flag to prevent URL updates
+      this.isFromTabNavigation = true;
+      
+      try {
+        // Show loading state if needed
+        container.classList.add('loading');
+        
+        // Use our core's fetch method to get the content
+        console.log('Fetching tab content via core manager');
+        const response = await this.core.fetchFromProxy(query, 'search');
+        
+        // Update results container
+        this.core.updateResults(response);
+        
+        console.log('Tab content fetched and displayed');
+        return; // Skip the original function
+      } catch (error) {
+        console.error('Error fetching tab content:', error);
+        
+        // Show error in container
+        container.innerHTML = `
+          <div class="search-error">
+            <h3>Error Loading Tab Content</h3>
+            <p>${error.message}</p>
+          </div>
+        `;
+      } finally {
+        // Remove loading state
+        container.classList.remove('loading');
+      }
+    } else {
+      // For regular searches, use the original function
+      console.log('Regular search detected, using original handler');
+      return this.originalPerformSearch(query, containerId, sessionId);
+    }
+  }
+  
+  /**
+   * Handle DOM changes (required interface method)
+   * @param {NodeList} addedNodes - The nodes added to the DOM
+   */
+  handleDomChanges(addedNodes) {
+    // No special handling needed
   }
   
   /**
    * Clean up resources
    */
   destroy() {
-    document.removeEventListener('click', this.handleClick.bind(this));
+    // Restore original functions
+    if (this.originalPerformSearch) {
+      window.performSearch = this.originalPerformSearch;
+    }
+    
+    if (this.originalUpdateUrl) {
+      window.updateSearchUrl = window.updateUrl = this.originalUpdateUrl;
+    }
+    
+    document.removeEventListener('click', this.flagTabClick.bind(this));
   }
 }
 
