@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.0.3
+ * @version 2.1.0
  * @lastModified 2025-04-04
  */
 
@@ -275,7 +275,71 @@ class SearchManager {
       }
     }
   }
-  
+
+  /**
+   * Update the results container with new content
+   * @param {string} html - The HTML content to display
+   * @param {Element} [container] - Optional container to update (defaults to #results)
+   */
+  updateResults(html, container) {
+    this.isUpdatingContent = true;
+    
+    // Get container if not provided
+    if (!container) {
+      container = document.querySelector(this.config.resultsContainerSelector);
+    }
+    
+    if (!container) {
+      console.error('Results container not found');
+      this.isUpdatingContent = false;
+      return;
+    }
+    
+    console.log('Updating results container');
+    
+    // Create a wrapper if it doesn't exist
+    let funnelbackContainer = container.querySelector('.funnelback-search-container');
+    
+    if (!funnelbackContainer) {
+      // Create the container
+      container.innerHTML = `<div class="funnelback-search-container"></div>`;
+      funnelbackContainer = container.querySelector('.funnelback-search-container');
+    }
+    
+    // Update content
+    funnelbackContainer.innerHTML = html || "No results found.";
+    
+    // Only scroll if:
+    // 1. The container is not in viewport
+    // 2. Not coming from a tab click 
+    // 3. Page is not already at the top
+    if (!this.isElementInViewport(container) && 
+        !document.querySelector('.tab-list__nav a[aria-selected="true"]') &&
+        window.scrollY > 200) {
+      
+      container.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+    
+    // Extract tab ID if present
+    this.extractTabId(container);
+    
+    // Notify modules about the content update
+    setTimeout(() => {
+      Object.values(this.modules).forEach(module => {
+        if (typeof module.handleContentUpdate === 'function') {
+          module.handleContentUpdate(container);
+        }
+      });
+      
+      this.isUpdatingContent = false;
+    }, 0);
+    
+    return true;
+  }
+    
   /**
    * Check if an element is visible in the viewport
    * @param {Element} el - The element to check
