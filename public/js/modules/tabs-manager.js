@@ -1,12 +1,12 @@
 /**
- * @fileoverview Tabs Manager Module
+ * @fileoverview Tabs Manager Module for Seattle University Search
  * 
- * This module handles the tab navigation for search results.
- * It manages tab clicks, content loading, and state persistence.
+ * This module handles tab navigation for search results based on the actual
+ * HTML structure used in Seattle University's search interface.
  * 
  * @author Victor Chimenti
- * @version 1.0.1
- * @lastModified 2025-04-04
+ * @version 1.0.3
+ * @lastModified 2025-04-05
  */
 
 class TabsManager {
@@ -16,10 +16,18 @@ class TabsManager {
    */
   constructor(core) {
     this.core = core;
-    this.activeTabId = null;
-    this.tabSelector = '.tab-list__nav a'; // Use exact original selector
     
-    // Initialize if tabs exist on the page
+    // Primary tab selector based on the actual HTML structure
+    this.tabSelector = '.tab__button';
+    
+    // Alternative selectors as fallbacks
+    this.alternativeSelectors = [
+      '[role="tab"]',
+      '.tab-list__nav a',
+      '[data-tab-group-control]'
+    ];
+    
+    // Initialize
     this.initialize();
   }
   
@@ -27,54 +35,53 @@ class TabsManager {
    * Initialize tab functionality
    */
   initialize() {
-    console.log('Initializing TabsManager with selector:', this.tabSelector);
+    console.log('Initializing TabsManager...');
     
-    // Log existing tabs for debugging
-    const existingTabs = document.querySelectorAll(this.tabSelector);
-    console.log(`Found ${existingTabs.length} tab elements:`, existingTabs);
+    // Find tab elements
+    let tabs = document.querySelectorAll(this.tabSelector);
+    
+    // If no tabs found with primary selector, try alternatives
+    if (tabs.length === 0) {
+      for (const selector of this.alternativeSelectors) {
+        tabs = document.querySelectorAll(selector);
+        if (tabs.length > 0) {
+          console.log(`Found ${tabs.length} tab elements with selector: ${selector}`);
+          this.tabSelector = selector;
+          break;
+        }
+      }
+    } else {
+      console.log(`Found ${tabs.length} tab elements with selector: ${this.tabSelector}`);
+    }
+    
+    // Log found tabs
+    Array.from(tabs).forEach((tab, index) => {
+      console.log(`Tab ${index + 1}: ${tab.textContent.trim()}, Selected: ${tab.getAttribute('aria-selected')}`);
+    });
     
     // Set up delegation for tab clicks
     document.addEventListener('click', this.handleTabClick.bind(this));
     
-    // Set initial active tab based on URL or default
-    this.setInitialActiveTab();
+    // Store initial active tab
+    this.findAndStoreActiveTab();
   }
   
   /**
-   * Set the initial active tab based on URL parameters or default to first tab
+   * Find and store the currently active tab
    */
-  setInitialActiveTab() {
-    // Check URL parameters for tab selection
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get('tab');
+  findAndStoreActiveTab() {
+    // Look for tab with aria-selected="true"
+    const activeTab = document.querySelector(`${this.tabSelector}[aria-selected="true"]`);
     
-    if (tabParam) {
-      // Try to find and activate the tab from URL parameter
-      const tabElement = document.querySelector(`${this.tabSelector}[data-tab-id="${tabParam}"]`) || 
-                         document.querySelector(`${this.tabSelector}[href="#${tabParam}"]`);
-      
-      if (tabElement) {
-        console.log('Found matching tab element from URL param:', tabElement);
-        this.activateTab(tabElement, false); // Don't fetch content if it's the initial load
-        return;
-      }
-    }
-    
-    // Default to first tab if no tab parameter or tab not found
-    const firstTab = document.querySelector(this.tabSelector);
-    if (firstTab) {
-      console.log('Using first tab as default:', firstTab);
-      this.activateTab(firstTab, false);
+    if (activeTab) {
+      this.activeTabElement = activeTab;
+      console.log('Found active tab:', this.activeTabElement.textContent.trim());
     } else {
-      console.warn('No tab elements found on the page');
-      
-      // Try an alternative approach - look for tab-like elements
-      const alternativeSelector = '.tabs a, [role="tab"], a[href*="tab="], a[href*="Tab="]';
-      const alternativeTabs = document.querySelectorAll(alternativeSelector);
-      
-      if (alternativeTabs.length > 0) {
-        console.log(`Found ${alternativeTabs.length} alternative tab-like elements`);
-        this.tabSelector = alternativeSelector; // Update selector for future use
+      // If no active tab found, use the first tab
+      const firstTab = document.querySelector(this.tabSelector);
+      if (firstTab) {
+        this.activeTabElement = firstTab;
+        console.log('No active tab found, using first tab:', this.activeTabElement.textContent.trim());
       }
     }
   }
@@ -84,113 +91,52 @@ class TabsManager {
    * @param {Event} e - The click event
    */
   handleTabClick(e) {
+    // Find if a tab was clicked
     const tabElement = e.target.closest(this.tabSelector);
     if (!tabElement) return;
     
-    console.log('Tab click intercepted:', tabElement);
+    // Verify it's a tab with role="tab" (if available)
+    const role = tabElement.getAttribute('role');
+    if (role && role !== 'tab') return;
     
-    // Stop event propagation to prevent other handlers from interfering
+    // Check if already active
+    if (tabElement.getAttribute('aria-selected') === 'true') {
+      console.log('Tab already active:', tabElement.textContent.trim());
+      return;
+    }
+    
+    console.log('Tab clicked:', tabElement.textContent.trim());
+    
+    // Prevent default navigation and stop propagation
+    e.preventDefault();
     e.stopPropagation();
     
-    // Prevent default navigation - This is crucial to prevent page reload
-    e.preventDefault();
-    
-    console.log('Tab clicked, default prevented:', tabElement.textContent.trim());
-    
     // Activate the clicked tab
-    this.activateTab(tabElement, true);
+    this.activateTab(tabElement);
     
     // Return false to ensure no other handlers run
     return false;
   }
   
   /**
-   * Activate a tab and optionally load its content
+   * Activate a tab and load its content
    * @param {Element} tabElement - The tab element to activate
-   * @param {boolean} fetchContent - Whether to fetch new content
    */
-  async activateTab(tabElement, fetchContent = true) {
-    // Get tab ID
-    const tabId = tabElement.getAttribute('data-tab-id') || 
-                 tabElement.getAttribute('href')?.split('#')[1] || 
-                 tabElement.textContent.trim().toLowerCase().replace(/\s+/g, '-');
+  async activateTab(tabElement) {
+    console.log('Activating tab:', tabElement.textContent.trim());
     
-    if (this.activeTabId === tabId) {
-      console.log('Tab already active:', tabId);
-      return;
-    }
-    
-    console.log('Activating tab:', tabId);
-    this.activeTabId = tabId;
-    
-    // Update active tab styling
+    // Update tab styling
     this.updateActiveTabStyle(tabElement);
     
-    // Update URL to reflect tab change
-    this.updateUrlWithTab(tabId);
+    // Store as active tab
+    this.activeTabElement = tabElement;
     
-    // Fetch tab content if needed
-    if (fetchContent) {
-      await this.fetchTabContent(tabElement);
-    }
-    
-    // Track tab change in analytics
-    this.trackTabChange(tabId);
-  }
-  
-  /**
-   * Update the active tab visual styling
-   * @param {Element} activeTabElement - The newly active tab element
-   */
-  updateActiveTabStyle(activeTabElement) {
-    // Remove active class from all tabs
-    const allTabs = document.querySelectorAll(this.tabSelector);
-    allTabs.forEach(tab => {
-      tab.classList.remove('active', 'current');
-      tab.setAttribute('aria-selected', 'false');
-      
-      // Also handle parent li if it exists
-      const parentLi = tab.closest('li');
-      if (parentLi) {
-        parentLi.classList.remove('active', 'current');
-      }
-    });
-    
-    // Add active class to selected tab
-    activeTabElement.classList.add('active', 'current');
-    activeTabElement.setAttribute('aria-selected', 'true');
-    
-    // Also handle parent li if it exists
-    const parentLi = activeTabElement.closest('li');
-    if (parentLi) {
-      parentLi.classList.add('active', 'current');
-    }
-  }
-  
-  /**
-   * Update the URL to include the active tab
-   * @param {string} tabId - The ID of the active tab
-   */
-  updateUrlWithTab(tabId) {
-    if (!history || !history.pushState) return;
-    
-    const url = new URL(window.location);
-    url.searchParams.set('tab', tabId);
-    
-    // Update URL without reloading the page
-    history.pushState({ tab: tabId }, '', url);
-  }
-  
-  /**
-   * Fetch content for the selected tab
-   * @param {Element} tabElement - The tab element
-   */
-  async fetchTabContent(tabElement) {
+    // Get tab content URL
     const href = tabElement.getAttribute('href');
-    if (!href) return;
-    
-    // Skip if it's just a hash link
-    if (href.startsWith('#')) return;
+    if (!href) {
+      console.warn('Tab has no href attribute, cannot fetch content');
+      return;
+    }
     
     try {
       // Show loading indicator
@@ -199,13 +145,15 @@ class TabsManager {
         resultsContainer.classList.add('loading');
       }
       
-      console.log('Fetching tab content for URL:', href);
+      console.log('Fetching tab content from:', href);
       
       // Fetch content from proxy
       const response = await this.core.fetchFromProxy(href, 'search');
       
       // Update results container
       this.core.updateResults(response);
+      
+      console.log('Tab content fetched and displayed');
     } catch (error) {
       console.error('Error fetching tab content:', error);
     } finally {
@@ -218,39 +166,61 @@ class TabsManager {
   }
   
   /**
-   * Track tab change in analytics
-   * @param {string} tabId - The ID of the selected tab
+   * Update the active tab visual styling
+   * @param {Element} activeTabElement - The newly active tab element
    */
-  trackTabChange(tabId) {
-    // Only track if we have a query
-    if (!this.core.originalQuery) return;
+  updateActiveTabStyle(activeTabElement) {
+    // Get all tabs
+    const allTabs = document.querySelectorAll(this.tabSelector);
     
-    // Prepare analytics data
-    const analyticsData = {
-      type: 'tabChange',
-      query: this.core.originalQuery,
-      tab: tabId,
-      sessionId: this.core.sessionId,
-      timestamp: new Date().toISOString()
-    };
+    // Update aria-selected and active classes
+    allTabs.forEach(tab => {
+      // Remove active class and update aria
+      tab.setAttribute('aria-selected', 'false');
+      tab.classList.remove('tab__button--active');
+      
+      // Handle any parent elements that need styling
+      const tabControl = tab.getAttribute('data-tab-group-control');
+      if (tabControl) {
+        // Find and update any associated tab panels
+        const tabPanel = document.querySelector(`[data-tab-group-element="${tabControl}"]`);
+        if (tabPanel) {
+          tabPanel.classList.remove('active');
+          tabPanel.setAttribute('aria-hidden', 'true');
+        }
+      }
+    });
     
-    // Send analytics data
-    this.core.sendAnalyticsData(analyticsData);
+    // Set active tab
+    activeTabElement.setAttribute('aria-selected', 'true');
+    activeTabElement.classList.add('tab__button--active');
+    
+    // Handle any parent elements that need styling
+    const tabControl = activeTabElement.getAttribute('data-tab-group-control');
+    if (tabControl) {
+      // Find and update any associated tab panels
+      const tabPanel = document.querySelector(`[data-tab-group-element="${tabControl}"]`);
+      if (tabPanel) {
+        tabPanel.classList.add('active');
+        tabPanel.setAttribute('aria-hidden', 'false');
+      }
+    }
   }
   
   /**
-   * Handle DOM changes to attach event listeners to new tabs
+   * Handle DOM changes to check for tab updates
    * @param {NodeList} addedNodes - Nodes added to the DOM
    */
   handleDomChanges(addedNodes) {
-    // Re-apply active tab styling
-    if (this.activeTabId) {
-      const activeTab = document.querySelector(`${this.tabSelector}[data-tab-id="${this.activeTabId}"]`) || 
-                       document.querySelector(`${this.tabSelector}[href="#${this.activeTabId}"]`);
-      
-      if (activeTab) {
-        this.updateActiveTabStyle(activeTab);
-      }
+    // After content changes, see if we need to find tabs again
+    const tabs = document.querySelectorAll(this.tabSelector);
+    
+    if (tabs.length === 0) {
+      console.log('No tabs found after DOM change, reinitializing tab detection');
+      this.initialize();
+    } else if (this.activeTabElement && !document.contains(this.activeTabElement)) {
+      console.log('Active tab removed from DOM, finding new active tab');
+      this.findAndStoreActiveTab();
     }
   }
   
