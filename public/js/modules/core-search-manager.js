@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.0.2
- * @lastModified 2025-04-04
+ * @version 2.0.0
+ * @lastModified 2025-04-05
  */
 
 // Core Search Manager
@@ -41,6 +41,10 @@ class SearchManager {
     this.sessionId = this.getOrCreateSessionId();
     this.originalQuery = null;
     this.isInitialized = false;
+    this.currentTabId = null;
+    
+    // Flag to track content updates
+    this.isUpdatingContent = false;
   }
   
   /**
@@ -73,13 +77,18 @@ class SearchManager {
    * Initialize the search manager and all enabled modules
    */
   async initialize() {
+    console.log('Search Manager: Initializing');
+    
     // Extract query from URL or input
     this.extractOriginalQuery();
     
     // Set up observer for dynamic content
     this.initializeObserver();
     
-    // Initialize modules
+    // Integrate with existing scripts
+    this.integrateWithExistingScripts();
+    
+    // Initialize modules prioritizing the tabs manager first
     await this.loadModules();
     
     // Start observing for DOM changes
@@ -89,25 +98,77 @@ class SearchManager {
   }
   
   /**
+   * Integrate with existing scripts to avoid conflicts
+   */
+  integrateWithExistingScripts() {
+    // Prioritize our updateResults method if similar functions exist
+    if (window.updateResults) {
+      console.log('Found existing updateResults function, enhancing it');
+      const originalUpdateResults = window.updateResults;
+      window.updateResults = (html, container) => {
+        this.isUpdatingContent = true;
+        const result = this.updateResults(html, container || document.getElementById('results'));
+        this.isUpdatingContent = false;
+        return result;
+      };
+    }
+  }
+  
+  /**
    * Load all enabled modules dynamically
    */
   async loadModules() {
-    const modulePromises = this.config.enabledModules.map(async (moduleName) => {
-      try {
-        // Dynamic import the module
-        const module = await import(`./${moduleName}-manager.js`);
-        const ModuleClass = module.default;
-        
-        // Initialize the module
-        this.modules[moduleName] = new ModuleClass(this);
-        console.log(`Loaded module: ${moduleName}`);
-      } catch (error) {
-        console.error(`Failed to load module: ${moduleName}`, error);
-      }
-    });
+    // Prioritize tab manager
+    const priorityModules = ['tabs'];
+    const normalModules = this.config.enabledModules.filter(m => !priorityModules.includes(m));
     
-    // Wait for all modules to load
+    // Load priority modules first
+    for (const moduleName of priorityModules) {
+      if (this.config.enabledModules.includes(moduleName)) {
+        await this.loadModule(moduleName);
+      }
+    }
+    
+    // Then load other modules
+    const modulePromises = normalModules.map(moduleName => this.loadModule(moduleName));
     await Promise.all(modulePromises);
+  }
+  
+  /**
+   * Load a single module
+   * @param {string} moduleName - Name of the module to load
+   */
+  async loadModule(moduleName) {
+    try {
+      // Construct the module path
+      const modulePath = `./${moduleName}-manager.js`;
+      
+      // Attempt import with retry logic
+      let retries = 3;
+      let module;
+      
+      while (retries > 0) {
+        try {
+          module = await import(modulePath);
+          break;
+        } catch (err) {
+          retries--;
+          if (retries === 0) throw err;
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      const ModuleClass = module.default;
+      
+      // Initialize the module with a reference to this core manager
+      this.modules[moduleName] = new ModuleClass(this);
+      console.log(`Loaded module: ${moduleName}`);
+      
+      return this.modules[moduleName];
+    } catch (error) {
+      console.error(`Failed to load module: ${moduleName}`, error);
+      return null;
+    }
   }
   
   /**
@@ -124,7 +185,7 @@ class SearchManager {
     }
     
     // Try to get query from search input field
-    const searchInput = document.getElementById('autocomplete-concierge-inputField');
+    const searchInput = document.querySelector(this.config.searchInputSelector);
     if (searchInput && searchInput.value) {
       this.originalQuery = searchInput.value;
     }
@@ -155,16 +216,29 @@ class SearchManager {
    */
   initializeObserver() {
     this.observer = new MutationObserver((mutations) => {
+      // Skip if we're the ones updating content
+      if (this.isUpdatingContent) {
+        return;
+      }
+      
+      let hasRelevantChanges = false;
+      let addedNodes = [];
+      
       mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          // Notify all modules about DOM changes
-          Object.values(this.modules).forEach(module => {
-            if (typeof module.handleDomChanges === 'function') {
-              module.handleDomChanges(mutation.addedNodes);
-            }
-          });
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          hasRelevantChanges = true;
+          addedNodes = [...addedNodes, ...Array.from(mutation.addedNodes)];
         }
       });
+      
+      if (hasRelevantChanges) {
+        // Notify all modules about DOM changes
+        Object.values(this.modules).forEach(module => {
+          if (typeof module.handleDomChanges === 'function') {
+            module.handleDomChanges(addedNodes);
+          }
+        });
+      }
     });
   }
   
@@ -172,7 +246,7 @@ class SearchManager {
    * Start observing the results container for changes
    */
   startObserving() {
-    const resultsContainer = document.getElementById('results');
+    const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
     if (resultsContainer) {
       this.observer.observe(resultsContainer, this.config.observerConfig);
       console.log('Observer started watching results container');
@@ -187,7 +261,7 @@ class SearchManager {
    */
   waitForResultsContainer() {
     const bodyObserver = new MutationObserver((mutations, obs) => {
-      const resultsContainer = document.getElementById('results');
+      const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
       if (resultsContainer) {
         obs.disconnect();
         this.observer.observe(resultsContainer, this.config.observerConfig);
@@ -240,7 +314,20 @@ class SearchManager {
       }
       
       console.log(`Fetching from ${type} endpoint:`, fullUrl);
-      const response = await fetch(fullUrl);
+      
+      // Add timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const response = await fetch(fullUrl, {
+        signal: controller.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -248,6 +335,11 @@ class SearchManager {
       
       return await response.text();
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.error(`Request timeout for ${type} request`);
+        return `<p>Request timed out. Please try again later.</p>`;
+      }
+      
       console.error(`Error with ${type} request:`, error);
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
@@ -256,23 +348,72 @@ class SearchManager {
   /**
    * Update the results container with new content
    * @param {string} html - The HTML content to display
+   * @param {Element} [container] - Optional container to update (defaults to #results)
    */
-  updateResults(html) {
-    const resultsContainer = document.getElementById('results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div class="funnelback-search-container">
-          ${html || "No results found."}
-        </div>
-      `;
+  updateResults(html, container) {
+    this.isUpdatingContent = true;
+    
+    // Get container if not provided
+    if (!container) {
+      container = document.querySelector(this.config.resultsContainerSelector);
+    }
+    
+    if (!container) {
+      console.error('Results container not found');
+      this.isUpdatingContent = false;
+      return;
+    }
+    
+    console.log('Updating results container');
+    
+    // Create a wrapper if it doesn't exist
+    let funnelbackContainer = container.querySelector('.funnelback-search-container');
+    
+    if (!funnelbackContainer) {
+      // Create the container
+      container.innerHTML = `<div class="funnelback-search-container"></div>`;
+      funnelbackContainer = container.querySelector('.funnelback-search-container');
+    }
+    
+    // Update content
+    funnelbackContainer.innerHTML = html || "No results found.";
+    
+    // Scroll to results if not in viewport and we're not in a tab change
+    if (!this.isElementInViewport(container) && !this.modules.tabs?.isFromTabNavigation) {
+      container.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+    
+    // Extract tab ID if present
+    this.extractTabId(container);
+    
+    // Notify modules about the content update
+    setTimeout(() => {
+      Object.values(this.modules).forEach(module => {
+        if (typeof module.handleContentUpdate === 'function') {
+          module.handleContentUpdate(container);
+        }
+      });
       
-      // Scroll to results if not in viewport
-      if (!this.isElementInViewport(resultsContainer)) {
-        resultsContainer.scrollIntoView({ 
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
+      this.isUpdatingContent = false;
+    }, 0);
+    
+    return true;
+  }
+  
+  /**
+   * Extract tab ID from the updated content
+   * @param {Element} container - The results container
+   */
+  extractTabId(container) {
+    // Look for active tab
+    const activeTab = container.querySelector('.tab-list__nav a[aria-selected="true"], [role="tab"][aria-selected="true"]');
+    
+    if (activeTab) {
+      this.currentTabId = activeTab.id || activeTab.getAttribute('data-tab-group-control');
+      console.log('Extracted current tab ID:', this.currentTabId);
     }
   }
   
@@ -328,8 +469,27 @@ class SearchManager {
   }
   
   /**
-   * Clean up resources when the manager is destroyed
+   * Get the current state of the search application
+   * @returns {Object} Current state
    */
+  getState() {
+    return {
+      query: this.originalQuery,
+      sessionId: this.sessionId,
+      currentTabId: this.currentTabId,
+      isUpdatingContent: this.isUpdatingContent,
+      moduleStatus: Object.fromEntries(
+        Object.entries(this.modules).map(([key, module]) => [
+          key,
+          { initialized: !!module.initialized }
+        ])
+      )
+    };
+  }
+  
+  /**
+     * Clean up resources when the manager is destroyed
+     */
   destroy() {
     // Disconnect observer
     if (this.observer) {
@@ -342,6 +502,8 @@ class SearchManager {
         module.destroy();
       }
     });
+    
+    console.log('Search Manager destroyed');
   }
 }
 
