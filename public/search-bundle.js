@@ -5,258 +5,399 @@
  * the search system into the Seattle University CMS.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @lastModified 2025-04-05
  */
 
 (function() {
-    // Configuration with defaults
-    const config = window.seattleUConfig?.search || {
-      apiBaseUrl: 'https://frontend-search-api.vercel.app',
-      backendUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
-      collection: 'seattleu~sp-search',
-      profile: '_default'
-    };
+  // Look for SessionManager if loaded
+  const SessionManager = window.SessionManager || {};
+  
+  // Configuration with defaults
+  const config = window.seattleUConfig?.search || {
+    apiBaseUrl: 'https://frontend-search-api.vercel.app',
+    backendUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
+    collection: 'seattleu~sp-search',
+    profile: '_default'
+  };
+  
+  // Make config available globally
+  window.seattleUConfig = window.seattleUConfig || {};
+  window.seattleUConfig.search = {
+    ...config,
+    ...window.seattleUConfig?.search
+  };
+  
+  /**
+   * Get session ID using the centralized SessionManager
+   * @returns {string} Session ID
+   */
+  function getSessionId() {
+    // Use the centralized SessionManager if available
+    if (window.getSessionId) {
+      return window.getSessionId();
+    }
     
-    // Session management
-    function getSessionId() {
-      try {
-        let sessionId = sessionStorage.getItem('searchSessionId');
-        
-        if (!sessionId) {
-          sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-          sessionStorage.setItem('searchSessionId', sessionId);
-        }
-        
-        return sessionId;
-      } catch (e) {
-        return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    // Use the manager instance if available
+    if (SessionManager.getInstance) {
+      return SessionManager.getInstance().getSessionId();
+    }
+    
+    // Fall back to local implementation
+    try {
+      let sessionId = sessionStorage.getItem('searchSessionId');
+      
+      if (!sessionId) {
+        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        sessionStorage.setItem('searchSessionId', sessionId);
       }
+      
+      return sessionId;
+    } catch (e) {
+      return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    }
+  }
+  
+  /**
+   * Track events using the centralized SessionManager
+   * @param {string} type - Event type
+   * @param {object} data - Event data
+   */
+  function trackEvent(type, data) {
+    // Use the centralized SessionManager if available
+    if (window.trackSessionEvent) {
+      return window.trackSessionEvent(type, data);
     }
     
-    // Debounce function for input handling
-    function debounce(func, wait) {
-      let timeout;
-      return function() {
-        const context = this;
-        const args = arguments;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), wait);
-      };
+    // Use the manager instance if available
+    if (SessionManager.getInstance) {
+      return SessionManager.getInstance().trackEvent(type, data);
     }
     
-    // Initialize search on page load
-    function initializeSearch() {
-      // Find search elements
-      const headerSearch = document.getElementById('search-input');
-      const headerSearchButton = document.getElementById('search-button');
-      const pageSearch = document.getElementById('autocomplete-concierge-inputField');
-      const pageSearchButton = document.getElementById('on-page-search-button');
-      const resultsContainer = document.getElementById('results');
-      const suggestionsContainer = document.getElementById('autocomplete-suggestions') || 
-                                  document.getElementById('search-suggestions');
-      
-      // Determine if we're on a search results page
-      const isResultsPage = !!resultsContainer;
-      
-      // Get session ID
+    // Fall back to direct API call with the enhance endpoint
+    try {
       const sessionId = getSessionId();
+      const endpoint = `${config.apiBaseUrl}/api/enhance`;
       
-      // Setup header search if present
-      if (headerSearch && headerSearchButton) {
-        setupHeaderSearch(headerSearch, headerSearchButton, sessionId);
-      }
+      const payload = {
+        type: 'events',
+        events: [{
+          type,
+          data: {
+            ...data,
+            sessionId
+          },
+          timestamp: new Date().toISOString()
+        }]
+      };
       
-      // Setup page search if present (results page)
-      if (isResultsPage && pageSearch) {
-        setupPageSearch(pageSearch, pageSearchButton, resultsContainer, suggestionsContainer, sessionId);
-      }
-      
-      // Process URL parameters on results page
-      if (isResultsPage) {
-        processUrlParameters(resultsContainer, sessionId);
-      }
-      
-      console.log('Seattle University Search initialized');
-    }
-    
-    // Setup header search functionality
-    function setupHeaderSearch(searchInput, searchButton, sessionId) {
-      // Handle form submission
-      const form = searchInput.closest('form');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          
-          const query = searchInput.value.trim();
-          if (!query) return;
-          
-          // Navigate to search page with query
-          window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], {
+          type: 'application/json'
         });
+        navigator.sendBeacon(endpoint, blob);
+      } else {
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true
+        }).catch(err => console.error('Error tracking event:', err));
       }
-      
-      // Set up suggestions if container exists
-      const suggestionsContainer = document.getElementById('search-suggestions');
-      if (suggestionsContainer) {
-        // Debounced input handler for suggestions
-        const handleInput = debounce(function() {
-          const query = searchInput.value.trim();
-          if (query.length < 3) {
-            suggestionsContainer.innerHTML = '';
-            suggestionsContainer.hidden = true;
-            return;
-          }
-          
-          // Fetch suggestions
-          fetchSuggestions(query, suggestionsContainer, sessionId);
-        }, 200);
-        
-        searchInput.addEventListener('input', handleInput);
-      }
+    } catch (error) {
+      console.error('Error tracking event:', error);
+    }
+  }
+  
+  // Debounce function for input handling
+  function debounce(func, wait) {
+    let timeout;
+    return function() {
+      const context = this;
+      const args = arguments;
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(context, args), wait);
+    };
+  }
+  
+  // Initialize search on page load
+  function initializeSearch() {
+    // Find search elements
+    const headerSearch = document.getElementById('search-input');
+    const headerSearchButton = document.getElementById('search-button');
+    const pageSearch = document.getElementById('autocomplete-concierge-inputField');
+    const pageSearchButton = document.getElementById('on-page-search-button');
+    const resultsContainer = document.getElementById('results');
+    const suggestionsContainer = document.getElementById('autocomplete-suggestions') || 
+                                document.getElementById('search-suggestions');
+    
+    // Determine if we're on a search results page
+    const isResultsPage = !!resultsContainer;
+    
+    // Get session ID using SessionManager
+    const sessionId = getSessionId();
+    
+    // Setup header search if present
+    if (headerSearch && headerSearchButton) {
+      setupHeaderSearch(headerSearch, headerSearchButton, sessionId);
     }
     
-    // Setup page search functionality
-    function setupPageSearch(searchInput, searchButton, resultsContainer, suggestionsContainer, sessionId) {
-      // Handle form submission
-      const form = searchInput.closest('form');
-      if (form) {
-        form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          
-          const query = searchInput.value.trim();
-          if (!query) return;
-          
-          // Perform search
-          performSearch(query, resultsContainer, sessionId);
-          
-          // Update URL
-          updateUrl(query);
+    // Setup page search if present (results page)
+    if (isResultsPage && pageSearch) {
+      setupPageSearch(pageSearch, pageSearchButton, resultsContainer, suggestionsContainer, sessionId);
+    }
+    
+    // Process URL parameters on results page
+    if (isResultsPage) {
+      processUrlParameters(resultsContainer, sessionId);
+    }
+    
+    // Track page view event
+    trackEvent('page_view', {
+      url: window.location.href,
+      referrer: document.referrer,
+      isResultsPage
+    });
+    
+    console.log('Seattle University Search initialized');
+  }
+  
+  // Setup header search functionality
+  function setupHeaderSearch(searchInput, searchButton, sessionId) {
+    // Handle form submission
+    const form = searchInput.closest('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const query = searchInput.value.trim();
+        if (!query) return;
+        
+        // Track search submit event
+        trackEvent('search_submit', {
+          query,
+          location: 'header',
+          source: 'form_submit'
         });
-      }
-      
-      // Set up suggestions if container exists
-      if (suggestionsContainer) {
-        // Debounced input handler for suggestions
-        const handleInput = debounce(function() {
-          const query = searchInput.value.trim();
-          if (query.length < 3) {
-            suggestionsContainer.innerHTML = '';
-            suggestionsContainer.hidden = true;
-            return;
-          }
-          
-          // Fetch suggestions
-          fetchSuggestions(query, suggestionsContainer, sessionId, true);
-        }, 200);
         
-        searchInput.addEventListener('input', handleInput);
-      }
+        // Navigate to search page with query
+        window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
+      });
     }
     
-    // Process URL parameters
-    function processUrlParameters(resultsContainer, sessionId) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const query = urlParams.get('query');
-      
-      if (query) {
-        // Set query in input field if it exists
-        const searchInput = document.getElementById('autocomplete-concierge-inputField');
-        if (searchInput) {
-          searchInput.value = query;
+    // Set up suggestions if container exists
+    const suggestionsContainer = document.getElementById('search-suggestions');
+    if (suggestionsContainer) {
+      // Debounced input handler for suggestions
+      const handleInput = debounce(function() {
+        const query = searchInput.value.trim();
+        if (query.length < 3) {
+          suggestionsContainer.innerHTML = '';
+          suggestionsContainer.hidden = true;
+          return;
         }
+        
+        // Track search typing event
+        trackEvent('search_typing', {
+          query,
+          location: 'header',
+          queryLength: query.length
+        });
+        
+        // Fetch suggestions
+        fetchSuggestions(query, suggestionsContainer, sessionId);
+      }, config.debounceTime || 200);
+      
+      searchInput.addEventListener('input', handleInput);
+    }
+  }
+  
+  // Setup page search functionality
+  function setupPageSearch(searchInput, searchButton, resultsContainer, suggestionsContainer, sessionId) {
+    // Handle form submission
+    const form = searchInput.closest('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const query = searchInput.value.trim();
+        if (!query) return;
+        
+        // Track search submit event
+        trackEvent('search_submit', {
+          query,
+          location: 'results_page',
+          source: 'form_submit'
+        });
         
         // Perform search
         performSearch(query, resultsContainer, sessionId);
-      }
+        
+        // Update URL
+        updateUrl(query);
+      });
     }
     
-    // Fetch suggestions from API
-    async function fetchSuggestions(query, container, sessionId, isPage = false) {
-      try {
-        container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
-        container.hidden = false;
-        
-        const url = `${config.apiBaseUrl}/api/suggestions?query=${encodeURIComponent(query)}&sessionId=${sessionId}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`);
+    // Set up suggestions if container exists
+    if (suggestionsContainer) {
+      // Debounced input handler for suggestions
+      const handleInput = debounce(function() {
+        const query = searchInput.value.trim();
+        if (query.length < 3) {
+          suggestionsContainer.innerHTML = '';
+          suggestionsContainer.hidden = true;
+          return;
         }
         
-        const data = await response.json();
+        // Track search typing event
+        trackEvent('search_typing', {
+          query,
+          location: 'results_page',
+          queryLength: query.length
+        });
         
-        // Render suggestions
-        if (isPage) {
-          renderPageSuggestions(data, container, query, sessionId);
-        } else {
-          renderHeaderSuggestions(data, container, query, sessionId);
-        }
-      } catch (error) {
-        console.error('Error fetching suggestions:', error);
-        container.innerHTML = '';
-        container.hidden = true;
-      }
+        // Fetch suggestions
+        fetchSuggestions(query, suggestionsContainer, sessionId, true);
+      }, config.debounceTime || 200);
+      
+      searchInput.addEventListener('input', handleInput);
     }
+  }
+  
+  // Process URL parameters
+  function processUrlParameters(resultsContainer, sessionId) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const query = urlParams.get('query');
     
-    // Render header suggestions
-    function renderHeaderSuggestions(data, container, query, sessionId) {
-      // Use simplified view for header
-      const suggestions = data.general || [];
-      
-      if (suggestions.length === 0) {
-        container.innerHTML = '';
-        container.hidden = true;
-        return;
+    if (query) {
+      // Set query in input field if it exists
+      const searchInput = document.getElementById('autocomplete-concierge-inputField');
+      if (searchInput) {
+        searchInput.value = query;
       }
       
-      let html = '<div class="suggestions-list">';
-      
-      suggestions.forEach((suggestion, index) => {
-        const display = suggestion.display || suggestion;
-        html += `
-          <div class="suggestion-item" role="option" data-index="${index}">
-            <span class="suggestion-text">${display}</span>
-          </div>
-        `;
+      // Track search from URL event
+      trackEvent('search_from_url', {
+        query,
+        referrer: document.referrer
       });
       
-      html += '</div>';
-      
-      container.innerHTML = html;
+      // Perform search
+      performSearch(query, resultsContainer, sessionId);
+    }
+  }
+  
+  // Fetch suggestions from API
+  async function fetchSuggestions(query, container, sessionId, isPage = false) {
+    try {
+      container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
       container.hidden = false;
       
-      // Add click handlers
-      container.querySelectorAll('.suggestion-item').forEach(item => {
-        item.addEventListener('click', function() {
-          const text = this.querySelector('.suggestion-text').textContent;
-          
-          // Find the search input and set value
-          const searchInput = document.getElementById('search-input');
-          if (searchInput) {
-            searchInput.value = text;
-          }
-          
-          // Redirect to search page
-          window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
-        });
-      });
-    }
-    
-    // Render page suggestions (3-column layout)
-    function renderPageSuggestions(data, container, query, sessionId) {
-      const general = data.general || [];
-      const staff = data.staff || [];
-      const programs = data.programs?.programs || [];
+      // Use consistent sessionId
+      const url = `${config.apiBaseUrl}/api/suggestions?query=${encodeURIComponent(query)}&sessionId=${sessionId}`;
+      const response = await fetch(url);
       
-      if (general.length === 0 && staff.length === 0 && programs.length === 0) {
-        container.innerHTML = '';
-        container.hidden = true;
-        return;
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
-      let html = `
-      <div class="suggestions-list">
-        <div class="suggestions-columns">
+      const data = await response.json();
+      
+      // Render suggestions
+      if (isPage) {
+        renderPageSuggestions(data, container, query, sessionId);
+      } else {
+        renderHeaderSuggestions(data, container, query, sessionId);
+      }
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+      container.innerHTML = '';
+      container.hidden = true;
+      
+      // Track error event
+      trackEvent('suggestion_error', {
+        query,
+        error: error.message
+      });
+    }
+  }
+  
+  // Render header suggestions
+  function renderHeaderSuggestions(data, container, query, sessionId) {
+    // Use simplified view for header
+    const suggestions = data.general || [];
+    
+    if (suggestions.length === 0) {
+      container.innerHTML = '';
+      container.hidden = true;
+      return;
+    }
+    
+    let html = '<div class="suggestions-list">';
+    
+    suggestions.forEach((suggestion, index) => {
+      const display = suggestion.display || suggestion;
+      html += `
+        <div class="suggestion-item" role="option" data-index="${index}">
+          <span class="suggestion-text">${display}</span>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+    container.hidden = false;
+    
+    // Track suggestions shown event
+    trackEvent('suggestions_shown', {
+      query,
+      count: suggestions.length,
+      location: 'header'
+    });
+    
+    // Add click handlers
+    container.querySelectorAll('.suggestion-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const text = this.querySelector('.suggestion-text').textContent;
+        const position = parseInt(this.dataset.index) + 1;
+        
+        // Track suggestion click
+        trackEvent('suggestion_click', {
+          query,
+          suggestion: text,
+          location: 'header',
+          position
+        });
+        
+        // Find the search input and set value
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          searchInput.value = text;
+        }
+        
+        // Redirect to search page
+        window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
+      });
+    });
+  }
+  
+  // Render page suggestions (3-column layout)
+  function renderPageSuggestions(data, container, query, sessionId) {
+    const general = data.general || [];
+    const staff = data.staff || [];
+    const programs = data.programs?.programs || [];
+    
+    if (general.length === 0 && staff.length === 0 && programs.length === 0) {
+      container.innerHTML = '';
+      container.hidden = true;
+      return;
+    }
+    
+    let html = `
+    <div class="suggestions-list">
+      <div class="suggestions-columns">
+        ${general.length > 0 ? `
           <div class="suggestions-column">
             <div class="column-header">Suggestions</div>
             ${general.map((suggestion, index) => {
@@ -268,7 +409,9 @@
               `;
             }).join('')}
           </div>
-          
+        ` : ''}
+        
+        ${staff.length > 0 ? `
           <div class="suggestions-column">
             <div class="column-header">Faculty & Staff</div>
             ${staff.map((person, index) => `
@@ -290,7 +433,9 @@
               </div>
             `).join('')}
           </div>
-          
+        ` : ''}
+        
+        ${programs.length > 0 ? `
           <div class="suggestions-column">
             <div class="column-header">Programs</div>
             ${programs.map((program, index) => `
@@ -305,12 +450,22 @@
               </div>
             `).join('')}
           </div>
-        </div>
+        ` : ''}
       </div>
-    `;
-    
+    </div>
+  `;
+  
     container.innerHTML = html;
     container.hidden = false;
+    
+    // Track suggestions shown event
+    trackEvent('suggestions_shown', {
+      query,
+      general_count: general.length,
+      staff_count: staff.length,
+      program_count: programs.length,
+      location: 'results_page'
+    });
     
     // Add click handlers
     container.querySelectorAll('.suggestion-item').forEach(item => {
@@ -318,15 +473,22 @@
         const text = this.querySelector('.suggestion-text').textContent;
         const type = this.dataset.type;
         const url = this.dataset.url;
+        const position = parseInt(this.dataset.index) + 1;
+        
+        // Track suggestion click
+        trackEvent('suggestion_click', {
+          text,
+          type,
+          url: url || '',
+          location: 'results_page',
+          position
+        });
         
         // Find the search input and set value
         const searchInput = document.getElementById('autocomplete-concierge-inputField');
         if (searchInput) {
           searchInput.value = text;
         }
-        
-        // Track click
-        trackSuggestionClick(text, type, url, sessionId);
         
         // For staff and program items with URLs
         if ((type === 'staff' || type === 'program') && url && url !== '#') {
@@ -361,7 +523,7 @@
       // Show loading state
       container.innerHTML = '<div class="loading-results">Loading search results...</div>';
       
-      // Construct URL with parameters
+      // Use consistent sessionId
       const url = `${config.apiBaseUrl}/api/search?query=${encodeURIComponent(query)}&collection=${config.collection}&profile=${config.profile}&sessionId=${sessionId}`;
       
       // Fetch search results
@@ -381,6 +543,12 @@
         </div>
       `;
       
+      // Track search results event
+      trackEvent('search_results_displayed', {
+        query,
+        resultCount: getResultCount(html)
+      });
+      
       // Add click tracking to results
       attachResultClickHandlers(container, query, sessionId);
       
@@ -396,7 +564,31 @@
           <p>Error details: ${error.message}</p>
         </div>
       `;
+      
+      // Track search error event
+      trackEvent('search_error', {
+        query,
+        error: error.message
+      });
     }
+  }
+  
+  /**
+   * Get result count from HTML response
+   * @param {string} html - HTML response
+   * @returns {number} Result count
+   */
+  function getResultCount(html) {
+    try {
+      const match = html.match(/totalMatching">([0-9,]+)</);
+      if (match && match[1]) {
+        return parseInt(match[1].replace(/,/g, ''), 10);
+      }
+    } catch (error) {
+      console.error('Error extracting result count:', error);
+    }
+    
+    return 0;
   }
   
   // Add click tracking to search results
@@ -421,32 +613,13 @@
   // Track suggestion click for analytics
   function trackSuggestionClick(text, type, url, sessionId) {
     try {
-      // Use sendBeacon for non-blocking operation
-      const data = {
-        originalQuery: text,
-        clickedUrl: url || '',
-        clickedTitle: text,
-        clickType: type || 'suggestion',
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ type: 'click', ...data })], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'click', ...data }),
-          keepalive: true
-        }).catch(err => console.error('Error tracking suggestion click:', err));
-      }
+      // Track using the centralized event tracking
+      trackEvent('suggestion_click', {
+        text,
+        type,
+        url: url || '',
+        sessionId
+      });
     } catch (error) {
       console.error('Error tracking suggestion click:', error);
     }
@@ -455,32 +628,14 @@
   // Track result click for analytics
   function trackResultClick(query, url, title, position, sessionId) {
     try {
-      // Use sendBeacon for non-blocking operation
-      const data = {
-        originalQuery: query,
-        clickedUrl: url,
-        clickedTitle: title,
-        clickPosition: position,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ type: 'click', ...data })], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'click', ...data }),
-          keepalive: true
-        }).catch(err => console.error('Error tracking result click:', err));
-      }
+      // Track using the centralized event tracking
+      trackEvent('result_click', {
+        query,
+        url,
+        title,
+        position,
+        sessionId
+      });
     } catch (error) {
       console.error('Error tracking result click:', error);
     }
@@ -505,6 +660,18 @@
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   }
+  
+  // Expose for use by other modules
+  window.getOrCreateSearchSessionId = getSessionId;
+  window.trackSuggestionClick = function(text, type, url, title, sessionId) {
+    trackEvent('suggestion_click', {
+      text, 
+      type, 
+      url: url || '', 
+      title: title || text,
+      sessionId: sessionId || getSessionId()
+    });
+  };
   
   // Initialize search when DOM is ready
   if (document.readyState === 'loading') {

@@ -5,12 +5,15 @@
  * and returns server-side rendered suggestions for autocomplete.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @lastModified 2025-04-05
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { backendApiClient } from '../../lib/api-client';
 import { getCachedData, setCachedData } from '../../lib/cache';
+// Import the session manager
+import SessionManager, { getSessionId } from '../../lib/session-manager';
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,13 +36,16 @@ export default async function handler(
     return;
   }
 
-  const { query, type, collection, profile, sessionId } = req.query;
+  const { query, type, collection, profile, sessionId: requestSessionId } = req.query;
 
   // Basic validation
   if (!query) {
     res.status(400).json({ error: 'Query parameter is required' });
     return;
   }
+
+  // Get a consistent session ID (either from request or generate a new one)
+  const sessionId = (requestSessionId as string) || getSessionId();
 
   try {
     // Generate cache key
@@ -57,20 +63,20 @@ export default async function handler(
     
     switch (type) {
       case 'general':
-        result = await fetchGeneralSuggestions(query as string, sessionId as string);
+        result = await fetchGeneralSuggestions(query as string, sessionId);
         break;
       case 'staff':
-        result = await fetchStaffSuggestions(query as string, sessionId as string);
+        result = await fetchStaffSuggestions(query as string, sessionId);
         break;
       case 'programs':
-        result = await fetchProgramSuggestions(query as string, sessionId as string);
+        result = await fetchProgramSuggestions(query as string, sessionId);
         break;
       default:
         // Fetch all types in parallel
         const [general, staff, programs] = await Promise.all([
-          fetchGeneralSuggestions(query as string, sessionId as string),
-          fetchStaffSuggestions(query as string, sessionId as string),
-          fetchProgramSuggestions(query as string, sessionId as string)
+          fetchGeneralSuggestions(query as string, sessionId),
+          fetchStaffSuggestions(query as string, sessionId),
+          fetchProgramSuggestions(query as string, sessionId)
         ]);
         
         result = {

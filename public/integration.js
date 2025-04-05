@@ -6,11 +6,14 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.2.3
- * @lastModified 2025-04-03
+ * @version 1.3.0
+ * @lastModified 2025-04-05
  */
 
 (function() {
+  // Load the SessionManager if it's available as a script
+  const SessionManager = window.SessionManager || {};
+  
   // Configuration for the frontend API
   const config = {
     apiBaseUrl: 'https://su-search-dev.vercel.app',
@@ -27,12 +30,98 @@
     ...window.seattleUConfig?.search
   };
 
+  /**
+   * Get session ID using the centralized SessionManager
+   * @returns {string} Session ID
+   */
+  function getSessionId() {
+    // Use the centralized SessionManager if available
+    if (window.getSessionId) {
+      return window.getSessionId();
+    }
+    
+    // Use the manager instance if available
+    if (SessionManager.getInstance) {
+      return SessionManager.getInstance().getSessionId();
+    }
+    
+    // Fall back to local implementation
+    try {
+      let sessionId = sessionStorage.getItem('searchSessionId');
+      
+      if (!sessionId) {
+        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        sessionStorage.setItem('searchSessionId', sessionId);
+        console.log('🔍 Created new session ID:', sessionId);
+      }
+      
+      return sessionId;
+    } catch (e) {
+      // Fallback if sessionStorage is unavailable
+      const fallbackId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      console.log('🔍 Using fallback session ID (sessionStorage unavailable):', fallbackId);
+      return fallbackId;
+    }
+  }
+  
+  /**
+   * Track an event using the centralized SessionManager
+   * @param {string} type - Event type
+   * @param {object} data - Event data
+   */
+  function trackEvent(type, data) {
+    // Use the centralized SessionManager if available
+    if (window.trackSessionEvent) {
+      return window.trackSessionEvent(type, data);
+    }
+    
+    // Use the manager instance if available
+    if (SessionManager.getInstance) {
+      return SessionManager.getInstance().trackEvent(type, data);
+    }
+    
+    // Fall back to direct API call
+    try {
+      const sessionId = getSessionId();
+      const endpoint = `${config.apiBaseUrl}/api/enhance`;
+      const payload = {
+        type: 'events',
+        events: [{
+          type,
+          data: {
+            ...data,
+            sessionId
+          },
+          timestamp: new Date().toISOString()
+        }]
+      };
+      
+      // Use sendBeacon if available
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], {
+          type: 'application/json'
+        });
+        navigator.sendBeacon(endpoint, blob);
+      } else {
+        // Fallback to fetch
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true
+        }).catch(err => console.error('Error tracking event:', err));
+      }
+    } catch (error) {
+      console.error('Error tracking event:', error);
+    }
+  }
+  
   // Initialize on DOM ready
   document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Frontend Search Integration: Initializing');
     
-    // Get session ID for tracking
-    const sessionId = getOrCreateSessionId();
+    // Get session ID for tracking using the centralized SessionManager
+    const sessionId = getSessionId();
     console.log('🔍 Session ID:', sessionId);
     
     // Detect environment
@@ -53,6 +142,13 @@
       // Process URL parameters for initial search
       processUrlParameters(searchComponents.results, sessionId);
     }
+    
+    // Track page view event
+    trackEvent('page_view', {
+      url: window.location.href,
+      referrer: document.referrer,
+      isResultsPage
+    });
     
     console.log('🔍 Frontend Search Integration: Initialized');
   });
@@ -131,6 +227,13 @@
       const query = component.input.value.trim();
       if (!query) return;
       
+      // Track search event
+      trackEvent('search_submit', {
+        query,
+        location: 'header',
+        source: 'form_submit'
+      });
+      
       // Navigate to search page with query
       window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
     });
@@ -146,6 +249,13 @@
           component.suggestionsContainer.hidden = true;
           return;
         }
+        
+        // Track search typing event
+        trackEvent('search_typing', {
+          query,
+          location: 'header',
+          queryLength: query.length
+        });
         
         fetchHeaderSuggestions(query, component.suggestionsContainer, sessionId);
       }, config.debounceTime);
@@ -174,10 +284,6 @@
     console.log('🔍 Fetching header suggestions for:', query);
     
     try {
-      // Show loading state
-      // container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
-      // container.hidden = false;
-      
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
@@ -241,6 +347,14 @@
       item.addEventListener('click', function() {
         const text = this.querySelector('.suggestion-text').textContent;
         
+        // Track suggestion click
+        trackEvent('suggestion_click', {
+          query,
+          suggestion: text,
+          location: 'header',
+          position: parseInt(this.dataset.index) + 1
+        });
+        
         // Set input value
         const input = document.getElementById('search-input');
         if (input) {
@@ -252,7 +366,7 @@
       });
     });
   }
-
+  
   /**
    * Set up results page search integration
    * @param {Object} component - Results search component references
@@ -274,6 +388,13 @@
         const query = component.input.value.trim();
         if (!query) return;
         
+        // Track search submit event
+        trackEvent('search_submit', {
+          query,
+          location: 'results_page',
+          source: 'form_submit'
+        });
+        
         performSearch(query, component.container, sessionId);
         
         // Update URL without reload
@@ -286,7 +407,7 @@
     const queryParam = urlParams.get('query') || '';
     attachResultClickHandlers(component.container, queryParam, sessionId);
   }
-
+  
   /**
    * Process URL parameters for initial search
    * @param {Object} component - Results search component references
@@ -306,6 +427,12 @@
         component.input.value = query;
       }
       
+      // Track search from URL event
+      trackEvent('search_from_url', {
+        query,
+        referrer: document.referrer
+      });
+      
       // Perform search
       performSearch(query, component.container, sessionId);
     }
@@ -321,9 +448,7 @@
     console.log('🔍 Performing search for:', query);
     
     try {
-      // Show loading state with spinner
-      // container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
-      
+          
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
@@ -355,8 +480,17 @@
       
       // Scroll to results if not in viewport AND page is not already at the top
       if (!isElementInViewport(container) && window.scrollY > 0) {
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        container.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
       }
+      
+      // Track search results event
+      trackEvent('search_results_displayed', {
+        query,
+        resultCount: getResultCount(html)
+      });
     } catch (error) {
       console.error('🔍 Search error:', error);
       container.innerHTML = `
@@ -365,7 +499,31 @@
           <p>${error.message}</p>
         </div>
       `;
+      
+      // Track search error event
+      trackEvent('search_error', {
+        query,
+        error: error.message
+      });
     }
+  }
+  
+  /**
+   * Get result count from HTML response
+   * @param {string} html - HTML response
+   * @returns {number} Result count
+   */
+  function getResultCount(html) {
+    try {
+      const match = html.match(/totalMatching">([0-9,]+)</);
+      if (match && match[1]) {
+        return parseInt(match[1].replace(/,/g, ''), 10);
+      }
+    } catch (error) {
+      console.error('Error extracting result count:', error);
+    }
+    
+    return 0;
   }
 
   /**
@@ -393,7 +551,7 @@
       });
     });
   }
-
+  
   /**
    * Track result click via API
    * @param {string} query - Original query
@@ -406,34 +564,14 @@
     try {
       console.log('🔍 Tracking result click:', { query, url, title, position });
       
-      // Prepare data
-      const data = {
-        type: 'click',
-        originalQuery: query,
-        clickedUrl: url,
-        clickedTitle: title,
-        clickPosition: position,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking click:', err));
-      }
+      // Track using the centralized event tracking
+      trackEvent('result_click', {
+        query,
+        url,
+        title,
+        position,
+        sessionId
+      });
     } catch (error) {
       console.error('Error tracking click:', error);
     }
@@ -441,7 +579,7 @@
   
   /**
    * Track suggestion click for analytics
-   * Exposed globally for use by search-page-autocomplete.js
+   * Exposed globally for use by other modules
    * @param {string} text - Suggestion text
    * @param {string} type - Suggestion type (general, staff, program)
    * @param {string} url - Clicked URL (for staff and programs)
@@ -452,39 +590,14 @@
     try {
       console.log('🔍 Tracking suggestion click:', { text, type, url, title });
       
-      // Get session ID if not provided
-      if (!sessionId) {
-        sessionId = getOrCreateSessionId();
-      }
-      
-      // Prepare data for the API call
-      const data = {
-        type: 'click',
-        originalQuery: text,
-        clickedUrl: url || '',
-        clickedTitle: title || text,
-        clickType: type || 'suggestion',
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking suggestion click:', err));
-      }
+      // Use the centralized event tracking
+      trackEvent('suggestion_click', {
+        text,
+        type,
+        url: url || '',
+        title: title || text,
+        sessionId: sessionId || getSessionId()
+      });
     } catch (error) {
       console.error('Error tracking suggestion click:', error);
     }
@@ -504,31 +617,29 @@
   }
   
   /**
-   * Get or create a session ID for tracking
-   * Exposed globally for use by search-page-autocomplete.js
-   * @returns {string} Session ID
+   * Check if element is in viewport
+   * @param {HTMLElement} el - Element to check
+   * @returns {boolean} Whether element is in viewport
    */
-  function getOrCreateSessionId() {
-    try {
-      let sessionId = sessionStorage.getItem('searchSessionId');
-      
-      if (!sessionId) {
-        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-        sessionStorage.setItem('searchSessionId', sessionId);
-        console.log('🔍 Created new session ID:', sessionId);
-      }
-      
-      return sessionId;
-    } catch (e) {
-      // Fallback if sessionStorage is unavailable
-      const fallbackId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      console.log('🔍 Using fallback session ID (sessionStorage unavailable):', fallbackId);
-      return fallbackId;
-    }
+  function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    const isVisible = (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+    return isVisible;
   }
   
-  // Expose session ID function globally for search-page-autocomplete.js
-  window.getOrCreateSearchSessionId = getOrCreateSessionId;
+  // Expose session ID function globally for other modules
+  window.getOrCreateSearchSessionId = getSessionId;
+  
+  // Expose event tracking function globally for other modules
+  window.trackSearchEvent = trackEvent;
+  
+  // Expose debounce function globally
+  window.debounceFunction = debounce;
   
   /**
    * Debounce function to limit execution frequency
@@ -546,37 +657,18 @@
     };
   }
   
-  // Expose debounce function globally for search-page-autocomplete.js
-  window.debounceFunction = debounce;
-  
-  /**
-   * Check if element is in viewport
-   * @param {HTMLElement} el - Element to check
-   * @returns {boolean} Whether element is in viewport
-   */
-  function isElementInViewport(el) {
-    const rect = el.getBoundingClientRect();
-    const isVisible = (
-      rect.top >= 0 &&
-      rect.left >= 0 &&
-      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
-    return isVisible;
-  }
-  
-  // Expose configuration globally for search-page-autocomplete.js
+  // Expose configuration globally for other modules
   window.searchConfig = config;
   
   /**
-   * Perform search via API (exposed globally for search-page-autocomplete.js)
+   * Perform search via API (exposed globally for other modules)
    * @param {string} query - Search query
-   * @param {string} containerId - Container ID for results
+   * @param {string|HTMLElement} containerId - Container ID or element for results
    * @param {string} sessionId - Session ID for tracking
    */
   window.performSearch = function(query, containerId, sessionId) {
     const container = typeof containerId === 'string' ? 
-                    document.getElementById(containerId) : containerId;
+                      document.getElementById(containerId) : containerId;
     
     if (!container) {
       console.error('🔍 Container not found:', containerId);
@@ -584,14 +676,14 @@
     }
     
     if (!sessionId) {
-      sessionId = getOrCreateSessionId();
+      sessionId = getSessionId();
     }
     
     return performSearch(query, container, sessionId);
   };
   
   /**
-   * Update URL without page reload (exposed globally for search-page-autocomplete.js)
+   * Update URL without page reload (exposed globally for other modules)
    */
   window.updateSearchUrl = updateUrl;
 })();

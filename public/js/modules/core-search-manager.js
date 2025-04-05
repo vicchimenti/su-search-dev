@@ -11,9 +11,12 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.1.1
+ * @version 3.0.0
  * @lastModified 2025-04-04
  */
+
+// Import the centralized session manager
+import SessionManager, { getSessionId } from '../../lib/session-manager.js';
 
 // Core Search Manager
 class SearchManager {
@@ -38,7 +41,7 @@ class SearchManager {
     this.modules = {};
     
     // State
-    this.sessionId = this.getOrCreateSessionId();
+    this.sessionId = getSessionId();
     this.originalQuery = null;
     this.isInitialized = false;
   }
@@ -127,26 +130,6 @@ class SearchManager {
     const searchInput = document.getElementById('autocomplete-concierge-inputField');
     if (searchInput && searchInput.value) {
       this.originalQuery = searchInput.value;
-    }
-  }
-  
-  /**
-   * Get or create a session ID for analytics tracking
-   * @returns {string} Session ID
-   */
-  getOrCreateSessionId() {
-    try {
-      let sessionId = sessionStorage.getItem('searchSessionId');
-      
-      if (!sessionId) {
-        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-        sessionStorage.setItem('searchSessionId', sessionId);
-      }
-      
-      return sessionId;
-    } catch (error) {
-      // Fallback for private browsing mode
-      return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
     }
   }
   
@@ -298,35 +281,11 @@ class SearchManager {
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-    const endpoint = `${this.config.proxyBaseUrl}/analytics`;
-    
-    try {
-      // Use sendBeacon if available (works during page unload)
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
-        });
-        
-        navigator.sendBeacon(endpoint, blob);
-        return;
-      }
-      
-      // Fallback to fetch with keepalive
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin
-        },
-        body: JSON.stringify(data),
-        credentials: 'include',
-        keepalive: true
-      }).catch(error => {
-        console.error('Error sending analytics data:', error);
-      });
-    } catch (error) {
-      console.error('Failed to send analytics data:', error);
-    }
+    // Use the SessionManager to track events instead of direct API calls
+    SessionManager.getInstance().trackEvent('analytics', {
+      ...data,
+      sessionId: this.sessionId
+    });
   }
   
   /**

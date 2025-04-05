@@ -5,12 +5,15 @@
  * and returns server-side rendered search results.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @lastModified 2025-04-04
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { backendApiClient } from '../../lib/api-client';
 import { getCachedData, setCachedData } from '../../lib/cache';
+// Import the session manager
+import SessionManager, { getSessionId } from '../../lib/session-manager';
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,13 +36,16 @@ export default async function handler(
     return;
   }
 
-  const { query, collection, profile, sessionId } = req.query;
+  const { query, collection, profile, sessionId: requestSessionId } = req.query;
 
   // Basic validation
   if (!query) {
     res.status(400).json({ error: 'Query parameter is required' });
     return;
   }
+
+  // Get a consistent session ID (either from request or generate a new one)
+  const sessionId = (requestSessionId as string) || getSessionId();
 
   try {
     // Generate cache key
@@ -57,7 +63,7 @@ export default async function handler(
       query,
       collection: collection || 'seattleu~sp-search',
       profile: profile || '_default',
-      sessionId: sessionId || '',
+      sessionId, // Send the consistent session ID
       form: 'partial'
     };
 
