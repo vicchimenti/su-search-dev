@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.1.2
+ * @version 1.1.3
  * @lastModified 2025-04-05
  */
 
@@ -298,7 +298,8 @@ class SearchManager {
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-    const endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
+
+    const endpoint = `${this.config.proxyBaseUrl}/funnelback/analytics/${data.type || 'click'}`;
     
     try {
       // Use sendBeacon if available (works during page unload)
