@@ -4,19 +4,13 @@
  * This architecture provides a modular approach to handling search functionality.
  * It consists of a core manager that coordinates feature-specific modules.
  * 
- * Features:
- * - Modular design with dynamic loading
- * - Centralized event delegation
- * - Optimized performance through targeted updates
- * - Comprehensive analytics tracking
- * 
  * @author Victor Chimenti
- * @version 3.0.0
+ * @version 3.0.1
  * @lastModified 2025-04-04
  */
 
-// Import the centralized session manager
-import SessionManager, { getSessionId } from '../../lib/session-manager.js';
+// FIXED: Use a fallback approach for session management instead of direct import
+// This avoids the import error while still providing session management functionality
 
 // Core Search Manager
 class SearchManager {
@@ -41,9 +35,43 @@ class SearchManager {
     this.modules = {};
     
     // State
-    this.sessionId = getSessionId();
+    this.sessionId = this.getSessionId();
     this.originalQuery = null;
     this.isInitialized = false;
+  }
+  
+  /**
+   * Get session ID using the global function if available, or create one
+   * @returns {string} Session ID
+   */
+  getSessionId() {
+    // Try to use the global session manager if available
+    if (window.getSessionId) {
+      return window.getSessionId();
+    }
+    
+    // Otherwise fall back to our own implementation
+    return this.getOrCreateSessionId();
+  }
+  
+  /**
+   * Get or create a session ID for analytics tracking
+   * @returns {string} Session ID
+   */
+  getOrCreateSessionId() {
+    try {
+      let sessionId = sessionStorage.getItem('searchSessionId');
+      
+      if (!sessionId) {
+        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        sessionStorage.setItem('searchSessionId', sessionId);
+      }
+      
+      return sessionId;
+    } catch (error) {
+      // Fallback for private browsing mode
+      return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    }
   }
   
   /**
@@ -281,11 +309,44 @@ class SearchManager {
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-    // Use the SessionManager to track events instead of direct API calls
-    SessionManager.getInstance().trackEvent('analytics', {
-      ...data,
-      sessionId: this.sessionId
-    });
+    // FIXED: Use a more direct approach to send analytics data
+    const endpoint = `${this.config.proxyBaseUrl}/analytics`;
+    
+    try {
+      // Use sendBeacon if available (works during page unload)
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify({
+          ...data,
+          sessionId: this.sessionId,
+          timestamp: new Date().toISOString()
+        })], {
+          type: 'application/json'
+        });
+        
+        navigator.sendBeacon(endpoint, blob);
+        return;
+      }
+      
+      // Fallback to fetch with keepalive
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin
+        },
+        body: JSON.stringify({
+          ...data,
+          sessionId: this.sessionId,
+          timestamp: new Date().toISOString()
+        }),
+        credentials: 'include',
+        keepalive: true
+      }).catch(error => {
+        console.error('Error sending analytics data:', error);
+      });
+    } catch (error) {
+      console.error('Failed to send analytics data:', error);
+    }
   }
   
   /**
