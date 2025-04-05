@@ -6,8 +6,8 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.1.0
- * @lastModified 2025-04-05
+ * @version 3.1.2
+ * @lastModified 2025-04-04
  */
 
 class TabsManager {
@@ -240,7 +240,7 @@ class TabsManager {
    * @param {Element} tabElement - The tab element that was clicked
    */
   async loadTabContent(href, tabElement) {
-    // Get the results container
+    // Get the results container - FIXED: Ensure it exists before proceeding
     const resultsContainer = document.getElementById('results');
     if (!resultsContainer) {
       console.error('Results container not found');
@@ -256,23 +256,42 @@ class TabsManager {
       // Use the core's fetch method
       const response = await this.core.fetchFromProxy(href, 'search');
       
+      // FIXED: Ensure container is still available before updating
+      const container = document.getElementById('results');
+      if (!container) {
+        console.error('Results container disappeared during tab content loading');
+        return;
+      }
+      
       // Update results container
-      this.core.updateResults(response);
+      container.innerHTML = `
+        <div class="funnelback-search-container">
+          ${response || "No results found."}
+        </div>
+      `;
       
       console.log('Tab content loaded successfully');
     } catch (error) {
       console.error('Error loading tab content:', error);
       
-      // Show error in container
-      resultsContainer.innerHTML = `
-        <div class="search-error">
-          <h3>Error Loading Tab Content</h3>
-          <p>${error.message}</p>
-        </div>
-      `;
+      // FIXED: Ensure container still exists before showing error
+      const container = document.getElementById('results');
+      if (container) {
+        // Show error in container
+        container.innerHTML = `
+          <div class="search-error">
+            <h3>Error Loading Tab Content</h3>
+            <p>${error.message}</p>
+          </div>
+        `;
+      }
     } finally {
-      // Remove loading state
-      resultsContainer.classList.remove('loading');
+      // FIXED: Ensure container still exists before removing loading state
+      const container = document.getElementById('results');
+      if (container) {
+        // Remove loading state
+        container.classList.remove('loading');
+      }
     }
   }
   
@@ -325,10 +344,19 @@ class TabsManager {
         console.log('Fetching tab content via core manager');
         const response = await this.core.fetchFromProxy(query, 'search');
         
-        // Update results container
-        this.core.updateResults(response);
-        
-        console.log('Tab content fetched and displayed');
+        // FIXED: Check if container still exists before updating
+        if (container.isConnected) {
+          // Update results container
+          container.innerHTML = `
+            <div class="funnelback-search-container">
+              ${response || "No results found."}
+            </div>
+          `;
+          
+          console.log('Tab content fetched and displayed');
+        } else {
+          console.error('Container removed from DOM during tab content fetch');
+        }
         
         // Reset the tab navigation flag after a short delay
         // to allow time for other handlers to see it
@@ -340,16 +368,22 @@ class TabsManager {
       } catch (error) {
         console.error('Error fetching tab content:', error);
         
-        // Show error in container
-        container.innerHTML = `
-          <div class="search-error">
-            <h3>Error Loading Tab Content</h3>
-            <p>${error.message}</p>
-          </div>
-        `;
+        // FIXED: Check if container still exists before showing error
+        if (container.isConnected) {
+          // Show error in container
+          container.innerHTML = `
+            <div class="search-error">
+              <h3>Error Loading Tab Content</h3>
+              <p>${error.message}</p>
+            </div>
+          `;
+        }
       } finally {
-        // Remove loading state
-        container.classList.remove('loading');
+        // FIXED: Check if container still exists before removing loading state
+        if (container.isConnected) {
+          // Remove loading state
+          container.classList.remove('loading');
+        }
       }
     } else {
       // For regular searches, use the original function

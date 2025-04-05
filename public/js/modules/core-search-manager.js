@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.0.4
+ * @version 1.1.1
  * @lastModified 2025-04-04
  */
 
@@ -268,11 +268,13 @@ class SearchManager {
 
       // Scroll to results if not in viewport and page is not already at the top
       if (!this.isElementInViewport(resultsContainer) && window.scrollY > 0) {
-        container.scrollIntoView({ 
+        resultsContainer.scrollIntoView({ 
           behavior: 'smooth',
           block: 'start'
         });
       }
+    } else {
+      console.error('Results container not found when updating results');
     }
   }
   
