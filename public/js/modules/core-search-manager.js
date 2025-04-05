@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.1.1
- * @lastModified 2025-04-04
+ * @version 1.1.2
+ * @lastModified 2025-04-05
  */
 
 // Core Search Manager
@@ -298,7 +298,7 @@ class SearchManager {
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-    const endpoint = `${this.config.proxyBaseUrl}/analytics`;
+    const endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
     
     try {
       // Use sendBeacon if available (works during page unload)
@@ -309,7 +309,7 @@ class SearchManager {
         
         navigator.sendBeacon(endpoint, blob);
         return;
-      }
+      } 
       
       // Fallback to fetch with keepalive
       fetch(endpoint, {
