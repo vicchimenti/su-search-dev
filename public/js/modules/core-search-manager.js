@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.1.4
+ * @version 1.2.0
  * @lastModified 2025-04-05
  */
 
@@ -292,14 +292,24 @@ class SearchManager {
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   }
-  
+
   /**
    * Send analytics data
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-
-    const endpoint = `${this.config.proxyBaseUrl}/analytics/${data.type || 'click'}`;
+    // Map data types to specific endpoints
+    const typeToEndpoint = {
+      'click': 'click',
+      'facet': 'supplement',
+      'pagination': 'supplement',
+      'tab': 'supplement',
+      'spelling': 'supplement',
+      'batchClick': 'clicksBatch'
+    };
+    
+    const endpointType = typeToEndpoint[data.type] || 'click'; // Default to click
+    const endpoint = `${this.config.proxyBaseUrl}/analytics/${endpointType}`;
     
     try {
       // Use sendBeacon if available (works during page unload)
