@@ -6,196 +6,174 @@
  * staff/faculty profiles, and academic programs.
  *
  * @author Victor Chimenti
- * @version 1.1.0
- * @lastModified 2025-04-04
+ * @version 1.0.1
+ * @lastModified 2025-04-03
  */
-
-// Import SessionManager if it's available as a module, otherwise use global
-let getSessionId, trackSessionEvent;
-
-// Try to use the centralized session manager if available
-if (typeof window !== 'undefined') {
-  getSessionId = window.getSessionId || window.getOrCreateSearchSessionId;
-  trackSessionEvent = window.trackSessionEvent;
-}
 
 // Function to render the results page suggestions (3-column layout)
 function renderResultsPageSuggestions(data, container, query, sessionId) {
-    console.log('Rendering results page suggestions:', data);
-    
-    // Extract and process data
-    const general = data.general || [];
-    const staff = data.staff || [];
-    const programs = data.programs || {};
-    
-    // Handle different formats for program data
-    const programResults = Array.isArray(programs) ? programs : 
-                          (programs.programs || []);
-    
-    // Check if we have any suggestions to display
-    if (general.length === 0 && staff.length === 0 && programResults.length === 0) {
-      container.innerHTML = '';
-      container.hidden = true;
-      return;
-    }
-    
-    // Build HTML for the three-column layout
-    let html = `
-      <div class="suggestions-list">
-        <div class="suggestions-columns">
-          ${general.length > 0 ? `
-            <div class="suggestions-column">
-              <div class="column-header">Suggestions</div>
-              ${general.map((suggestion, index) => {
-                const display = suggestion.display || suggestion;
-                return `
-                  <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
-                    <span class="suggestion-text">${display}</span>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          ` : ''}
-          
-          ${staff.length > 0 ? `
-            <div class="suggestions-column">
-              <div class="column-header">Faculty & Staff</div>
-              ${staff.map((person, index) => `
-                <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${person.url || '#'}">
-                  <a href="${person.url || '#'}" class="staff-link" target="_blank" rel="noopener noreferrer">
-                    <div class="staff-suggestion">
-                      ${person.image ? `
-                        <div class="staff-image">
-                          <img src="${person.image}" alt="${person.title || ''}" class="staff-thumbnail" loading="lazy">
-                        </div>
-                      ` : ''}
-                      <div class="staff-info">
-                        <span class="suggestion-text">${person.title || ''}</span>
-                        ${person.position ? `<span class="staff-role">${person.position}</span>` : ''}
-                        ${person.affiliation ? `<span class="staff-role">${person.affiliation}</span>` : ''}
-                        ${person.department ? `<span class="staff-department">${person.department}</span>` : ''}
-                        ${person.college ? `<span class="staff-department">${person.college}</span>` : ''}
+  console.log('Rendering results page suggestions:', data);
+  
+  // Extract and process data
+  const general = data.general || [];
+  const staff = data.staff || [];
+  const programs = data.programs || {};
+  
+  // Handle different formats for program data
+  const programResults = Array.isArray(programs) ? programs : 
+                        (programs.programs || []);
+  
+  // Check if we have any suggestions to display
+  if (general.length === 0 && staff.length === 0 && programResults.length === 0) {
+    container.innerHTML = '';
+    container.hidden = true;
+    return;
+  }
+  
+  // Build HTML for the three-column layout
+  let html = `
+    <div class="suggestions-list">
+      <div class="suggestions-columns">
+        ${general.length > 0 ? `
+          <div class="suggestions-column">
+            <div class="column-header">Suggestions</div>
+            ${general.map((suggestion, index) => {
+              const display = suggestion.display || suggestion;
+              return `
+                <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
+                  <span class="suggestion-text">${display}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+        
+        ${staff.length > 0 ? `
+          <div class="suggestions-column">
+            <div class="column-header">Faculty & Staff</div>
+            ${staff.map((person, index) => `
+              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${person.url || '#'}">
+                <a href="${person.url || '#'}" class="staff-link" target="_blank" rel="noopener noreferrer">
+                  <div class="staff-suggestion">
+                    ${person.image ? `
+                      <div class="staff-image">
+                        <img src="${person.image}" alt="${person.title || ''}" class="staff-thumbnail" loading="lazy">
                       </div>
+                    ` : ''}
+                    <div class="staff-info">
+                      <span class="suggestion-text">${person.title || ''}</span>
+                      ${person.position ? `<span class="staff-role">${person.position}</span>` : ''}
+                      ${person.affiliation ? `<span class="staff-role">${person.affiliation}</span>` : ''}
+                      ${person.department ? `<span class="staff-department">${person.department}</span>` : ''}
+                      ${person.college ? `<span class="staff-department">${person.college}</span>` : ''}
                     </div>
-                  </a>
-                </div>
-              `).join('')}
-            </div>
-          ` : ''}
-          
-          ${programResults.length > 0 ? `
-            <div class="suggestions-column">
-              <div class="column-header">Programs</div>
-              ${programResults.map((program, index) => `
-                <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${program.url || '#'}">
-                  <a href="${program.url || '#'}" class="program-link" target="_blank" rel="noopener noreferrer">
-                    <div class="program-suggestion">
-                      <span class="suggestion-text">${program.title || ''}</span>
-                      ${program.details?.school ? `<span class="suggestion-type">${program.details.school}</span>` : ''}
-                      ${program.description ? `<span class="program-description">${program.description}</span>` : ''}
-                    </div>
-                  </a>
-                </div>
-              `).join('')}
-            </div>
-          ` : ''}
-        </div>
+                  </div>
+                </a>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+        
+        ${programResults.length > 0 ? `
+          <div class="suggestions-column">
+            <div class="column-header">Programs</div>
+            ${programResults.map((program, index) => `
+              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${program.url || '#'}">
+                <a href="${program.url || '#'}" class="program-link" target="_blank" rel="noopener noreferrer">
+                  <div class="program-suggestion">
+                    <span class="suggestion-text">${program.title || ''}</span>
+                    ${program.details?.school ? `<span class="suggestion-type">${program.details.school}</span>` : ''}
+                    ${program.description ? `<span class="program-description">${program.description}</span>` : ''}
+                  </div>
+                </a>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
-    `;
-    
-    // Update the DOM
-    container.innerHTML = html;
-    container.hidden = false;
-    
-    // Add click handlers for all suggestion items
-    const attachClickHandlers = () => {
-      container.querySelectorAll('.suggestion-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-          const text = this.querySelector('.suggestion-text').textContent;
-          const type = this.dataset.type;
-          const url = this.dataset.url;
-          
-          // Get additional details for tracking
-          let title = text;
-          if (type === 'staff') {
-            const roleElement = this.querySelector('.staff-role');
-            const deptElement = this.querySelector('.staff-department');
-            if (roleElement) {
-              title = `${text} (${roleElement.textContent})`;
-            }
-          } else if (type === 'program') {
-            const typeElement = this.querySelector('.suggestion-type');
-            if (typeElement) {
-              title = `${text} - ${typeElement.textContent}`;
-            }
+    </div>
+  `;
+  
+  // Update the DOM
+  container.innerHTML = html;
+  container.hidden = false;
+  
+  // Add click handlers for all suggestion items
+  const attachClickHandlers = () => {
+    container.querySelectorAll('.suggestion-item').forEach(item => {
+      item.addEventListener('click', function(e) {
+        const text = this.querySelector('.suggestion-text').textContent;
+        const type = this.dataset.type;
+        const url = this.dataset.url;
+        
+        // Get additional details for tracking
+        let title = text;
+        if (type === 'staff') {
+          const roleElement = this.querySelector('.staff-role');
+          const deptElement = this.querySelector('.staff-department');
+          if (roleElement) {
+            title = `${text} (${roleElement.textContent})`;
+          }
+        } else if (type === 'program') {
+          const typeElement = this.querySelector('.suggestion-type');
+          if (typeElement) {
+            title = `${text} - ${typeElement.textContent}`;
+          }
+        }
+        
+        console.log('Suggestion clicked:', { type, text, title, url });
+        
+        // Find the search input and set its value
+        const searchInput = document.getElementById('autocomplete-concierge-inputField');
+        if (searchInput) {
+          searchInput.value = text;
+        }
+        
+        // Track click for analytics
+        trackSuggestionClick(text, type, url, title, sessionId);
+        
+        // Handle staff and program items with URLs
+        if ((type === 'staff' || type === 'program') && url && url !== '#') {
+          // If click was on a link, let it handle navigation
+          if (e.target.closest('a')) {
+            // Trigger a background search after letting the link handle navigation
+            setTimeout(() => {
+              const resultsContainer = document.getElementById('results');
+              if (resultsContainer) {
+                performSearch(text, resultsContainer, sessionId);
+              }
+              updateUrl(text);
+            }, 100);
+            return; // Allow default navigation
           }
           
-          console.log('Suggestion clicked:', { type, text, title, url });
-          
-          // Find the search input and set its value
-          const searchInput = document.getElementById('autocomplete-concierge-inputField');
-          if (searchInput) {
-            searchInput.value = text;
-          }
-          
-          // Track click for analytics using SessionManager if available
-          trackSuggestionClick(text, type, url, title, sessionId);
-          
-          // Handle staff and program items with URLs
-          if ((type === 'staff' || type === 'program') && url && url !== '#') {
-            // If click was on a link, let it handle navigation
-            if (e.target.closest('a')) {
-              // Trigger a background search after letting the link handle navigation
-              setTimeout(() => {
-                const resultsContainer = document.getElementById('results');
-                if (resultsContainer) {
-                  performSearch(text, resultsContainer, sessionId);
-                }
-                updateUrl(text);
-              }, 100);
-              return; // Allow default navigation
-            }
-            
-            // Otherwise open in new tab and continue with search
-            window.open(url, '_blank', 'noopener,noreferrer');
-          }
-          
-          // Hide suggestions
-          container.innerHTML = '';
-          container.hidden = true;
-          
-          // Perform search and update URL
-          const resultsContainer = document.getElementById('results');
-          if (resultsContainer) {
-            performSearch(text, resultsContainer, sessionId);
-          }
-          updateUrl(text);
-        });
+          // Otherwise open in new tab and continue with search
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        
+        // Hide suggestions
+        container.innerHTML = '';
+        container.hidden = true;
+        
+        // Perform search and update URL
+        const resultsContainer = document.getElementById('results');
+        if (resultsContainer) {
+          performSearch(text, resultsContainer, sessionId);
+        }
+        updateUrl(text);
       });
-    };
-    
-    attachClickHandlers();
+    });
+  };
   
-    // Add keyboard navigation support
-    addKeyboardNavigation(container);
+  attachClickHandlers();
+
+  // Add keyboard navigation support
+  addKeyboardNavigation(container);
 }
-  
+
 // Track suggestion click for analytics
 function trackSuggestionClick(text, type, url, title, sessionId) {
   try {
-    // Use the centralized SessionManager if available
-    if (trackSessionEvent) {
-      trackSessionEvent('suggestion_click', {
-        text,
-        type,
-        url: url || '',
-        title: title || text,
-        timestamp: new Date().toISOString()
-      });
-      return;
-    }
-    
-    // Legacy implementation
     // Prepare data for the API call
     const data = {
       type: 'click',
@@ -209,7 +187,7 @@ function trackSuggestionClick(text, type, url, title, sessionId) {
     
     // Get the API endpoint from global config
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
+                       'https://su-search-dev.vercel.app';
     const endpoint = `${apiBaseUrl}/api/enhance`;
     
     console.log('Tracking suggestion click:', data);
@@ -417,14 +395,18 @@ async function fetchSuggestions(query, container, sessionId, isResultsPage = tru
   console.log('Fetching suggestions for:', query);
   
   try {
+    // Show loading state
+  //   container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
+  //   container.hidden = false;
+    
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
+                       'https://su-search-dev.vercel.app';
     
-    // Prepare URL with parameters - using consistent sessionId
+    // Prepare URL with parameters
     const params = new URLSearchParams({
       query,
-      sessionId: sessionId || (getSessionId ? getSessionId() : '')
+      sessionId: sessionId || ''
     });
     
     // Fetch suggestions from API
@@ -450,13 +432,15 @@ async function fetchSuggestions(query, container, sessionId, isResultsPage = tru
   }
 }
 
+// Helper functions from the integration.js file
+
 // Perform search via API
 async function performSearch(query, container, sessionId) {
   console.log('Performing search for:', query);
   
   try {
     // Show loading state
-    container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
+  //   container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
     
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
@@ -466,12 +450,12 @@ async function performSearch(query, container, sessionId) {
     const profile = window.seattleUConfig?.search?.profile || 
                    '_default';
     
-    // Prepare URL with parameters - use centralized sessionId if available
+    // Prepare URL with parameters
     const params = new URLSearchParams({
       query,
       collection,
       profile,
-      sessionId: sessionId || (getSessionId ? getSessionId() : '')
+      sessionId: sessionId || ''
     });
     
     // Fetch results from API
@@ -556,19 +540,6 @@ function attachResultClickHandlers(container, query, sessionId) {
 // Track result click via API
 function trackResultClick(query, url, title, position, sessionId) {
   try {
-    // Use the centralized SessionManager if available
-    if (trackSessionEvent) {
-      trackSessionEvent('result_click', {
-        query,
-        url,
-        title,
-        position,
-        timestamp: new Date().toISOString()
-      });
-      return;
-    }
-    
-    // Legacy implementation
     // Prepare data
     const data = {
       type: 'click',
@@ -576,7 +547,7 @@ function trackResultClick(query, url, title, position, sessionId) {
       clickedUrl: url,
       clickedTitle: title,
       clickPosition: position,
-      sessionId: sessionId || (getSessionId ? getSessionId() : ''),
+      sessionId: sessionId,
       timestamp: new Date().toISOString()
     };
     
@@ -620,8 +591,8 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
   
-  // Get session ID using centralized SessionManager
-  const sessionId = getSessionId ? getSessionId() : getOrCreateSessionId();
+  // Get session ID
+  const sessionId = getOrCreateSessionId();
   
   // Set up debounced input handler
   const debounceTime = window.seattleUConfig?.search?.debounceTime || 200;
@@ -655,14 +626,8 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Search page autocomplete initialized');
 });
 
-// Helper to get or create a session ID (legacy fallback)
+// Helper to get or create a session ID
 function getOrCreateSessionId() {
-  // Use the centralized SessionManager if available
-  if (getSessionId) {
-    return getSessionId();
-  }
-  
-  // Legacy implementation
   try {
     let sessionId = sessionStorage.getItem('searchSessionId');
     

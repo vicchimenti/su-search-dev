@@ -4,10 +4,8 @@
  * This module provides utility functions used throughout the application.
  *
  * @author Victor Chimenti
- * @version 1.1.0
+ * @version 1.0.0
  */
-
-import SessionManager, { getSessionId } from './session-manager';
 
 /**
  * Debounce a function call
@@ -36,12 +34,35 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 /**
- * Get session ID (using the centralized SessionManager)
+ * Generate a unique session ID
+ * @returns Unique session ID
+ */
+export function generateSessionId(): string {
+  return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+}
+
+/**
+ * Get or create a session ID in browser storage
  * @returns Session ID
- * @deprecated Use import { getSessionId } from './session-manager' directly
  */
 export function getOrCreateSessionId(): string {
-  return getSessionId();
+  if (typeof window === 'undefined') {
+    return generateSessionId();
+  }
+  
+  try {
+    let sessionId = sessionStorage.getItem('searchSessionId');
+    
+    if (!sessionId) {
+      sessionId = generateSessionId();
+      sessionStorage.setItem('searchSessionId', sessionId);
+    }
+    
+    return sessionId;
+  } catch (e) {
+    // Fallback if sessionStorage is unavailable
+    return generateSessionId();
+  }
 }
 
 /**

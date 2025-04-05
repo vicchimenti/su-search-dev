@@ -6,8 +6,8 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.1.3
- * @lastModified 2025-04-05
+ * @version 3.1.2
+ * @lastModified 2025-04-04
  */
 
 class TabsManager {
@@ -110,50 +110,16 @@ class TabsManager {
    * Install tab click handlers via event delegation
    */
   installTabClickHandlers() {
-    // FIXED: Use both approaches for better coverage
-    
     // Use direct tab container if found
     if (this.tabContainers.length > 0) {
       this.tabContainers.forEach(container => {
-        // Remove any existing handlers first
-        container.removeEventListener('click', this._boundHandleTabClick);
-        
-        // Store a reference to the bound function for later removal
-        this._boundHandleTabClick = this.handleTabClick.bind(this);
-        container.addEventListener('click', this._boundHandleTabClick);
+        container.addEventListener('click', this.handleTabClick.bind(this));
       });
       console.log('Tab click handlers added to tab containers');
-    }
-    
-    // Also use document-level delegation for any missed containers
-    document.removeEventListener('click', this._boundDocumentClick);
-    this._boundDocumentClick = this.documentClickHandler.bind(this);
-    document.addEventListener('click', this._boundDocumentClick);
-    console.log('Document-level tab click detection active');
-  }
-  
-  /**
-   * Handle document-level click events for tab detection
-   * @param {Event} e - The click event
-   */
-  documentClickHandler(e) {
-    // First check if click target is already within a known container
-    if (this.tabContainers.some(container => container.contains(e.target))) {
-      // Already handled by container-specific handler
-      return;
-    }
-    
-    // Check if any tab element was clicked
-    for (const selector of this.tabSelectors) {
-      const tabElement = e.target.closest(selector);
-      if (tabElement) {
-        // Found a tab that isn't in our known containers
-        console.log('Tab click detected at document level:', tabElement);
-        
-        // Handle the tab click
-        this.handleTabClick(e);
-        break;
-      }
+    } else {
+      // Fallback to document-level delegation
+      document.addEventListener('click', this.flagTabClick.bind(this));
+      console.log('Document-level tab click detection active');
     }
   }
   
@@ -188,17 +154,14 @@ class TabsManager {
    * @param {Event} e - The click event
    */
   handleTabClick(e) {
-    // FIXED: More aggressive prevention of default behavior
-    
     // Check if any tab element was clicked
     for (const selector of this.tabSelectors) {
       const tabElement = e.target.closest(selector);
       if (tabElement) {
-        console.log('Tab click captured:', tabElement);
+        console.log('Tab click captured directly:', tabElement);
         
-        // Always prevent default navigation
+        // Prevent default navigation
         e.preventDefault();
-        e.stopPropagation();
         
         // Set flag to prevent URL updates
         this.isFromTabNavigation = true;
@@ -212,18 +175,10 @@ class TabsManager {
         // Load tab content
         const href = tabElement.getAttribute('href');
         if (href) {
-          // Skip direct navigation
-          e.preventDefault();
-          e.stopPropagation();
-          
-          // Load content via our own methods
           this.loadTabContent(href, tabElement);
-          
-          // Extra step: prevent any other handlers from running
-          return false;
         }
         
-        return false;
+        return;
       }
     }
   }
@@ -244,9 +199,6 @@ class TabsManager {
         this.activeTabId = element.id || element.getAttribute('data-tab-group-control');
         
         console.log('Tab click flagged:', element.textContent.trim());
-        
-        // Prevent default navigation
-        e.preventDefault();
         break;
       }
     }
@@ -288,21 +240,7 @@ class TabsManager {
    * @param {Element} tabElement - The tab element that was clicked
    */
   async loadTabContent(href, tabElement) {
-    // FIXED: More robust error handling and container validation
-    
-    // Ensure the URL is valid
-    if (!href) {
-      console.error('No href provided for tab content');
-      return;
-    }
-    
-    // If the href is just "#", this is likely a client-side tab switch
-    if (href === '#') {
-      console.log('Client-side tab navigation detected');
-      return;
-    }
-    
-    // Get the results container
+    // Get the results container - FIXED: Ensure it exists before proceeding
     const resultsContainer = document.getElementById('results');
     if (!resultsContainer) {
       console.error('Results container not found');
@@ -318,7 +256,7 @@ class TabsManager {
       // Use the core's fetch method
       const response = await this.core.fetchFromProxy(href, 'search');
       
-      // Ensure container is still available before updating
+      // FIXED: Ensure container is still available before updating
       const container = document.getElementById('results');
       if (!container) {
         console.error('Results container disappeared during tab content loading');
@@ -333,17 +271,10 @@ class TabsManager {
       `;
       
       console.log('Tab content loaded successfully');
-      
-      // FIXED: Make sure tabs are re-initialized after content load
-      setTimeout(() => {
-        // Check for new tab containers in the loaded content
-        this.findTabContainers();
-        this.installTabClickHandlers();
-      }, 100);
     } catch (error) {
       console.error('Error loading tab content:', error);
       
-      // Ensure container still exists before showing error
+      // FIXED: Ensure container still exists before showing error
       const container = document.getElementById('results');
       if (container) {
         // Show error in container
@@ -355,12 +286,7 @@ class TabsManager {
         `;
       }
     } finally {
-      // Reset the tab navigation flag after a short delay
-      setTimeout(() => {
-        this.isFromTabNavigation = false;
-      }, 200);
-      
-      // Ensure container still exists before removing loading state
+      // FIXED: Ensure container still exists before removing loading state
       const container = document.getElementById('results');
       if (container) {
         // Remove loading state
@@ -376,21 +302,13 @@ class TabsManager {
    * @param {string} sessionId - Session ID for tracking
    */
   async enhancedPerformSearch(query, containerId, sessionId) {
-    // FIXED: Improved tab navigation detection
-    
-    // Determine if this is a tab navigation by examining URL patterns or flags
+    // Determine if this is a tab navigation by examining URL patterns
     const isTabNavigation = this.isFromTabNavigation || 
-                           (typeof query === 'string' && (
-                              // URL includes tab parameters
-                              query.includes('form=partial') && 
-                              (query.includes('tab=') || 
-                               query.includes('Tab=') || 
-                               query.includes('profile=')) ||
-                              // Link structure matches tab navigation
-                              query.includes('/s/') && 
-                              query.includes('collection=') &&
-                              !query.includes('query=')
-                           ));
+                           (typeof query === 'string' && 
+                            query.includes('form=partial') && 
+                            (query.includes('tab=') || 
+                             query.includes('Tab=') || 
+                             query.includes('profile=')));
     
     // Get container reference
     const container = typeof containerId === 'string' ? 
@@ -426,7 +344,7 @@ class TabsManager {
         console.log('Fetching tab content via core manager');
         const response = await this.core.fetchFromProxy(query, 'search');
         
-        // Check if container still exists before updating
+        // FIXED: Check if container still exists before updating
         if (container.isConnected) {
           // Update results container
           container.innerHTML = `
@@ -436,27 +354,21 @@ class TabsManager {
           `;
           
           console.log('Tab content fetched and displayed');
-          
-          // Make sure tabs are re-initialized after content load
-          setTimeout(() => {
-            // Check for new tab containers in the loaded content
-            this.findTabContainers();
-            this.installTabClickHandlers();
-          }, 100);
         } else {
           console.error('Container removed from DOM during tab content fetch');
         }
         
         // Reset the tab navigation flag after a short delay
+        // to allow time for other handlers to see it
         setTimeout(() => {
           this.isFromTabNavigation = false;
-        }, 200);
+        }, 100);
         
         return; // Skip the original function
       } catch (error) {
         console.error('Error fetching tab content:', error);
         
-        // Check if container still exists before showing error
+        // FIXED: Check if container still exists before showing error
         if (container.isConnected) {
           // Show error in container
           container.innerHTML = `
@@ -467,16 +379,11 @@ class TabsManager {
           `;
         }
       } finally {
-        // Check if container still exists before removing loading state
+        // FIXED: Check if container still exists before removing loading state
         if (container.isConnected) {
           // Remove loading state
           container.classList.remove('loading');
         }
-        
-        // Reset the flag after a delay
-        setTimeout(() => {
-          this.isFromTabNavigation = false;
-        }, 200);
       }
     } else {
       // For regular searches, use the original function
@@ -563,14 +470,13 @@ class TabsManager {
     
     // Remove event listeners
     this.tabContainers.forEach(container => {
-      if (this._boundHandleTabClick) {
-        container.removeEventListener('click', this._boundHandleTabClick);
-      }
+      container.removeEventListener('click', this.handleTabClick.bind(this));
     });
     
-    // Remove document-level listener
-    if (this._boundDocumentClick) {
-      document.removeEventListener('click', this._boundDocumentClick);
-    }
+    document.removeEventListener('click', this.flagTabClick.bind(this));
     
     console.log('TabsManager destroyed');
+  }
+}
+
+export default TabsManager;
