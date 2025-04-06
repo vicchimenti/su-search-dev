@@ -6,7 +6,7 @@
  * consistent session ID management.
  *
  * @author Victor Chimenti
- * @version 1.1.1
+ * @version 1.0.3
  */
 
 import axios from 'axios';
