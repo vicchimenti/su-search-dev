@@ -6,10 +6,13 @@
  * consistent session ID management.
  *
  * @author Victor Chimenti
- * @version 1.0.1
+ * @version 1.0.2
  */
 
-import axios from 'axios';
+// Use import type for TypeScript to prevent runtime issues
+import type { AxiosRequestConfig } from 'axios';
+// Then use require for the actual axios import
+const axios = require('axios');
 import SessionService from './SessionService';
 
 // Get backend API URL from environment variables, with fallback
@@ -26,7 +29,7 @@ export const backendApiClient = axios.create({
 });
 
 // Add request logging in development
-backendApiClient.interceptors.request.use(request => {
+backendApiClient.interceptors.request.use((request: any) => {
   if (process.env.NODE_ENV === 'development') {
     console.log('Backend API Request:', {
       url: request.url,
@@ -40,14 +43,19 @@ backendApiClient.interceptors.request.use(request => {
   if (typeof window !== 'undefined' && request.url) {
     // Only apply to search API endpoints to minimize disruption
     if (request.url.includes('/funnelback/search') && SessionService) {
-      const fullUrl = request.baseURL + request.url;
-      const normalizedUrl = SessionService.normalizeUrl(fullUrl);
-      
-      // Extract just the path + query string part
-      const urlObj = new URL(normalizedUrl);
-      request.url = urlObj.pathname + urlObj.search;
-      
-      console.log('Normalized session ID in request URL');
+      try {
+        const fullUrl = request.baseURL + request.url;
+        const normalizedUrl = SessionService.normalizeUrl(fullUrl);
+        
+        // Extract just the path + query string part
+        const urlObj = new URL(normalizedUrl);
+        request.url = urlObj.pathname + urlObj.search;
+        
+        console.log('Normalized session ID in request URL');
+      } catch (e) {
+        console.error('Error normalizing URL:', e);
+        // Don't modify the URL if normalization fails
+      }
     }
   }
   
@@ -56,7 +64,7 @@ backendApiClient.interceptors.request.use(request => {
 
 // Add response logging in development
 backendApiClient.interceptors.response.use(
-  response => {
+  (response: any) => {
     if (process.env.NODE_ENV === 'development') {
       console.log('Backend API Response:', {
         status: response.status,
@@ -66,7 +74,7 @@ backendApiClient.interceptors.response.use(
     }
     return response;
   },
-  error => {
+  (error: any) => {
     console.error('Backend API Error:', {
       message: error.message,
       status: error.response?.status,
