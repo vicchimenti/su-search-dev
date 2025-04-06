@@ -6,58 +6,9 @@
  * staff/faculty profiles, and academic programs.
  *
  * @author Victor Chimenti
- * @version 1.0.4
- * @lastModified 2025-04-06
+ * @version 1.0.1
+ * @lastModified 2025-04-03
  */
-
-// Enhanced fetch suggestions function with better error handling and SessionService integration
-async function fetchSuggestions(query, container, sessionId, isResultsPage = true) {
-  console.log('Fetching suggestions for:', query);
-  
-  if (!query || !container) {
-    container.innerHTML = '';
-    container.hidden = true;
-    return;
-  }
-  
-  try {
-    // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                       'https://su-search-dev.vercel.app';
-    
-    // Build base URL with parameters
-    let url = `${apiBaseUrl}/api/suggestions?query=${encodeURIComponent(query)}`;
-    
-    // Use SessionService if available, otherwise fall back to the provided sessionId
-    if (window.SessionService) {
-      // Let SessionService normalize the URL with correct session ID
-      url = window.SessionService.normalizeUrl(url);
-      console.log('Using SessionService for URL normalization');
-    } else if (sessionId) {
-      // Fall back to manually adding session ID if provided
-      url += `&sessionId=${sessionId}`;
-    }
-    
-    console.log('Fetching suggestions from:', url);
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-    
-    // Get JSON response
-    const data = await response.json();
-    console.log('Received suggestion data:', data);
-    
-    // Render suggestions
-    renderResultsPageSuggestions(data, container, query, sessionId);
-  } catch (error) {
-    console.error('Suggestions fetch error:', error);
-    container.innerHTML = '';
-    container.hidden = true;
-  }
-}
 
 // Function to render the results page suggestions (3-column layout)
 function renderResultsPageSuggestions(data, container, query, sessionId) {
@@ -223,78 +174,38 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
 // Track suggestion click for analytics
 function trackSuggestionClick(text, type, url, title, sessionId) {
   try {
-    // Use SessionService if available
-    if (window.SessionService) {
-      // Prepare data with session ID from service
-      const data = {
-        type: 'click',
-        originalQuery: text,
-        clickedUrl: url || '',
-        clickedTitle: title || text,
-        clickType: type || 'suggestion',
-        timestamp: new Date().toISOString()
-      };
-      
-      // Let SessionService add the session ID correctly
-      const dataWithSession = window.SessionService.addSessionIdToData(data);
-      
-      // Get the API endpoint from global config
-      const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
-      const endpoint = `${apiBaseUrl}/api/enhance`;
-      
-      console.log('Tracking suggestion click with SessionService:', dataWithSession);
-      
-      // Use sendBeacon if available for non-blocking operation
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(dataWithSession)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataWithSession),
-          keepalive: true
-        }).catch(err => console.error('Error tracking suggestion click:', err));
-      }
+    // Prepare data for the API call
+    const data = {
+      type: 'click',
+      originalQuery: text,
+      clickedUrl: url || '',
+      clickedTitle: title || text,
+      clickType: type || 'suggestion',
+      sessionId: sessionId,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Get the API endpoint from global config
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                       'https://su-search-dev.vercel.app';
+    const endpoint = `${apiBaseUrl}/api/enhance`;
+    
+    console.log('Tracking suggestion click:', data);
+    
+    // Use sendBeacon if available for non-blocking operation
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(data)], {
+        type: 'application/json'
+      });
+      navigator.sendBeacon(endpoint, blob);
     } else {
-      // Fall back to original implementation
-      // Prepare data for the API call
-      const data = {
-        type: 'click',
-        originalQuery: text,
-        clickedUrl: url || '',
-        clickedTitle: title || text,
-        clickType: type || 'suggestion',
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Get the API endpoint from global config
-      const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
-      const endpoint = `${apiBaseUrl}/api/enhance`;
-      
-      console.log('Tracking suggestion click (legacy):', data);
-      
-      // Use sendBeacon if available for non-blocking operation
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking suggestion click:', err));
-      }
+      // Fallback to fetch with keepalive
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        keepalive: true
+      }).catch(err => console.error('Error tracking suggestion click:', err));
     }
   } catch (error) {
     console.error('Error tracking suggestion click:', error);
@@ -479,6 +390,48 @@ function addKeyboardNavigation(container) {
   }
 }
 
+// Enhanced fetch suggestions function with better error handling
+async function fetchSuggestions(query, container, sessionId, isResultsPage = true) {
+  console.log('Fetching suggestions for:', query);
+  
+  try {
+    // Show loading state
+  //   container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
+  //   container.hidden = false;
+    
+    // Get API URL from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                       'https://su-search-dev.vercel.app';
+    
+    // Prepare URL with parameters
+    const params = new URLSearchParams({
+      query,
+      sessionId: sessionId || ''
+    });
+    
+    // Fetch suggestions from API
+    const url = `${apiBaseUrl}/api/suggestions?${params}`;
+    console.log('Fetching suggestions from:', url);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    // Get JSON response
+    const data = await response.json();
+    console.log('Received suggestion data:', data);
+    
+    // Render suggestions
+    renderResultsPageSuggestions(data, container, query, sessionId);
+  } catch (error) {
+    console.error('Suggestions fetch error:', error);
+    container.innerHTML = '';
+    container.hidden = true;
+  }
+}
+
 // Helper functions from the integration.js file
 
 // Perform search via API
@@ -486,6 +439,9 @@ async function performSearch(query, container, sessionId) {
   console.log('Performing search for:', query);
   
   try {
+    // Show loading state
+  //   container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
+    
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
                       'https://su-search-dev.vercel.app';
@@ -494,17 +450,16 @@ async function performSearch(query, container, sessionId) {
     const profile = window.seattleUConfig?.search?.profile || 
                    '_default';
     
-    // Build base URL with parameters
-    let url = `${apiBaseUrl}/api/search?query=${encodeURIComponent(query)}&collection=${collection}&profile=${profile}`;
+    // Prepare URL with parameters
+    const params = new URLSearchParams({
+      query,
+      collection,
+      profile,
+      sessionId: sessionId || ''
+    });
     
-    // Use SessionService if available, otherwise fall back to provided sessionId
-    if (window.SessionService) {
-      url = window.SessionService.normalizeUrl(url);
-      console.log('Using SessionService for search URL normalization');
-    } else if (sessionId) {
-      url += `&sessionId=${sessionId}`;
-    }
-    
+    // Fetch results from API
+    const url = `${apiBaseUrl}/api/search?${params}`;
     console.log('Fetching search results from:', url);
     
     const response = await fetch(url);
@@ -585,78 +540,38 @@ function attachResultClickHandlers(container, query, sessionId) {
 // Track result click via API
 function trackResultClick(query, url, title, position, sessionId) {
   try {
-    // Use SessionService if available
-    if (window.SessionService) {
-      // Prepare data
-      const data = {
-        type: 'click',
-        originalQuery: query,
-        clickedUrl: url,
-        clickedTitle: title,
-        clickPosition: position,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Let SessionService add the session ID correctly
-      const dataWithSession = window.SessionService.addSessionIdToData(data);
-      
-      // Get the API endpoint
-      const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
-      const endpoint = `${apiBaseUrl}/api/enhance`;
-      
-      console.log('Tracking result click with SessionService:', dataWithSession);
-      
-      // Use sendBeacon if available for non-blocking operation
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(dataWithSession)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataWithSession),
-          keepalive: true
-        }).catch(err => console.error('Error tracking click:', err));
-      }
+    // Prepare data
+    const data = {
+      type: 'click',
+      originalQuery: query,
+      clickedUrl: url,
+      clickedTitle: title,
+      clickPosition: position,
+      sessionId: sessionId,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Get API URL from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                      'https://su-search-dev.vercel.app';
+    const endpoint = `${apiBaseUrl}/api/enhance`;
+    
+    console.log('Tracking result click:', data);
+    
+    // Use sendBeacon if available for non-blocking operation
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(data)], {
+        type: 'application/json'
+      });
+      navigator.sendBeacon(endpoint, blob);
     } else {
-      // Fall back to original implementation
-      // Prepare data
-      const data = {
-        type: 'click',
-        originalQuery: query,
-        clickedUrl: url,
-        clickedTitle: title,
-        clickPosition: position,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Get API URL from global config or use default
-      const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                        'https://su-search-dev.vercel.app';
-      const endpoint = `${apiBaseUrl}/api/enhance`;
-      
-      console.log('Tracking result click (legacy):', data);
-      
-      // Use sendBeacon if available for non-blocking operation
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
-        });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
-        // Fallback to fetch with keepalive
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking click:', err));
-      }
+      // Fallback to fetch with keepalive
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        keepalive: true
+      }).catch(err => console.error('Error tracking click:', err));
     }
   } catch (error) {
     console.error('Error tracking click:', error);
@@ -676,10 +591,8 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
   
-  // Get session ID - prefer SessionService if available
-  const sessionId = window.SessionService ? 
-                   window.SessionService.getSessionId() : 
-                   getOrCreateSessionId();
+  // Get session ID
+  const sessionId = getOrCreateSessionId();
   
   // Set up debounced input handler
   const debounceTime = window.seattleUConfig?.search?.debounceTime || 200;
@@ -714,7 +627,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Helper to get or create a session ID
-// Note: This is kept for backward compatibility, but SessionService is preferred
 function getOrCreateSessionId() {
   try {
     let sessionId = sessionStorage.getItem('searchSessionId');
