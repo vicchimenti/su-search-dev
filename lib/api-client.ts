@@ -6,13 +6,12 @@
  * consistent session ID management.
  *
  * @author Victor Chimenti
- * @version 1.0.2
+ * @version 1.1.1
  */
 
-// Use import type for TypeScript to prevent runtime issues
-import type { AxiosRequestConfig } from 'axios';
-// Then use require for the actual axios import
-const axios = require('axios');
+import axios from 'axios';
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+// Import the session service conditionally
 import SessionService from './SessionService';
 
 // Get backend API URL from environment variables, with fallback
@@ -29,7 +28,7 @@ export const backendApiClient = axios.create({
 });
 
 // Add request logging in development
-backendApiClient.interceptors.request.use((request: any) => {
+backendApiClient.interceptors.request.use((request: AxiosRequestConfig) => {
   if (process.env.NODE_ENV === 'development') {
     console.log('Backend API Request:', {
       url: request.url,
@@ -39,22 +38,29 @@ backendApiClient.interceptors.request.use((request: any) => {
     });
   }
   
-  // NEW: Normalize session ID in URL if we're on the client side
+  // Safely check for client-side environment before accessing window
   if (typeof window !== 'undefined' && request.url) {
     // Only apply to search API endpoints to minimize disruption
-    if (request.url.includes('/funnelback/search') && SessionService) {
+    if (request.url.includes('/funnelback/search')) {
       try {
-        const fullUrl = request.baseURL + request.url;
-        const normalizedUrl = SessionService.normalizeUrl(fullUrl);
+        const sessionId = SessionService.getSessionId();
         
-        // Extract just the path + query string part
-        const urlObj = new URL(normalizedUrl);
-        request.url = urlObj.pathname + urlObj.search;
+        // If request already has params, add sessionId
+        if (request.params) {
+          // Check if sessionId already exists and remove it
+          if ('sessionId' in request.params) {
+            delete request.params.sessionId;
+          }
+          // Add the canonical sessionId
+          request.params.sessionId = sessionId;
+        } else {
+          // Create new params object with sessionId
+          request.params = { sessionId };
+        }
         
-        console.log('Normalized session ID in request URL');
+        console.log('Added normalized session ID to request params');
       } catch (e) {
-        console.error('Error normalizing URL:', e);
-        // Don't modify the URL if normalization fails
+        console.error('Error adding session ID to request:', e);
       }
     }
   }
@@ -64,7 +70,7 @@ backendApiClient.interceptors.request.use((request: any) => {
 
 // Add response logging in development
 backendApiClient.interceptors.response.use(
-  (response: any) => {
+  (response: AxiosResponse) => {
     if (process.env.NODE_ENV === 'development') {
       console.log('Backend API Response:', {
         status: response.status,
@@ -87,7 +93,13 @@ backendApiClient.interceptors.response.use(
 // Helper function for GET requests
 export async function fetchFromBackend(endpoint: string, params: any = {}) {
   try {
-    const response = await backendApiClient.get(endpoint, { params });
+    // Remove any existing sessionId to prevent duplication
+    const cleanParams = { ...params };
+    if ('sessionId' in cleanParams) {
+      delete cleanParams.sessionId;
+    }
+    
+    const response = await backendApiClient.get(endpoint, { params: cleanParams });
     return response.data;
   } catch (error) {
     console.error(`Error fetching from ${endpoint}:`, error);
@@ -98,7 +110,13 @@ export async function fetchFromBackend(endpoint: string, params: any = {}) {
 // Helper function for POST requests
 export async function postToBackend(endpoint: string, data: any = {}, params: any = {}) {
   try {
-    const response = await backendApiClient.post(endpoint, data, { params });
+    // Remove any existing sessionId to prevent duplication
+    const cleanParams = { ...params };
+    if ('sessionId' in cleanParams) {
+      delete cleanParams.sessionId;
+    }
+    
+    const response = await backendApiClient.post(endpoint, data, { params: cleanParams });
     return response.data;
   } catch (error) {
     console.error(`Error posting to ${endpoint}:`, error);
