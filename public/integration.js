@@ -33,11 +33,11 @@
   let localSessionId = null;
 
   /**
-   * Get SessionManager with retry mechanism
+   * Get SessionService with retry mechanism
    * @param {number} retries - Number of retries remaining
-   * @returns {Promise<Object|null>} - SessionManager or null if not available
+   * @returns {Promise<Object|null>} - SessionService or null if not available
    */
-  function getSessionManager(retries = config.sessionManagerRetries) {
+  function getSessionService(retries = config.sessionManagerRetries) {
     return new Promise(resolve => {
       if (window.SessionService) {
         resolve(window.SessionService);
@@ -45,31 +45,31 @@
       }
       
       if (retries <= 0) {
-        console.warn('🔍 SessionManager not available after retries, using local session management');
+        console.warn('🔍 SessionService not available after retries, using local session management');
         resolve(null);
         return;
       }
       
       setTimeout(() => {
-        getSessionManager(retries - 1).then(resolve);
+        getSessionService(retries - 1).then(resolve);
       }, config.sessionManagerRetryDelay);
     });
   }
-  
+    
   /**
-   * Get session ID safely from SessionManager or fallback
+   * Get session ID safely from SessionService or fallback
    * @returns {Promise<string>} Session ID
    */
   async function getSessionId() {
-    // Try to get SessionManager
-    const sessionManager = await getSessionManager();
+    // Try to get SessionService
+    const sessionService = await getSessionService();
     
-    if (sessionManager) {
+    if (sessionService) {
       try {
-        // Use SessionManager if available
-        return sessionManager.getSessionId();
+        // Use SessionService if available
+        return sessionService.getSessionId();
       } catch (error) {
-        console.error('🔍 Error getting session ID from SessionManager:', error);
+        console.error('🔍 Error getting session ID from SessionService:', error);
         // Fall through to fallback
       }
     }

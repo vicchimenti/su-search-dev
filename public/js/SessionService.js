@@ -10,34 +10,23 @@
  */
 
 /**
- * Interface for the SessionService
+ * SessionService - Manages session IDs across the application
  */
-export interface ISessionService {
-    generateSessionId(): string;
-    getSessionId(): string;
-    addSessionIdToUrl(url: string): string;
-    normalizeUrl(url: string): string;
-    addSessionIdToData<T>(data: T): T & { sessionId: string };
-  }
-  
-  /**
-   * SessionService - Manages session IDs across the application
-   */
-  const SessionService: ISessionService = {
+const SessionService = {
     /**
      * Generate a new session ID
-     * @returns A unique session ID
+     * @returns {string} A unique session ID
      */
-    generateSessionId(): string {
+    generateSessionId: function() {
       return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
     },
   
     /**
      * Get the current session ID or create a new one if it doesn't exist
      * This is the primary method other components should use
-     * @returns The current session ID
+     * @returns {string} The current session ID
      */
-    getSessionId(): string {
+    getSessionId: function() {
       try {
         let sessionId = sessionStorage.getItem('searchSessionId');
         
@@ -58,10 +47,10 @@ export interface ISessionService {
   
     /**
      * Add session ID to a URL if it doesn't already have one
-     * @param url - The URL to add the session ID to
-     * @returns URL with session ID parameter
+     * @param {string} url - The URL to add the session ID to
+     * @returns {string} URL with session ID parameter
      */
-    addSessionIdToUrl(url: string): string {
+    addSessionIdToUrl: function(url) {
       if (!url) return url;
       
       try {
@@ -82,10 +71,10 @@ export interface ISessionService {
     
     /**
      * Normalize a URL to ensure it has exactly one session ID parameter
-     * @param url - The URL to normalize
-     * @returns Normalized URL with exactly one session ID
+     * @param {string} url - The URL to normalize
+     * @returns {string} Normalized URL with exactly one session ID
      */
-    normalizeUrl(url: string): string {
+    normalizeUrl: function(url) {
       if (!url) return url;
       
       try {
@@ -120,17 +109,20 @@ export interface ISessionService {
   
     /**
      * Add session ID to data object for API requests
-     * @param data - The data object to add the session ID to
-     * @returns Data with session ID added
+     * @param {Object} data - The data object to add the session ID to
+     * @returns {Object} Data with session ID added
      */
-    addSessionIdToData<T>(data: T): T & { sessionId: string } {
-      const result = Object.assign({}, data) as T & { sessionId: string };
+    addSessionIdToData: function(data) {
+      const result = Object.assign({}, data);
       result.sessionId = this.getSessionId();
       return result;
     }
   };
   
   // Make globally available
-  (window as any).SessionService = SessionService;
+  window.SessionService = SessionService;
   
-  export default SessionService;
+  // For module systems, but will be ignored in browser script tags
+  if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = SessionService;
+  }
