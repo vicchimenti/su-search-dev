@@ -1,14 +1,16 @@
 /**
- * @fileoverview Client for backend API
+ * @fileoverview Client for backend API with SessionService integration
  * 
  * This module provides a configured Axios client for communicating
- * with the backend search API.
+ * with the backend search API. It now uses SessionService for 
+ * consistent session ID management.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 import axios from 'axios';
+import SessionService from './SessionService';
 
 // Get backend API URL from environment variables, with fallback
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy';
@@ -33,6 +35,22 @@ backendApiClient.interceptors.request.use(request => {
       data: request.data
     });
   }
+  
+  // NEW: Normalize session ID in URL if we're on the client side
+  if (typeof window !== 'undefined' && request.url) {
+    // Only apply to search API endpoints to minimize disruption
+    if (request.url.includes('/funnelback/search') && SessionService) {
+      const fullUrl = request.baseURL + request.url;
+      const normalizedUrl = SessionService.normalizeUrl(fullUrl);
+      
+      // Extract just the path + query string part
+      const urlObj = new URL(normalizedUrl);
+      request.url = urlObj.pathname + urlObj.search;
+      
+      console.log('Normalized session ID in request URL');
+    }
+  }
+  
   return request;
 });
 
