@@ -4,14 +4,14 @@
  * This module provides a configured Axios client for communicating
  * with the backend search API. It now uses SessionService for 
  * consistent session ID management.
- *
+ * 
  * @author Victor Chimenti
- * @version 1.0.3
+ * @version 1.1.3
+ * @lastModified 2025-04-06
  */
 
 import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
-// Import the session service conditionally
 import SessionService from './SessionService';
 
 // Get backend API URL from environment variables, with fallback
@@ -28,7 +28,7 @@ export const backendApiClient = axios.create({
 });
 
 // Add request logging in development
-backendApiClient.interceptors.request.use((request: AxiosRequestConfig) => {
+backendApiClient.interceptors.request.use((request) => {
   if (process.env.NODE_ENV === 'development') {
     console.log('Backend API Request:', {
       url: request.url,
