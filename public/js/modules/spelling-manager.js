@@ -9,128 +9,131 @@
  * - Supports query blending for enhanced results
  * - Integrates with search API via proxy
  * - Updates URL parameters when suggestions are applied
+ * - Integrates with SessionService via core manager
  * 
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @lastModified 2025-04-07
  */
 
 class SpellingManager {
-    /**
-     * Initialize the Spelling Manager.
-     * @param {Object} core - Reference to the core search manager
-     */
-    constructor(core) {
-      this.core = core;
-      this.resultsContainer = document.getElementById('results');
-      this.searchInput = document.getElementById('autocomplete-concierge-inputField');
-      
-      // Bind methods to maintain context
-      this.handleSpellingSuggestionClick = this.handleSpellingSuggestionClick.bind(this);
-      this.updateSearchInput = this.updateSearchInput.bind(this);
-      this.updateUrlWithoutRefresh = this.updateUrlWithoutRefresh.bind(this);
-      
-      this.initialize();
+  /**
+   * Initialize the Spelling Manager.
+   * @param {Object} core - Reference to the core search manager
+   */
+  constructor(core) {
+    this.core = core;
+    this.resultsContainer = document.getElementById('results');
+    this.searchInput = document.getElementById('autocomplete-concierge-inputField');
+    
+    // Bind methods to maintain context
+    this.handleSpellingSuggestionClick = this.handleSpellingSuggestionClick.bind(this);
+    this.updateSearchInput = this.updateSearchInput.bind(this);
+    this.updateUrlWithoutRefresh = this.updateUrlWithoutRefresh.bind(this);
+    
+    this.initialize();
+  }
+
+  /**
+   * Initialize spelling functionality.
+   */
+  initialize() {
+    if (!this.resultsContainer) {
+      console.warn('Spelling Manager: Results container not found');
+      return;
     }
-  
-    /**
-     * Initialize spelling functionality.
-     */
-    initialize() {
-      if (!this.resultsContainer) {
-        console.warn('Spelling Manager: Results container not found');
-        return;
+
+    // Set up event delegation for spelling suggestions
+    this.resultsContainer.addEventListener('click', (e) => {
+      // Handle spelling suggestions
+      if (e.target.closest('.search-spelling-suggestions__link, .query-blending__highlight')) {
+        e.preventDefault();
+        this.handleSpellingSuggestionClick(e);
       }
-  
-      // Set up event delegation for spelling suggestions
-      this.resultsContainer.addEventListener('click', (e) => {
-        // Handle spelling suggestions
-        if (e.target.closest('.search-spelling-suggestions__link, .query-blending__highlight')) {
-          e.preventDefault();
-          this.handleSpellingSuggestionClick(e);
-        }
-      });
+    });
+    
+    console.log('Spelling Manager: Initialized');
+  }
+
+  /**
+   * Handles clicks on spelling suggestions.
+   * @param {Event} e - The click event
+   */
+  async handleSpellingSuggestionClick(e) {
+    e.preventDefault();
+    
+    const link = e.target.closest('a');
+    if (!link) return;
+    
+    try {
+      // Get suggested query
+      const suggestedQuery = link.textContent.trim();
+      if (!suggestedQuery) return;
       
-      console.log('Spelling Manager: Initialized');
-    }
-  
-    /**
-     * Handles clicks on spelling suggestions.
-     * @param {Event} e - The click event
-     */
-    async handleSpellingSuggestionClick(e) {
-      e.preventDefault();
+      // Update search input with suggested query
+      this.updateSearchInput(suggestedQuery);
       
-      const link = e.target.closest('a');
-      if (!link) return;
+      // Get original link href and adjust for proxy
+      const href = link.getAttribute('href');
+      if (!href) return;
       
-      try {
-        // Get suggested query
-        const suggestedQuery = link.textContent.trim();
-        if (!suggestedQuery) return;
-        
-        // Update search input with suggested query
-        this.updateSearchInput(suggestedQuery);
-        
-        // Get original link href and adjust for proxy
-        const href = link.getAttribute('href');
-        if (!href) return;
-        
-        // Fetch results using the spelling endpoint
-        const response = await this.core.fetchFromProxy(href, 'spelling');
-        
-        // Update results container
-        this.core.updateResults(response);
-        
-        // Update URL without refreshing the page
-        this.updateUrlWithoutRefresh(suggestedQuery);
-        
-        // Update original query for analytics
-        this.core.originalQuery = suggestedQuery;
-        
-        console.log(`Spelling Manager: Applied suggestion "${suggestedQuery}"`);
-      } catch (error) {
-        console.error('Spelling Manager: Error handling spelling suggestion', error);
-      }
-    }
-  
-    /**
-     * Updates the search input field with suggested query.
-     * @param {string} query - The suggested query
-     */
-    updateSearchInput(query) {
-      if (this.searchInput) {
-        this.searchInput.value = query;
-      }
-    }
-  
-    /**
-     * Updates the URL without refreshing the page.
-     * @param {string} query - The query to update in URL
-     */
-    updateUrlWithoutRefresh(query) {
-      if (!window.history || !window.history.pushState) return;
+      // Fetch results using the spelling endpoint via core manager
+      // This automatically handles session ID through the core manager
+      const response = await this.core.fetchFromProxy(href, 'spelling');
       
-      const url = new URL(window.location);
-      url.searchParams.set('query', query);
-      window.history.pushState({}, '', url);
-    }
-  
-    /**
-     * Handles DOM changes by adding listeners to new content.
-     * @param {NodeList} addedNodes - Nodes added to the DOM
-     */
-    handleDomChanges(addedNodes) {
-      // No specific action needed as we're using event delegation
-    }
-  
-    /**
-     * Clean up event listeners when this module is destroyed.
-     */
-    destroy() {
-      if (this.resultsContainer) {
-        this.resultsContainer.removeEventListener('click', this.handleClick);
-      }
+      // Update results container
+      this.core.updateResults(response);
+      
+      // Update URL without refreshing the page
+      this.updateUrlWithoutRefresh(suggestedQuery);
+      
+      // Update original query for analytics
+      this.core.originalQuery = suggestedQuery;
+      
+      console.log(`Spelling Manager: Applied suggestion "${suggestedQuery}"`);
+    } catch (error) {
+      console.error('Spelling Manager: Error handling spelling suggestion', error);
     }
   }
-  
-  export default SpellingManager;
+
+  /**
+   * Updates the search input field with suggested query.
+   * @param {string} query - The suggested query
+   */
+  updateSearchInput(query) {
+    if (this.searchInput) {
+      this.searchInput.value = query;
+    }
+  }
+
+  /**
+   * Updates the URL without refreshing the page.
+   * @param {string} query - The query to update in URL
+   */
+  updateUrlWithoutRefresh(query) {
+    if (!window.history || !window.history.pushState) return;
+    
+    const url = new URL(window.location);
+    url.searchParams.set('query', query);
+    window.history.pushState({}, '', url);
+  }
+
+  /**
+   * Handles DOM changes by adding listeners to new content.
+   * @param {NodeList} addedNodes - Nodes added to the DOM
+   */
+  handleDomChanges(addedNodes) {
+    // No specific action needed as we're using event delegation
+  }
+
+  /**
+   * Clean up event listeners when this module is destroyed.
+   */
+  destroy() {
+    if (this.resultsContainer) {
+      this.resultsContainer.removeEventListener('click', this.handleClick);
+    }
+  }
+}
+
+export default SpellingManager;
