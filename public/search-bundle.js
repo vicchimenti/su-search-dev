@@ -5,7 +5,8 @@
  * the search system into the Seattle University CMS.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.2.0
+ * @lastModified 2025-04-07
  */
 
 (function() {
@@ -17,19 +18,21 @@
     profile: '_default'
   };
   
-  // Session management
+  // Session management - uses SessionService as the single source of truth
   function getSessionId() {
     try {
-      let sessionId = sessionStorage.getItem('searchSessionId');
-      
-      if (!sessionId) {
-        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-        sessionStorage.setItem('searchSessionId', sessionId);
+      // Check for SessionService first - the single source of truth
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        console.log('Using SessionService for session ID:', sessionId);
+        return sessionId;
+      } else {
+        console.warn('SessionService not found - analytics tracking will be limited');
+        return null;
       }
-      
-      return sessionId;
-    } catch (e) {
-      return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    } catch (error) {
+      console.error('Error accessing SessionService:', error);
+      return null;
     }
   }
   
@@ -58,7 +61,7 @@
     // Determine if we're on a search results page
     const isResultsPage = !!resultsContainer;
     
-    // Get session ID
+    // Get session ID from SessionService
     const sessionId = getSessionId();
     
     // Setup header search if present
@@ -173,10 +176,17 @@
   // Fetch suggestions from API
   async function fetchSuggestions(query, container, sessionId, isPage = false) {
     try {
-      container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
+
       container.hidden = false;
       
-      const url = `${config.apiBaseUrl}/api/suggestions?query=${encodeURIComponent(query)}&sessionId=${sessionId}`;
+      // Construct URL with parameters
+      let url = `${config.apiBaseUrl}/api/suggestions?query=${encodeURIComponent(query)}`;
+      
+      // Only add sessionId if it's available
+      if (sessionId) {
+        url += `&sessionId=${sessionId}`;
+      }
+      
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -358,11 +368,14 @@
 // Perform search with API
 async function performSearch(query, container, sessionId) {
   try {
-    // Show loading state
-    container.innerHTML = '<div class="loading-results">Loading search results...</div>';
     
     // Construct URL with parameters
-    const url = `${config.apiBaseUrl}/api/search?query=${encodeURIComponent(query)}&collection=${config.collection}&profile=${config.profile}&sessionId=${sessionId}`;
+    let url = `${config.apiBaseUrl}/api/search?query=${encodeURIComponent(query)}&collection=${config.collection}&profile=${config.profile}`;
+    
+    // Only add sessionId if it's available
+    if (sessionId) {
+      url += `&sessionId=${sessionId}`;
+    }
     
     // Fetch search results
     const response = await fetch(url);
@@ -421,16 +434,21 @@ function attachResultClickHandlers(container, query, sessionId) {
 // Track suggestion click for analytics
 function trackSuggestionClick(text, type, url, sessionId) {
   try {
-    // Use sendBeacon for non-blocking operation
+    // Prepare data
     const data = {
       originalQuery: text,
       clickedUrl: url || '',
       clickedTitle: text,
       clickType: type || 'suggestion',
-      sessionId: sessionId,
       timestamp: new Date().toISOString()
     };
     
+    // Only add sessionId if it's available
+    if (sessionId) {
+      data.sessionId = sessionId;
+    }
+    
+    // Use sendBeacon if available for non-blocking operation
     const endpoint = `${config.apiBaseUrl}/api/enhance`;
     
     if (navigator.sendBeacon) {
@@ -455,16 +473,21 @@ function trackSuggestionClick(text, type, url, sessionId) {
 // Track result click for analytics
 function trackResultClick(query, url, title, position, sessionId) {
   try {
-    // Use sendBeacon for non-blocking operation
+    // Prepare data
     const data = {
       originalQuery: query,
       clickedUrl: url,
       clickedTitle: title,
       clickPosition: position,
-      sessionId: sessionId,
       timestamp: new Date().toISOString()
     };
     
+    // Only add sessionId if it's available
+    if (sessionId) {
+      data.sessionId = sessionId;
+    }
+    
+    // Use sendBeacon if available for non-blocking operation
     const endpoint = `${config.apiBaseUrl}/api/enhance`;
     
     if (navigator.sendBeacon) {
