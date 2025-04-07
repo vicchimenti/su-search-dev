@@ -6,12 +6,61 @@
  * staff/faculty profiles, and academic programs.
  *
  * @author Victor Chimenti
- * @version 1.1.0
- * @lastModified 2025-04-06
+ * @version 1.2.0
+ * @lastModified 2025-04-07
  */
 
+// Create a module-level session handler that serves as the single source of truth within this file
+const SessionManager = {
+  // The cached session ID
+  _sessionId: null,
+  
+  // Flag to track if we've tried to initialize
+  _initialized: false,
+  
+  // Initialize the session ID from SessionService
+  init() {
+    if (this._initialized) return;
+    
+    try {
+      if (window.SessionService) {
+        this._sessionId = window.SessionService.getSessionId();
+        console.log('Initialized session ID from SessionService:', this._sessionId);
+      } else {
+        console.warn('SessionService not available - analytics tracking will be limited');
+        this._sessionId = null;
+      }
+    } catch (error) {
+      console.error('Error accessing SessionService:', error);
+      this._sessionId = null;
+    }
+    
+    this._initialized = true;
+  },
+  
+  // Get the current session ID, refreshing from SessionService if needed
+  getSessionId() {
+    // Initialize if not already done
+    if (!this._initialized) {
+      this.init();
+    }
+    
+    // Refresh from SessionService each time to ensure consistency
+    try {
+      if (window.SessionService) {
+        this._sessionId = window.SessionService.getSessionId();
+      }
+    } catch (error) {
+      console.error('Error refreshing session ID from SessionService:', error);
+      // Keep the existing session ID if there's an error
+    }
+    
+    return this._sessionId;
+  }
+};
+
 // Function to render the results page suggestions (3-column layout)
-function renderResultsPageSuggestions(data, container, query, sessionId) {
+function renderResultsPageSuggestions(data, container, query) {
   console.log('Rendering results page suggestions:', data);
   
   // Extract and process data
@@ -129,8 +178,8 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
           searchInput.value = text;
         }
         
-        // Track click for analytics (only if session ID is available)
-        trackSuggestionClick(text, type, url, title, sessionId);
+        // Track click for analytics (using SessionManager)
+        trackSuggestionClick(text, type, url, title);
         
         // Handle staff and program items with URLs
         if ((type === 'staff' || type === 'program') && url && url !== '#') {
@@ -140,7 +189,7 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
             setTimeout(() => {
               const resultsContainer = document.getElementById('results');
               if (resultsContainer) {
-                performSearch(text, resultsContainer, sessionId);
+                performSearch(text, resultsContainer);
               }
               updateUrl(text);
             }, 100);
@@ -158,7 +207,7 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
         // Perform search and update URL
         const resultsContainer = document.getElementById('results');
         if (resultsContainer) {
-          performSearch(text, resultsContainer, sessionId);
+          performSearch(text, resultsContainer);
         }
         updateUrl(text);
       });
@@ -172,8 +221,11 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
 }
 
 // Track suggestion click for analytics
-function trackSuggestionClick(text, type, url, title, sessionId) {
+function trackSuggestionClick(text, type, url, title) {
   try {
+    // Get session ID from SessionManager
+    const sessionId = SessionManager.getSessionId();
+    
     // Prepare data for the API call
     const data = {
       type: 'click',
@@ -184,7 +236,7 @@ function trackSuggestionClick(text, type, url, title, sessionId) {
       timestamp: new Date().toISOString()
     };
     
-    // Only add session ID if it's available from SessionService
+    // Only add session ID if it's available
     if (sessionId) {
       data.sessionId = sessionId;
     }
@@ -213,6 +265,206 @@ function trackSuggestionClick(text, type, url, title, sessionId) {
     }
   } catch (error) {
     console.error('Error tracking suggestion click:', error);
+    // Continue with normal operation despite tracking failure
+  }
+}
+
+// Enhanced fetch suggestions function
+async function fetchSuggestions(query, container, isResultsPage = true) {
+  console.log('Fetching suggestions for:', query);
+  
+  try {
+    // Get session ID from SessionManager
+    const sessionId = SessionManager.getSessionId();
+    
+    // Get API URL from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                       'https://su-search-dev.vercel.app';
+    
+    // Prepare URL with parameters
+    const params = new URLSearchParams({ query });
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      params.append('sessionId', sessionId);
+    }
+    
+    // Fetch suggestions from API
+    const url = `${apiBaseUrl}/api/suggestions?${params}`;
+    console.log('Fetching suggestions from:', url);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    // Get JSON response
+    const data = await response.json();
+    console.log('Received suggestion data:', data);
+    
+    // Render suggestions
+    renderResultsPageSuggestions(data, container, query);
+  } catch (error) {
+    console.error('Suggestions fetch error:', error);
+    container.innerHTML = '';
+    container.hidden = true;
+    // Continue with normal operation despite fetch failure
+  }
+}
+
+// Perform search via API
+async function performSearch(query, container) {
+  console.log('Performing search for:', query);
+  
+  try {
+    // Get session ID from SessionManager
+    const sessionId = SessionManager.getSessionId();
+    
+    // Get API URL from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                      'https://su-search-dev.vercel.app';
+    const collection = window.seattleUConfig?.search?.collection || 
+                      'seattleu~sp-search';
+    const profile = window.seattleUConfig?.search?.profile || 
+                   '_default';
+    
+    // Prepare URL with parameters
+    const params = new URLSearchParams({
+      query,
+      collection,
+      profile
+    });
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      params.append('sessionId', sessionId);
+    }
+    
+    // Fetch results from API
+    const url = `${apiBaseUrl}/api/search?${params}`;
+    console.log('Fetching search results from:', url);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    
+    // Get HTML response
+    const html = await response.text();
+    
+    // Update results container
+    container.innerHTML = `
+      <div class="funnelback-search-container">
+        ${html}
+      </div>
+    `;
+    
+    // Attach click handlers for tracking
+    attachResultClickHandlers(container, query);
+    
+    // Scroll to results if not in viewport AND page is not already at the top
+    if (!isElementInViewport(container) && window.scrollY > 0) {
+      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (error) {
+    console.error('Search error:', error);
+    container.innerHTML = `
+      <div class="search-error">
+        <h3>Error Loading Results</h3>
+        <p>${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Update URL without page reload
+function updateUrl(query) {
+  if (!window.history?.pushState) return;
+  
+  const url = new URL(window.location);
+  url.searchParams.set('query', query);
+  window.history.pushState({}, '', url);
+}
+
+// Check if element is in viewport
+function isElementInViewport(el) {
+  const rect = el.getBoundingClientRect();
+  return (
+    rect.top >= 0 &&
+    rect.left >= 0 &&
+    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+  );
+}
+
+// Attach click handlers to search results for tracking
+function attachResultClickHandlers(container, query) {
+  // Find all result links
+  const resultLinks = container.querySelectorAll(
+    '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
+  );
+  
+  resultLinks.forEach((link, index) => {
+    link.addEventListener('click', function(e) {
+      // Don't prevent default navigation
+      
+      // Get link details
+      const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
+      const title = link.textContent.trim() || '';
+      
+      // Track click
+      trackResultClick(query, url, title, index + 1);
+    });
+  });
+}
+
+// Track result click via API
+function trackResultClick(query, url, title, position) {
+  try {
+    // Get session ID from SessionManager
+    const sessionId = SessionManager.getSessionId();
+    
+    // Prepare data
+    const data = {
+      type: 'click',
+      originalQuery: query,
+      clickedUrl: url,
+      clickedTitle: title,
+      clickPosition: position,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      data.sessionId = sessionId;
+    }
+    
+    // Get API URL from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
+                      'https://su-search-dev.vercel.app';
+    const endpoint = `${apiBaseUrl}/api/enhance`;
+    
+    console.log('Tracking result click:', data);
+    
+    // Use sendBeacon if available for non-blocking operation
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(data)], {
+        type: 'application/json'
+      });
+      navigator.sendBeacon(endpoint, blob);
+    } else {
+      // Fallback to fetch with keepalive
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        keepalive: true
+      }).catch(err => console.error('Error tracking click:', err));
+    }
+  } catch (error) {
+    console.error('Error tracking click:', error);
     // Continue with normal operation despite tracking failure
   }
 }
@@ -395,202 +647,23 @@ function addKeyboardNavigation(container) {
   }
 }
 
-// Enhanced fetch suggestions function
-async function fetchSuggestions(query, container, sessionId, isResultsPage = true) {
-  console.log('Fetching suggestions for:', query);
-  
-  try {
-    
-    // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                       'https://su-search-dev.vercel.app';
-    
-    // Prepare URL with parameters - only include sessionId if available
-    const params = new URLSearchParams({ query });
-    
-    // Only add session ID if it's available
-    if (sessionId) {
-      params.append('sessionId', sessionId);
-    }
-    
-    // Fetch suggestions from API
-    const url = `${apiBaseUrl}/api/suggestions?${params}`;
-    console.log('Fetching suggestions from:', url);
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-    
-    // Get JSON response
-    const data = await response.json();
-    console.log('Received suggestion data:', data);
-    
-    // Render suggestions
-    renderResultsPageSuggestions(data, container, query, sessionId);
-  } catch (error) {
-    console.error('Suggestions fetch error:', error);
-    container.innerHTML = '';
-    container.hidden = true;
-    // Continue with normal operation despite fetch failure
-  }
-}
-
-// Perform search via API
-async function performSearch(query, container, sessionId) {
-  console.log('Performing search for:', query);
-  
-  try {
-    
-    // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                      'https://su-search-dev.vercel.app';
-    const collection = window.seattleUConfig?.search?.collection || 
-                      'seattleu~sp-search';
-    const profile = window.seattleUConfig?.search?.profile || 
-                   '_default';
-    
-    // Prepare URL with parameters - only include sessionId if available
-    const params = new URLSearchParams({
-      query,
-      collection,
-      profile
-    });
-    
-    // Only add session ID if it's available
-    if (sessionId) {
-      params.append('sessionId', sessionId);
-    }
-    
-    // Fetch results from API
-    const url = `${apiBaseUrl}/api/search?${params}`;
-    console.log('Fetching search results from:', url);
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-    
-    // Get HTML response
-    const html = await response.text();
-    
-    // Update results container
-    container.innerHTML = `
-      <div class="funnelback-search-container">
-        ${html}
-      </div>
-    `;
-    
-    // Attach click handlers for tracking
-    attachResultClickHandlers(container, query, sessionId);
-    
-    // Scroll to results if not in viewport AND page is not already at the top
-    if (!isElementInViewport(container) && window.scrollY > 0) {
-      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  } catch (error) {
-    console.error('Search error:', error);
-    container.innerHTML = `
-      <div class="search-error">
-        <h3>Error Loading Results</h3>
-        <p>${error.message}</p>
-      </div>
-    `;
-  }
-}
-
-// Update URL without page reload
-function updateUrl(query) {
-  if (!window.history?.pushState) return;
-  
-  const url = new URL(window.location);
-  url.searchParams.set('query', query);
-  window.history.pushState({}, '', url);
-}
-
-// Check if element is in viewport
-function isElementInViewport(el) {
-  const rect = el.getBoundingClientRect();
-  return (
-    rect.top >= 0 &&
-    rect.left >= 0 &&
-    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-  );
-}
-
-// Attach click handlers to search results for tracking
-function attachResultClickHandlers(container, query, sessionId) {
-  // Find all result links
-  const resultLinks = container.querySelectorAll(
-    '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
-  );
-  
-  resultLinks.forEach((link, index) => {
-    link.addEventListener('click', function(e) {
-      // Don't prevent default navigation
-      
-      // Get link details
-      const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
-      const title = link.textContent.trim() || '';
-      
-      // Track click (only if session ID is available)
-      trackResultClick(query, url, title, index + 1, sessionId);
-    });
-  });
-}
-
-// Track result click via API
-function trackResultClick(query, url, title, position, sessionId) {
-  try {
-    // Prepare data
-    const data = {
-      type: 'click',
-      originalQuery: query,
-      clickedUrl: url,
-      clickedTitle: title,
-      clickPosition: position,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Only add session ID if it's available
-    if (sessionId) {
-      data.sessionId = sessionId;
-    }
-    
-    // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                      'https://su-search-dev.vercel.app';
-    const endpoint = `${apiBaseUrl}/api/enhance`;
-    
-    console.log('Tracking result click:', data);
-    
-    // Use sendBeacon if available for non-blocking operation
-    if (navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(data)], {
-        type: 'application/json'
-      });
-      navigator.sendBeacon(endpoint, blob);
-    } else {
-      // Fallback to fetch with keepalive
-      fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        keepalive: true
-      }).catch(err => console.error('Error tracking click:', err));
-    }
-  } catch (error) {
-    console.error('Error tracking click:', error);
-    // Continue with normal operation despite tracking failure
-  }
+// Helper for debouncing
+function debounce(func, wait) {
+  let timeout;
+  return function() {
+    const context = this;
+    const args = arguments;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), wait);
+  };
 }
 
 // Initialize search suggestions on page load
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Initializing search page autocomplete');
+  
+  // Initialize SessionManager
+  SessionManager.init();
   
   // Find the search input and suggestions container
   const searchInput = document.getElementById('autocomplete-concierge-inputField');
@@ -599,20 +672,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!searchInput || !suggestionsContainer) {
     console.log('Search input or suggestions container not found');
     return;
-  }
-  
-  // Get session ID from SessionService (single source of truth)
-  let sessionId = null;
-  try {
-    if (window.SessionService) {
-      sessionId = window.SessionService.getSessionId();
-      console.log('Using SessionService for session ID:', sessionId);
-    } else {
-      console.warn('SessionService not found - analytics tracking will be limited');
-    }
-  } catch (error) {
-    console.error('Error accessing SessionService:', error);
-    // Continue without session ID - core functionality will work
   }
   
   // Set up debounced input handler
@@ -628,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    fetchSuggestions(query, suggestionsContainer, sessionId, true);
+    fetchSuggestions(query, suggestionsContainer, true);
   }, debounceTime);
   
   // Add input handler
@@ -646,14 +705,3 @@ document.addEventListener('DOMContentLoaded', function() {
   
   console.log('Search page autocomplete initialized');
 });
-
-// Helper for debouncing
-function debounce(func, wait) {
-  let timeout;
-  return function() {
-    const context = this;
-    const args = arguments;
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(context, args), wait);
-  };
-}
