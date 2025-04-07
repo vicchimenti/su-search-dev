@@ -6,8 +6,8 @@
  * staff/faculty profiles, and academic programs.
  *
  * @author Victor Chimenti
- * @version 1.0.1
- * @lastModified 2025-04-03
+ * @version 1.1.0
+ * @lastModified 2025-04-06
  */
 
 // Function to render the results page suggestions (3-column layout)
@@ -129,7 +129,7 @@ function renderResultsPageSuggestions(data, container, query, sessionId) {
           searchInput.value = text;
         }
         
-        // Track click for analytics
+        // Track click for analytics (only if session ID is available)
         trackSuggestionClick(text, type, url, title, sessionId);
         
         // Handle staff and program items with URLs
@@ -181,9 +181,13 @@ function trackSuggestionClick(text, type, url, title, sessionId) {
       clickedUrl: url || '',
       clickedTitle: title || text,
       clickType: type || 'suggestion',
-      sessionId: sessionId,
       timestamp: new Date().toISOString()
     };
+    
+    // Only add session ID if it's available from SessionService
+    if (sessionId) {
+      data.sessionId = sessionId;
+    }
     
     // Get the API endpoint from global config
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
@@ -209,6 +213,7 @@ function trackSuggestionClick(text, type, url, title, sessionId) {
     }
   } catch (error) {
     console.error('Error tracking suggestion click:', error);
+    // Continue with normal operation despite tracking failure
   }
 }
 
@@ -390,24 +395,23 @@ function addKeyboardNavigation(container) {
   }
 }
 
-// Enhanced fetch suggestions function with better error handling
+// Enhanced fetch suggestions function
 async function fetchSuggestions(query, container, sessionId, isResultsPage = true) {
   console.log('Fetching suggestions for:', query);
   
   try {
-    // Show loading state
-  //   container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
-  //   container.hidden = false;
     
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
                        'https://su-search-dev.vercel.app';
     
-    // Prepare URL with parameters
-    const params = new URLSearchParams({
-      query,
-      sessionId: sessionId || ''
-    });
+    // Prepare URL with parameters - only include sessionId if available
+    const params = new URLSearchParams({ query });
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      params.append('sessionId', sessionId);
+    }
     
     // Fetch suggestions from API
     const url = `${apiBaseUrl}/api/suggestions?${params}`;
@@ -429,18 +433,15 @@ async function fetchSuggestions(query, container, sessionId, isResultsPage = tru
     console.error('Suggestions fetch error:', error);
     container.innerHTML = '';
     container.hidden = true;
+    // Continue with normal operation despite fetch failure
   }
 }
-
-// Helper functions from the integration.js file
 
 // Perform search via API
 async function performSearch(query, container, sessionId) {
   console.log('Performing search for:', query);
   
   try {
-    // Show loading state
-  //   container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
     
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
@@ -450,13 +451,17 @@ async function performSearch(query, container, sessionId) {
     const profile = window.seattleUConfig?.search?.profile || 
                    '_default';
     
-    // Prepare URL with parameters
+    // Prepare URL with parameters - only include sessionId if available
     const params = new URLSearchParams({
       query,
       collection,
-      profile,
-      sessionId: sessionId || ''
+      profile
     });
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      params.append('sessionId', sessionId);
+    }
     
     // Fetch results from API
     const url = `${apiBaseUrl}/api/search?${params}`;
@@ -531,7 +536,7 @@ function attachResultClickHandlers(container, query, sessionId) {
       const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
       const title = link.textContent.trim() || '';
       
-      // Track click
+      // Track click (only if session ID is available)
       trackResultClick(query, url, title, index + 1, sessionId);
     });
   });
@@ -547,9 +552,13 @@ function trackResultClick(query, url, title, position, sessionId) {
       clickedUrl: url,
       clickedTitle: title,
       clickPosition: position,
-      sessionId: sessionId,
       timestamp: new Date().toISOString()
     };
+    
+    // Only add session ID if it's available
+    if (sessionId) {
+      data.sessionId = sessionId;
+    }
     
     // Get API URL from global config or use default
     const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
@@ -575,6 +584,7 @@ function trackResultClick(query, url, title, position, sessionId) {
     }
   } catch (error) {
     console.error('Error tracking click:', error);
+    // Continue with normal operation despite tracking failure
   }
 }
 
@@ -591,8 +601,19 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
   
-  // Get session ID
-  const sessionId = getOrCreateSessionId();
+  // Get session ID from SessionService (single source of truth)
+  let sessionId = null;
+  try {
+    if (window.SessionService) {
+      sessionId = window.SessionService.getSessionId();
+      console.log('Using SessionService for session ID:', sessionId);
+    } else {
+      console.warn('SessionService not found - analytics tracking will be limited');
+    }
+  } catch (error) {
+    console.error('Error accessing SessionService:', error);
+    // Continue without session ID - core functionality will work
+  }
   
   // Set up debounced input handler
   const debounceTime = window.seattleUConfig?.search?.debounceTime || 200;
@@ -626,24 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Search page autocomplete initialized');
 });
 
-// Helper to get or create a session ID
-function getOrCreateSessionId() {
-  try {
-    let sessionId = sessionStorage.getItem('searchSessionId');
-    
-    if (!sessionId) {
-      sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      sessionStorage.setItem('searchSessionId', sessionId);
-    }
-    
-    return sessionId;
-  } catch (e) {
-    // Fallback if sessionStorage is unavailable
-    return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-  }
-}
-
-// Debounce function to limit execution frequency
+// Helper for debouncing
 function debounce(func, wait) {
   let timeout;
   return function() {
