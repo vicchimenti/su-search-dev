@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.2.0
- * @lastModified 2025-04-05
+ * @version 1.3.0
+ * @lastModified 2025-04-07
  */
 
 // Core Search Manager
@@ -38,7 +38,7 @@ class SearchManager {
     this.modules = {};
     
     // State
-    this.sessionId = this.getOrCreateSessionId();
+    this.sessionId = null; // No longer initialize here; will get from SessionService
     this.originalQuery = null;
     this.isInitialized = false;
   }
@@ -73,6 +73,9 @@ class SearchManager {
    * Initialize the search manager and all enabled modules
    */
   async initialize() {
+    // Get session ID from SessionService - the single source of truth
+    this.initializeSessionId();
+    
     // Extract query from URL or input
     this.extractOriginalQuery();
     
@@ -86,6 +89,24 @@ class SearchManager {
     this.startObserving();
     
     console.log('Search Manager initialized with modules:', Object.keys(this.modules));
+  }
+  
+  /**
+   * Initialize session ID using SessionService
+   */
+  initializeSessionId() {
+    try {
+      if (window.SessionService) {
+        this.sessionId = window.SessionService.getSessionId();
+        console.log('Using SessionService for session ID:', this.sessionId);
+      } else {
+        console.warn('SessionService not found - analytics tracking will be limited');
+        this.sessionId = null;
+      }
+    } catch (error) {
+      console.error('Error accessing SessionService:', error);
+      this.sessionId = null;
+    }
   }
   
   /**
@@ -131,23 +152,17 @@ class SearchManager {
   }
   
   /**
-   * Get or create a session ID for analytics tracking
-   * @returns {string} Session ID
+   * Get session ID - should be called by modules rather than accessing this.sessionId directly
+   * Ensures consistent session ID usage across the application
+   * @returns {string|null} Session ID or null if unavailable
    */
-  getOrCreateSessionId() {
-    try {
-      let sessionId = sessionStorage.getItem('searchSessionId');
-      
-      if (!sessionId) {
-        sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-        sessionStorage.setItem('searchSessionId', sessionId);
-      }
-      
-      return sessionId;
-    } catch (error) {
-      // Fallback for private browsing mode
-      return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+  getSessionId() {
+    // If it's not set yet, try again from SessionService
+    if (this.sessionId === null) {
+      this.initializeSessionId();
     }
+    
+    return this.sessionId;
   }
   
   /**
@@ -217,21 +232,30 @@ class SearchManager {
       switch (type) {
         case 'search':
           queryString = url.includes('?') ? url.split('?')[1] : '';
-          fullUrl = `${endpoint}?${queryString}&sessionId=${this.sessionId}`;
+          // Only include sessionId if available
+          fullUrl = this.sessionId 
+            ? `${endpoint}?${queryString}&sessionId=${this.sessionId}` 
+            : `${endpoint}?${queryString}`;
           break;
           
         case 'tools':
           queryString = new URLSearchParams({
-            path: url.split('/s/')[1],
-            sessionId: this.sessionId
+            path: url.split('/s/')[1]
           });
+          // Only add sessionId if available
+          if (this.sessionId) {
+            queryString.append('sessionId', this.sessionId);
+          }
           fullUrl = `${endpoint}?${queryString}`;
           break;
           
         case 'spelling':
           queryString = url.includes('?') ? url.split('?')[1] : '';
           const params = new URLSearchParams(queryString);
-          params.append('sessionId', this.sessionId);
+          // Only add sessionId if available
+          if (this.sessionId) {
+            params.append('sessionId', this.sessionId);
+          }
           fullUrl = `${endpoint}?${params.toString()}`;
           break;
           
@@ -312,9 +336,17 @@ class SearchManager {
     const endpoint = `${this.config.proxyBaseUrl}/analytics/${endpointType}`;
     
     try {
+      // Create a copy of the data to modify
+      const analyticsData = {...data};
+      
+      // Only include sessionId if available
+      if (this.sessionId) {
+        analyticsData.sessionId = this.sessionId;
+      }
+      
       // Use sendBeacon if available (works during page unload)
       if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(data)], {
+        const blob = new Blob([JSON.stringify(analyticsData)], {
           type: 'application/json'
         });
         
@@ -329,7 +361,7 @@ class SearchManager {
           'Content-Type': 'application/json',
           'Origin': window.location.origin
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(analyticsData),
         credentials: 'include',
         keepalive: true
       }).catch(error => {
