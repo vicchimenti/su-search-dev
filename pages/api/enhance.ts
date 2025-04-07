@@ -5,7 +5,8 @@
  * including analytics tracking, personalization, and additional features.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @lastModified 2025-04-07
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
