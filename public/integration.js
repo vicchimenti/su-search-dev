@@ -6,7 +6,7 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.3.0
+ * @version 1.4.0
  * @lastModified 2025-04-06
  */
 
@@ -17,9 +17,7 @@
     collection: 'seattleu~sp-search',
     profile: '_default',
     minQueryLength: 3,
-    debounceTime: 200,
-    sessionManagerRetries: 5,  // Number of retries to find SessionManager
-    sessionManagerRetryDelay: 100  // Milliseconds between retries
+    debounceTime: 200
   };
   
   // Make config available globally
@@ -29,79 +27,34 @@
     ...window.seattleUConfig?.search
   };
 
-  // Local session ID (for fallback only)
-  let localSessionId = null;
-
   /**
-   * Get SessionService with retry mechanism
-   * @param {number} retries - Number of retries remaining
-   * @returns {Promise<Object|null>} - SessionService or null if not available
+   * Get session ID from SessionService
+   * Uses SessionService as the single source of truth for session IDs
+   * @returns {string|null} Session ID or null if unavailable
    */
-  function getSessionService(retries = config.sessionManagerRetries) {
-    return new Promise(resolve => {
+  function getSessionId() {
+    try {
       if (window.SessionService) {
-        resolve(window.SessionService);
-        return;
+        const sessionId = window.SessionService.getSessionId();
+        console.log('🔍 Session ID:', sessionId);
+        return sessionId;
+      } else {
+        console.warn('🔍 SessionService not found - analytics tracking will be limited');
+        return null;
       }
-      
-      if (retries <= 0) {
-        console.warn('🔍 SessionService not available after retries, using local session management');
-        resolve(null);
-        return;
-      }
-      
-      setTimeout(() => {
-        getSessionService(retries - 1).then(resolve);
-      }, config.sessionManagerRetryDelay);
-    });
-  }
-    
-  /**
-   * Get session ID safely from SessionService or fallback
-   * @returns {Promise<string>} Session ID
-   */
-  async function getSessionId() {
-    // Try to get SessionService
-    const sessionService = await getSessionService();
-    
-    if (sessionService) {
-      try {
-        // Use SessionService if available
-        return sessionService.getSessionId();
-      } catch (error) {
-        console.error('🔍 Error getting session ID from SessionService:', error);
-        // Fall through to fallback
-      }
+    } catch (error) {
+      console.error('🔍 Error accessing SessionService:', error);
+      // Return null rather than generating a fallback ID
+      return null;
     }
-    
-    // Fallback to local session ID
-    if (!localSessionId) {
-      try {
-        // Try to use sessionStorage for persistence
-        localSessionId = sessionStorage.getItem('searchSessionId');
-        
-        if (!localSessionId) {
-          localSessionId = 'local_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-          sessionStorage.setItem('searchSessionId', localSessionId);
-        }
-      } catch (e) {
-        // Ultimate fallback if even sessionStorage fails
-        localSessionId = 'local_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      }
-      
-      console.log('🔍 Using local session ID (fallback):', localSessionId);
-    }
-    
-    return localSessionId;
   }
 
   // Initialize on DOM ready
-  document.addEventListener('DOMContentLoaded', async function() {
+  document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Frontend Search Integration: Initializing');
     
-    // Get session ID for tracking
-    const sessionId = await getSessionId();
-    console.log('🔍 Session ID:', sessionId);
+    // Get session ID for tracking - only from SessionService
+    const sessionId = getSessionId();
     
     // Detect environment
     const isResultsPage = window.location.pathname.includes('search-test');
@@ -187,7 +140,7 @@
   /**
    * Set up header search integration
    * @param {Object} component - Header search component references
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function setupHeaderSearch(component, sessionId) {
     console.log('🔍 Setting up header search integration');
@@ -215,9 +168,7 @@
           return;
         }
         
-        // Ensure we have the latest session ID
-        const currentSessionId = await getSessionId();
-        fetchHeaderSuggestions(query, component.suggestionsContainer, currentSessionId);
+        fetchHeaderSuggestions(query, component.suggestionsContainer, sessionId);
       }, config.debounceTime);
       
       component.input.addEventListener('input', handleInput);
@@ -238,21 +189,20 @@
    * Fetch suggestions for header search
    * @param {string} query - Search query
    * @param {HTMLElement} container - Container for suggestions
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   async function fetchHeaderSuggestions(query, container, sessionId) {
     console.log('🔍 Fetching header suggestions for:', query);
     
     try {
-      // Show loading state
-      // container.innerHTML = '<div class="loading-suggestions">Loading...</div>';
-      // container.hidden = false;
       
       // Prepare URL with parameters
-      const params = new URLSearchParams({
-        query,
-        sessionId
-      });
+      const params = new URLSearchParams({ query });
+      
+      // Only include sessionId if available
+      if (sessionId) {
+        params.append('sessionId', sessionId);
+      }
       
       // Fetch suggestions from API
       const url = `${config.apiBaseUrl}/api/suggestions?${params}`;
@@ -271,6 +221,7 @@
       console.error('🔍 Header suggestions error:', error);
       container.innerHTML = '';
       container.hidden = true;
+      // Continue with normal operation despite fetch failure
     }
   }
   
@@ -279,7 +230,7 @@
    * @param {Object} data - Suggestions data
    * @param {HTMLElement} container - Container for suggestions
    * @param {string} query - Original query
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function renderHeaderSuggestions(data, container, query, sessionId) {
     const suggestions = data.general || [];
@@ -326,7 +277,7 @@
   /**
    * Set up results page search integration
    * @param {Object} component - Results search component references
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function setupResultsSearch(component, sessionId) {
     console.log('🔍 Setting up results page search integration');
@@ -338,15 +289,14 @@
     
     // Intercept form submission
     if (component.form) {
-      component.form.addEventListener('submit', async function(e) {
+      component.form.addEventListener('submit', function(e) {
         e.preventDefault();
         
         const query = component.input.value.trim();
         if (!query) return;
         
-        // Ensure we have the latest session ID
-        const currentSessionId = await getSessionId();
-        performSearch(query, component.container, currentSessionId);
+        // Perform search
+        performSearch(query, component.container, sessionId);
         
         // Update URL without reload
         updateUrl(query);
@@ -362,7 +312,7 @@
   /**
    * Process URL parameters for initial search
    * @param {Object} component - Results search component references
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function processUrlParameters(component, sessionId) {
     console.log('🔍 Processing URL parameters');
@@ -387,22 +337,24 @@
    * Perform search via API
    * @param {string} query - Search query
    * @param {HTMLElement} container - Container for results
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   async function performSearch(query, container, sessionId) {
     console.log('🔍 Performing search for:', query);
     
     try {
-      // Show loading state with spinner
-      // container.innerHTML = '<div class="loading-results"><div class="spinner"></div><p>Loading search results...</p></div>';
       
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
         collection: config.collection,
-        profile: config.profile,
-        sessionId
+        profile: config.profile
       });
+      
+      // Only include sessionId if available
+      if (sessionId) {
+        params.append('sessionId', sessionId);
+      }
       
       // Fetch results from API
       const url = `${config.apiBaseUrl}/api/search?${params}`;
@@ -444,7 +396,7 @@
    * Attach click handlers to search results for tracking
    * @param {HTMLElement} container - Results container
    * @param {string} query - Search query
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function attachResultClickHandlers(container, query, sessionId) {
     // Find all result links
@@ -453,18 +405,15 @@
     );
     
     resultLinks.forEach((link, index) => {
-      link.addEventListener('click', async function(e) {
+      link.addEventListener('click', function(e) {
         // Don't prevent default navigation
         
         // Get link details
         const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
         const title = link.textContent.trim() || '';
         
-        // Ensure we have the latest session ID
-        const currentSessionId = await getSessionId();
-        
         // Track click
-        trackResultClick(query, url, title, index + 1, currentSessionId);
+        trackResultClick(query, url, title, index + 1, sessionId);
       });
     });
   }
@@ -475,7 +424,7 @@
    * @param {string} url - Clicked URL
    * @param {string} title - Result title
    * @param {number} position - Result position (1-based)
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
   function trackResultClick(query, url, title, position, sessionId) {
     try {
@@ -488,9 +437,13 @@
         clickedUrl: url,
         clickedTitle: title,
         clickPosition: position,
-        sessionId: sessionId,
         timestamp: new Date().toISOString()
       };
+      
+      // Only include sessionId if available
+      if (sessionId) {
+        data.sessionId = sessionId;
+      }
       
       // Use sendBeacon if available for non-blocking operation
       const endpoint = `${config.apiBaseUrl}/api/enhance`;
@@ -511,26 +464,22 @@
       }
     } catch (error) {
       console.error('Error tracking click:', error);
+      // Continue with normal operation despite tracking failure
     }
   }
   
   /**
    * Track suggestion click for analytics
-   * Exposed globally for use by search-page-autocomplete.js
+   * Exposed globally for use by other components
    * @param {string} text - Suggestion text
    * @param {string} type - Suggestion type (general, staff, program)
    * @param {string} url - Clicked URL (for staff and programs)
    * @param {string} title - Display title (with additional context)
-   * @param {string} sessionId - Session ID
+   * @param {string|null} sessionId - Session ID
    */
-  window.trackSuggestionClick = async function(text, type, url, title, sessionId) {
+  window.trackSuggestionClick = function(text, type, url, title, sessionId) {
     try {
       console.log('🔍 Tracking suggestion click:', { text, type, url, title });
-      
-      // Get session ID if not provided
-      if (!sessionId) {
-        sessionId = await getSessionId();
-      }
       
       // Prepare data for the API call
       const data = {
@@ -539,9 +488,13 @@
         clickedUrl: url || '',
         clickedTitle: title || text,
         clickType: type || 'suggestion',
-        sessionId: sessionId,
         timestamp: new Date().toISOString()
       };
+      
+      // Only include sessionId if available
+      if (sessionId) {
+        data.sessionId = sessionId;
+      }
       
       // Use sendBeacon if available for non-blocking operation
       const endpoint = `${config.apiBaseUrl}/api/enhance`;
@@ -562,6 +515,7 @@
       }
     } catch (error) {
       console.error('Error tracking suggestion click:', error);
+      // Continue with normal operation despite tracking failure
     }
   };
   
@@ -579,16 +533,13 @@
   }
   
   /**
-   * Get or create a session ID for tracking
-   * Exposed globally for use by search-page-autocomplete.js
-   * @returns {Promise<string>} Session ID
+   * Get session ID from SessionService - single source of truth
+   * Exposed globally for use by other components
+   * @returns {string|null} Session ID or null if unavailable
    */
-  async function getOrCreateSearchSessionId() {
-    return await getSessionId();
-  }
-  
-  // Expose session ID function globally for search-page-autocomplete.js
-  window.getOrCreateSearchSessionId = getOrCreateSearchSessionId;
+  window.getOrCreateSearchSessionId = function() {
+    return getSessionId();
+  };
   
   /**
    * Debounce function to limit execution frequency
@@ -606,7 +557,7 @@
     };
   }
   
-  // Expose debounce function globally for search-page-autocomplete.js
+  // Expose debounce function globally for other components
   window.debounceFunction = debounce;
   
   /**
@@ -625,16 +576,16 @@
     return isVisible;
   }
   
-  // Expose configuration globally for search-page-autocomplete.js
+  // Expose configuration globally for other components
   window.searchConfig = config;
   
   /**
-   * Perform search via API (exposed globally for search-page-autocomplete.js)
+   * Perform search via API (exposed globally for other components)
    * @param {string} query - Search query
    * @param {string|HTMLElement} containerId - Container ID or element for results
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking
    */
-  window.performSearch = async function(query, containerId, sessionId) {
+  window.performSearch = function(query, containerId, sessionId) {
     const container = typeof containerId === 'string' ? 
                     document.getElementById(containerId) : containerId;
     
@@ -643,15 +594,11 @@
       return;
     }
     
-    if (!sessionId) {
-      sessionId = await getSessionId();
-    }
-    
     return performSearch(query, container, sessionId);
   };
   
   /**
-   * Update URL without page reload (exposed globally for search-page-autocomplete.js)
+   * Update URL without page reload (exposed globally for other components)
    */
   window.updateSearchUrl = updateUrl;
 })();
