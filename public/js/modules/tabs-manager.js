@@ -6,8 +6,8 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.1.2
- * @lastModified 2025-04-04
+ * @version 3.2.0
+ * @lastModified 2025-04-07
  */
 
 class TabsManager {
@@ -253,7 +253,7 @@ class TabsManager {
     resultsContainer.classList.add('loading');
     
     try {
-      // Use the core's fetch method
+      // Use the core's fetch method (which handles session ID properly)
       const response = await this.core.fetchFromProxy(href, 'search');
       
       // FIXED: Ensure container is still available before updating
@@ -299,7 +299,7 @@ class TabsManager {
    * Enhanced performSearch function that handles tab content specially
    * @param {string} query - The search query or tab URL
    * @param {HTMLElement|string} containerId - Results container or its ID
-   * @param {string} sessionId - Session ID for tracking
+   * @param {string|null} sessionId - Session ID for tracking (now optional)
    */
   async enhancedPerformSearch(query, containerId, sessionId) {
     // Determine if this is a tab navigation by examining URL patterns
@@ -319,16 +319,8 @@ class TabsManager {
       return;
     }
     
-    if (!sessionId) {
-      // Use the available session ID retrieval function
-      if (window.getOrCreateSearchSessionId) {
-        sessionId = window.getOrCreateSearchSessionId();
-      } else if (window.getOrCreateSessionId) {
-        sessionId = window.getOrCreateSessionId();
-      } else if (this.core && this.core.sessionId) {
-        sessionId = this.core.sessionId;
-      }
-    }
+    // Session ID is now handled by the core, no need to generate here
+    // Just pass along whatever was provided or let core handle it
     
     if (isTabNavigation) {
       console.log('Tab navigation detected, using specialized handler');
@@ -340,7 +332,7 @@ class TabsManager {
         // Show loading state
         container.classList.add('loading');
         
-        // Use our core's fetch method to get the content
+        // Use our core's fetch method to get the content (it handles session ID properly)
         console.log('Fetching tab content via core manager');
         const response = await this.core.fetchFromProxy(query, 'search');
         
@@ -386,7 +378,7 @@ class TabsManager {
         }
       }
     } else {
-      // For regular searches, use the original function
+      // For regular searches, use the original function, passing along whatever session ID was provided
       console.log('Regular search detected, using original handler');
       return this.originalPerformSearch(query, containerId, sessionId);
     }
