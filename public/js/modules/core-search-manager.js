@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.3.0
- * @lastModified 2025-04-07
+ * @version 1.4.0
+ * @lastModified 2025-04-08
  */
 
 // Core Search Manager
@@ -318,23 +318,10 @@ class SearchManager {
   }
 
   /**
-   * Send analytics data
+   * Send analytics data to the appropriate endpoint
    * @param {Object} data - The analytics data to send
    */
   sendAnalyticsData(data) {
-    // Map data types to specific endpoints
-    const typeToEndpoint = {
-      'click': 'click',
-      'facet': 'supplement',
-      'pagination': 'supplement',
-      'tab': 'supplement',
-      'spelling': 'supplement',
-      'batchClick': 'clicksBatch'
-    };
-    
-    const endpointType = typeToEndpoint[data.type] || 'click'; // Default to click
-    const endpoint = `${this.config.proxyBaseUrl}/analytics/${endpointType}`;
-    
     try {
       // Create a copy of the data to modify
       const analyticsData = {...data};
@@ -344,32 +331,138 @@ class SearchManager {
         analyticsData.sessionId = this.sessionId;
       }
       
-      // Use sendBeacon if available (works during page unload)
+      // Add timestamp if missing
+      if (!analyticsData.timestamp) {
+        analyticsData.timestamp = new Date().toISOString();
+      }
+      
+      let endpoint;
+      let formattedData;
+      
+      // Determine endpoint and format data according to endpoint requirements
+      if (data.type === 'click') {
+        // Format data for click endpoint
+        endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
+        
+        // Ensure required fields for click endpoint
+        formattedData = {
+          originalQuery: analyticsData.originalQuery || this.originalQuery || '',
+          clickedUrl: analyticsData.clickedUrl || '',
+          clickedTitle: analyticsData.clickedTitle || '',
+          clickPosition: analyticsData.clickPosition || -1,
+          sessionId: analyticsData.sessionId,
+          timestamp: analyticsData.timestamp,
+          clickType: analyticsData.clickType || 'search'
+        };
+        
+        // Log what we're sending to click endpoint
+        console.log('Sending click data:', {
+          query: formattedData.originalQuery,
+          url: formattedData.clickedUrl,
+          position: formattedData.clickPosition,
+          sessionId: formattedData.sessionId || '(none)'
+        });
+      } 
+      else {
+        // For all other types (facet, pagination, tab, spelling), use supplement endpoint
+        endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
+        
+        // Prepare data for supplement endpoint, which requires 'query' field
+        formattedData = {
+          // The supplement endpoint requires 'query' not 'originalQuery'
+          query: analyticsData.originalQuery || this.originalQuery || '',
+          sessionId: analyticsData.sessionId,
+          timestamp: analyticsData.timestamp
+        };
+        
+        // Add type-specific fields
+        switch (data.type) {
+          case 'facet':
+            formattedData.enrichmentData = {
+              facetType: 'facet',
+              facetName: analyticsData.facetName || 'unknown',
+              facetValue: analyticsData.facetValue || 'unknown',
+              action: analyticsData.action || 'select'
+            };
+            break;
+            
+          case 'pagination':
+            formattedData.enrichmentData = {
+              actionType: 'pagination',
+              pageNumber: analyticsData.pageNumber || 1
+            };
+            break;
+            
+          case 'tab':
+            formattedData.enrichmentData = {
+              actionType: 'tab',
+              tabName: analyticsData.tabName || 'unknown',
+              tabId: analyticsData.tabId || 'unknown'
+            };
+            break;
+            
+          case 'spelling':
+            formattedData.enrichmentData = {
+              actionType: 'spelling',
+              suggestedQuery: analyticsData.suggestedQuery || ''
+            };
+            break;
+            
+          default:
+            formattedData.enrichmentData = {
+              actionType: data.type || 'unknown',
+              ...analyticsData
+            };
+        }
+        
+        // Log what we're sending to supplement endpoint
+        console.log('Sending supplement data:', {
+          query: formattedData.query,
+          type: data.type,
+          details: formattedData.enrichmentData,
+          sessionId: formattedData.sessionId || '(none)'
+        });
+      }
+      
+      // Send the data using sendBeacon if available (works during page unload)
       if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify(analyticsData)], {
+        const blob = new Blob([JSON.stringify(formattedData)], {
           type: 'application/json'
         });
         
-        navigator.sendBeacon(endpoint, blob);
+        const success = navigator.sendBeacon(endpoint, blob);
+        if (!success) {
+          console.warn('sendBeacon failed, falling back to fetch');
+          this.sendAnalyticsWithFetch(endpoint, formattedData);
+        }
         return;
       } 
       
       // Fallback to fetch with keepalive
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin
-        },
-        body: JSON.stringify(analyticsData),
-        credentials: 'include',
-        keepalive: true
-      }).catch(error => {
-        console.error('Error sending analytics data:', error);
-      });
+      this.sendAnalyticsWithFetch(endpoint, formattedData);
     } catch (error) {
       console.error('Failed to send analytics data:', error);
     }
+  }
+  
+  /**
+   * Send analytics data using fetch API (fallback)
+   * @param {string} endpoint - The API endpoint
+   * @param {Object} data - The formatted data to send
+   */
+  sendAnalyticsWithFetch(endpoint, data) {
+    fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': window.location.origin
+      },
+      body: JSON.stringify(data),
+      credentials: 'include',
+      keepalive: true
+    }).catch(error => {
+      console.error('Error sending analytics data via fetch:', error);
+    });
   }
   
   /**
