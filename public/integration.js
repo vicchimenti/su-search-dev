@@ -6,8 +6,8 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.4.0
- * @lastModified 2025-04-06
+ * @version 1.5.0
+ * @lastModified 2025-04-08
  */
 
 (function() {
@@ -27,34 +27,9 @@
     ...window.seattleUConfig?.search
   };
 
-  /**
-   * Get session ID from SessionService
-   * Uses SessionService as the single source of truth for session IDs
-   * @returns {string|null} Session ID or null if unavailable
-   */
-  function getSessionId() {
-    try {
-      if (window.SessionService) {
-        const sessionId = window.SessionService.getSessionId();
-        console.log('🔍 Session ID:', sessionId);
-        return sessionId;
-      } else {
-        console.warn('🔍 SessionService not found - analytics tracking will be limited');
-        return null;
-      }
-    } catch (error) {
-      console.error('🔍 Error accessing SessionService:', error);
-      // Return null rather than generating a fallback ID
-      return null;
-    }
-  }
-
   // Initialize on DOM ready
   document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Frontend Search Integration: Initializing');
-    
-    // Get session ID for tracking - only from SessionService
-    const sessionId = getSessionId();
     
     // Detect environment
     const isResultsPage = window.location.pathname.includes('search-test');
@@ -65,14 +40,14 @@
     
     // Set up integrations based on detected components
     if (searchComponents.header) {
-      setupHeaderSearch(searchComponents.header, sessionId);
+      setupHeaderSearch(searchComponents.header);
     }
     
     if (isResultsPage && searchComponents.results) {
-      setupResultsSearch(searchComponents.results, sessionId);
+      setupResultsSearch(searchComponents.results);
       
       // Process URL parameters for initial search
-      processUrlParameters(searchComponents.results, sessionId);
+      processUrlParameters(searchComponents.results);
     }
     
     console.log('🔍 Frontend Search Integration: Initialized');
@@ -140,9 +115,8 @@
   /**
    * Set up header search integration
    * @param {Object} component - Header search component references
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function setupHeaderSearch(component, sessionId) {
+  function setupHeaderSearch(component) {
     console.log('🔍 Setting up header search integration');
     
     // Intercept form submission
@@ -168,7 +142,7 @@
           return;
         }
         
-        fetchHeaderSuggestions(query, component.suggestionsContainer, sessionId);
+        fetchHeaderSuggestions(query, component.suggestionsContainer);
       }, config.debounceTime);
       
       component.input.addEventListener('input', handleInput);
@@ -189,19 +163,20 @@
    * Fetch suggestions for header search
    * @param {string} query - Search query
    * @param {HTMLElement} container - Container for suggestions
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  async function fetchHeaderSuggestions(query, container, sessionId) {
+  async function fetchHeaderSuggestions(query, container) {
     console.log('🔍 Fetching header suggestions for:', query);
     
     try {
-      
       // Prepare URL with parameters
       const params = new URLSearchParams({ query });
       
-      // Only include sessionId if available
-      if (sessionId) {
-        params.append('sessionId', sessionId);
+      // Get session ID directly from SessionService if available
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        if (sessionId) {
+          params.append('sessionId', sessionId);
+        }
       }
       
       // Fetch suggestions from API
@@ -216,7 +191,7 @@
       const data = await response.json();
       
       // Render header suggestions (simple list)
-      renderHeaderSuggestions(data, container, query, sessionId);
+      renderHeaderSuggestions(data, container, query);
     } catch (error) {
       console.error('🔍 Header suggestions error:', error);
       container.innerHTML = '';
@@ -230,9 +205,8 @@
    * @param {Object} data - Suggestions data
    * @param {HTMLElement} container - Container for suggestions
    * @param {string} query - Original query
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function renderHeaderSuggestions(data, container, query, sessionId) {
+  function renderHeaderSuggestions(data, container, query) {
     const suggestions = data.general || [];
     
     if (suggestions.length === 0) {
@@ -277,9 +251,8 @@
   /**
    * Set up results page search integration
    * @param {Object} component - Results search component references
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function setupResultsSearch(component, sessionId) {
+  function setupResultsSearch(component) {
     console.log('🔍 Setting up results page search integration');
     
     // Make sure search button is visible
@@ -296,7 +269,7 @@
         if (!query) return;
         
         // Perform search
-        performSearch(query, component.container, sessionId);
+        performSearch(query, component.container);
         
         // Update URL without reload
         updateUrl(query);
@@ -306,15 +279,14 @@
     // Set up click tracking on results
     const urlParams = new URLSearchParams(window.location.search);
     const queryParam = urlParams.get('query') || '';
-    attachResultClickHandlers(component.container, queryParam, sessionId);
+    attachResultClickHandlers(component.container, queryParam);
   }
 
   /**
    * Process URL parameters for initial search
    * @param {Object} component - Results search component references
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function processUrlParameters(component, sessionId) {
+  function processUrlParameters(component) {
     console.log('🔍 Processing URL parameters');
     
     const urlParams = new URLSearchParams(window.location.search);
@@ -329,7 +301,7 @@
       }
       
       // Perform search
-      performSearch(query, component.container, sessionId);
+      performSearch(query, component.container);
     }
   }
   
@@ -337,13 +309,11 @@
    * Perform search via API
    * @param {string} query - Search query
    * @param {HTMLElement} container - Container for results
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  async function performSearch(query, container, sessionId) {
+  async function performSearch(query, container) {
     console.log('🔍 Performing search for:', query);
     
     try {
-      
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
@@ -351,9 +321,12 @@
         profile: config.profile
       });
       
-      // Only include sessionId if available
-      if (sessionId) {
-        params.append('sessionId', sessionId);
+      // Get session ID directly from SessionService if available
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        if (sessionId) {
+          params.append('sessionId', sessionId);
+        }
       }
       
       // Fetch results from API
@@ -375,7 +348,7 @@
       `;
       
       // Attach click handlers for tracking
-      attachResultClickHandlers(container, query, sessionId);
+      attachResultClickHandlers(container, query);
       
       // Scroll to results if not in viewport AND page is not already at the top
       if (!isElementInViewport(container) && window.scrollY > 0) {
@@ -396,9 +369,8 @@
    * Attach click handlers to search results for tracking
    * @param {HTMLElement} container - Results container
    * @param {string} query - Search query
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function attachResultClickHandlers(container, query, sessionId) {
+  function attachResultClickHandlers(container, query) {
     // Find all result links
     const resultLinks = container.querySelectorAll(
       '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
@@ -413,7 +385,7 @@
         const title = link.textContent.trim() || '';
         
         // Track click
-        trackResultClick(query, url, title, index + 1, sessionId);
+        trackResultClick(query, url, title, index + 1);
       });
     });
   }
@@ -424,9 +396,8 @@
    * @param {string} url - Clicked URL
    * @param {string} title - Result title
    * @param {number} position - Result position (1-based)
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  function trackResultClick(query, url, title, position, sessionId) {
+  function trackResultClick(query, url, title, position) {
     try {
       console.log('🔍 Tracking result click:', { query, url, title, position });
       
@@ -440,9 +411,12 @@
         timestamp: new Date().toISOString()
       };
       
-      // Only include sessionId if available
-      if (sessionId) {
-        data.sessionId = sessionId;
+      // Get session ID directly from SessionService if available
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        if (sessionId) {
+          data.sessionId = sessionId;
+        }
       }
       
       // Use sendBeacon if available for non-blocking operation
@@ -475,9 +449,8 @@
    * @param {string} type - Suggestion type (general, staff, program)
    * @param {string} url - Clicked URL (for staff and programs)
    * @param {string} title - Display title (with additional context)
-   * @param {string|null} sessionId - Session ID
    */
-  window.trackSuggestionClick = function(text, type, url, title, sessionId) {
+  window.trackSuggestionClick = function(text, type, url, title) {
     try {
       console.log('🔍 Tracking suggestion click:', { text, type, url, title });
       
@@ -491,9 +464,12 @@
         timestamp: new Date().toISOString()
       };
       
-      // Only include sessionId if available
-      if (sessionId) {
-        data.sessionId = sessionId;
+      // Get session ID directly from SessionService if available
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        if (sessionId) {
+          data.sessionId = sessionId;
+        }
       }
       
       // Use sendBeacon if available for non-blocking operation
@@ -531,15 +507,6 @@
     window.history.pushState({}, '', url);
     console.log('🔍 Updated URL:', url.toString());
   }
-  
-  /**
-   * Get session ID from SessionService - single source of truth
-   * Exposed globally for use by other components
-   * @returns {string|null} Session ID or null if unavailable
-   */
-  window.getOrCreateSearchSessionId = function() {
-    return getSessionId();
-  };
   
   /**
    * Debounce function to limit execution frequency
@@ -583,9 +550,8 @@
    * Perform search via API (exposed globally for other components)
    * @param {string} query - Search query
    * @param {string|HTMLElement} containerId - Container ID or element for results
-   * @param {string|null} sessionId - Session ID for tracking
    */
-  window.performSearch = function(query, containerId, sessionId) {
+  window.performSearch = function(query, containerId) {
     const container = typeof containerId === 'string' ? 
                     document.getElementById(containerId) : containerId;
     
@@ -594,7 +560,7 @@
       return;
     }
     
-    return performSearch(query, container, sessionId);
+    return performSearch(query, container);
   };
   
   /**
