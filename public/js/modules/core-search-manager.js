@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.1.0
  * @lastModified 2025-04-09
  */
 
@@ -366,13 +366,15 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
+      // Always refresh session ID to ensure we have the latest
+      this.initializeSessionId();
+
       // Create a copy of the data to modify
       const analyticsData = { ...data };
 
-      // Add sessionId using the existing SessionService method
-      const sessionId = this.getSessionId();
-      if (sessionId) {
-        analyticsData.sessionId = sessionId;
+      // Only include sessionId if available
+      if (this.sessionId) {
+        analyticsData.sessionId = this.sessionId;
       }
 
       // Add timestamp if missing
@@ -383,12 +385,12 @@ class SearchManager {
       let endpoint;
       let formattedData;
 
-      // Format data based on type
+      // Determine endpoint and format data according to endpoint requirements
       if (data.type === 'click') {
         // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
-        // Ensure required fields for click endpoint
+        // Ensure required fields for click endpoint - keep in a flat structure
         formattedData = {
           originalQuery: analyticsData.originalQuery || this.originalQuery || '',
           clickedUrl: analyticsData.clickedUrl || '',
@@ -396,31 +398,49 @@ class SearchManager {
           clickPosition: analyticsData.clickPosition || -1,
           sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp,
-          clickType: analyticsData.clickType || 'search'  // Default to 'search'
+          clickType: analyticsData.clickType || 'search'
         };
+
+        // Log what we're sending to click endpoint
+        console.log('Sending click data:', {
+          endpoint: endpoint,
+          query: formattedData.originalQuery,
+          url: formattedData.clickedUrl,
+          position: formattedData.clickPosition,
+          clickType: formattedData.clickType,
+          sessionId: formattedData.sessionId || '(none)'
+        });
       }
       else if (data.type === 'batch') {
-        // Format data for clicks-batch endpoint
+        // Format data for batch clicks endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
 
-        // Format clicks array
+        // Format batch data for clicks-batch endpoint
         formattedData = {
-          clicks: analyticsData.clicks.map(click => ({
+          clicks: (analyticsData.clicks || []).map(click => ({
             originalQuery: click.originalQuery || this.originalQuery || '',
             clickedUrl: click.clickedUrl || '',
             clickedTitle: click.clickedTitle || '',
             clickPosition: click.clickPosition || -1,
-            sessionId: sessionId || undefined,
+            sessionId: this.sessionId || undefined,
             timestamp: click.timestamp || analyticsData.timestamp,
             clickType: click.clickType || 'search'
           }))
         };
+
+        // Log what we're sending to batch endpoint
+        console.log('Sending batch click data:', {
+          endpoint: endpoint,
+          clickCount: formattedData.clicks.length,
+          sessionId: this.sessionId || '(none)'
+        });
       }
       else {
-        // For all other types, use supplement endpoint
+        // For all other types (facet, pagination, tab, spelling), use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
 
-        // For supplement endpoint, use query (not originalQuery)
+        // For supplement endpoint, make sure we're using query (not originalQuery)
+        // and include enrichmentData as expected by the backend
         formattedData = {
           query: analyticsData.query || this.originalQuery || '',
           sessionId: analyticsData.sessionId || undefined,
@@ -436,9 +456,18 @@ class SearchManager {
         if (analyticsData.enrichmentData) {
           formattedData.enrichmentData = analyticsData.enrichmentData;
         }
+
+        // Log what we're sending to supplement endpoint
+        console.log('Sending supplement data:', {
+          endpoint: endpoint,
+          query: formattedData.query,
+          type: data.type,
+          details: formattedData.enrichmentData,
+          sessionId: formattedData.sessionId || '(none)'
+        });
       }
 
-      // Send data using appropriate method
+      // Send the data using sendBeacon if available (works during page unload)
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(formattedData)], {
           type: 'application/json'
@@ -449,24 +478,25 @@ class SearchManager {
           console.warn('sendBeacon failed, falling back to fetch');
           this.sendAnalyticsWithFetch(endpoint, formattedData);
         }
-      } else {
-        // Fallback to fetch with keepalive
-        this.sendAnalyticsWithFetch(endpoint, formattedData);
+        return;
       }
 
-      return true;
+      // Fallback to fetch with keepalive
+      this.sendAnalyticsWithFetch(endpoint, formattedData);
     } catch (error) {
       console.error('Failed to send analytics data:', error);
-      return false;
     }
   }
 
   /**
-   * Send analytics data using fetch API (fallback)
+   * Send analytics data using fetch API (fallback) with detailed error handling
    * @param {string} endpoint - The API endpoint
    * @param {Object} data - The formatted data to send
    */
   sendAnalyticsWithFetch(endpoint, data) {
+    // Log exactly what we're sending
+    console.log(`Sending analytics to ${endpoint} using fetch:`, data);
+
     fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -476,9 +506,25 @@ class SearchManager {
       body: JSON.stringify(data),
       credentials: 'include',
       keepalive: true
-    }).catch(error => {
-      console.error('Error sending analytics data via fetch:', error);
-    });
+    })
+      .then(response => {
+        if (!response.ok) {
+          console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
+            endpoint,
+            sentData: data
+          });
+          return response.text().then(text => {
+            console.error('Error response:', text);
+          });
+        }
+        console.log(`Analytics request successful: ${endpoint}`);
+      })
+      .catch(error => {
+        console.error('Error sending analytics data via fetch:', error, {
+          endpoint,
+          sentData: data
+        });
+      });
   }
 
   /**

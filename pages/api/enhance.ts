@@ -5,8 +5,8 @@
  * including analytics tracking, personalization, and additional features.
  *
  * @author Victor Chimenti
- * @version 1.1.0
- * @lastModified 2025-04-07
+ * @version 1.1.1
+ * @lastModified 2025-04-09
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -30,9 +30,9 @@ export default async function handler(
   // Handle different request types
   switch (req.method) {
     case 'POST':
-      // Handle click tracking
+      // Notify about deprecated click tracking through this endpoint
       if (req.body.type === 'click') {
-        return handleClickTracking(req, res);
+        return handleDeprecatedClickTracking(req, res);
       }
       
       // Handle other enhancement requests
@@ -44,12 +44,18 @@ export default async function handler(
         endpoints: {
           search: '/api/search',
           suggestions: '/api/suggestions',
-          enhance: '/api/enhance'
+          enhance: '/api/enhance',
+          // Add direct analytics endpoints for clarity
+          analytics: {
+            click: '/proxy/analytics/click',
+            clicksBatch: '/proxy/analytics/clicks-batch',
+            supplement: '/proxy/analytics/supplement'
+          }
         },
         defaultCollection: 'seattleu~sp-search',
         defaultProfile: '_default',
         minQueryLength: 3,
-        version: '1.0.0'
+        version: '1.1.1'
       });
       
     default:
@@ -58,10 +64,16 @@ export default async function handler(
 }
 
 /**
- * Handle click tracking requests
+ * Handle deprecated click tracking requests
+ * This function exists to provide backward compatibility
+ * but logs a warning that this endpoint should no longer be used for click tracking
  */
-async function handleClickTracking(req: NextApiRequest, res: NextApiResponse) {
+async function handleDeprecatedClickTracking(req: NextApiRequest, res: NextApiResponse) {
   try {
+    console.warn('Click tracking through /api/enhance is deprecated. Use direct analytics endpoints instead.');
+    
+    // Still forward the request to maintain backward compatibility
+    // but return a message indicating this is deprecated
     const { originalQuery, clickedUrl, clickedTitle, clickPosition, sessionId } = req.body;
     
     // Validate required fields
@@ -69,17 +81,21 @@ async function handleClickTracking(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Forward to backend API
+    // Forward to backend API to maintain backward compatibility
     await backendApiClient.post('/analytics/click', {
       originalQuery,
       clickedUrl,
       clickedTitle: clickedTitle || '',
       clickPosition: clickPosition || -1,
       sessionId: sessionId || '',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      clickType: 'search' // Add default clickType for compatibility
     });
     
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ 
+      success: true,
+      message: 'Click tracking through this endpoint is deprecated. Use direct analytics endpoints instead.'
+    });
   } catch (error) {
     console.error('Click tracking error:', error);
     return res.status(500).json({ error: 'Failed to record click' });
