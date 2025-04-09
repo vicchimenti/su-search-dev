@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.4.0
+ * @version 1.5.0
  * @lastModified 2025-04-08
  */
 
@@ -229,41 +229,84 @@ class SearchManager {
       let queryString;
       let fullUrl;
 
+      // Always refresh session ID to ensure we have the latest
+      this.initializeSessionId();
+
+      // Process based on request type
       switch (type) {
         case 'search':
+          // Extract query string
           queryString = url.includes('?') ? url.split('?')[1] : '';
-          // Only include sessionId if available
-          fullUrl = this.sessionId
-            ? `${endpoint}?${queryString}&sessionId=${this.sessionId}`
-            : `${endpoint}?${queryString}`;
+
+          // Parse and sanitize query parameters
+          const searchParams = new URLSearchParams(queryString);
+
+          // Remove any existing sessionId parameters
+          if (searchParams.has('sessionId')) {
+            const existingValues = searchParams.getAll('sessionId');
+            if (existingValues.length > 1) {
+              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
+            }
+            searchParams.delete('sessionId');
+          }
+
+          // Add our canonical sessionId if available
+          if (this.sessionId) {
+            searchParams.append('sessionId', this.sessionId);
+          }
+
+          // Construct the full URL
+          fullUrl = `${endpoint}?${searchParams.toString()}`;
           break;
 
         case 'tools':
-          queryString = new URLSearchParams({
-            path: url.split('/s/')[1]
+          // Get path from URL
+          const path = url.split('/s/')[1];
+
+          // Create parameters object
+          const toolsParams = new URLSearchParams({
+            path
           });
-          // Only add sessionId if available
+
+          // Add canonical sessionId if available
           if (this.sessionId) {
-            queryString.append('sessionId', this.sessionId);
+            toolsParams.append('sessionId', this.sessionId);
           }
-          fullUrl = `${endpoint}?${queryString}`;
+
+          // Construct the full URL
+          fullUrl = `${endpoint}?${toolsParams.toString()}`;
           break;
 
         case 'spelling':
+          // Extract query string
           queryString = url.includes('?') ? url.split('?')[1] : '';
-          const params = new URLSearchParams(queryString);
-          // Only add sessionId if available
-          if (this.sessionId) {
-            params.append('sessionId', this.sessionId);
+
+          // Parse parameters
+          const spellingParams = new URLSearchParams(queryString);
+
+          // Remove any existing sessionId parameters
+          if (spellingParams.has('sessionId')) {
+            const existingValues = spellingParams.getAll('sessionId');
+            if (existingValues.length > 1) {
+              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
+            }
+            spellingParams.delete('sessionId');
           }
-          fullUrl = `${endpoint}?${params.toString()}`;
+
+          // Add canonical sessionId if available
+          if (this.sessionId) {
+            spellingParams.append('sessionId', this.sessionId);
+          }
+
+          // Construct the full URL
+          fullUrl = `${endpoint}?${spellingParams.toString()}`;
           break;
 
         default:
           throw new Error(`Unknown request type: ${type}`);
       }
 
-      console.log(`Fetching from ${type} endpoint:`, fullUrl);
+      console.log(`Fetching from ${type} endpoint with sanitized sessionId:`, fullUrl);
       const response = await fetch(fullUrl);
 
       if (!response.ok) {
