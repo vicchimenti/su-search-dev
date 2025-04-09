@@ -12,7 +12,7 @@
  * - Uses non-blocking sendBeacon for analytics data
  * 
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.1.0
  * @lastModified 2025-04-09
  */
 
@@ -80,11 +80,12 @@ class AnalyticsManager {
    * @param {Event} e - The click event
    */
   trackResultClick(e) {
+    // Don't prevent default navigation
     const link = e.target.closest('a');
     if (!link) return;
 
     try {
-      // Get URL, prioritizing data-live-url
+      // Prioritize data-live-url over href for accurate destination tracking
       const dataLiveUrl = link.getAttribute('data-live-url');
       const href = link.getAttribute('href');
       const clickedUrl = dataLiveUrl || href || '';
@@ -98,9 +99,9 @@ class AnalyticsManager {
         position = allResults.indexOf(resultItem) + 1;
       }
 
-      // Prepare data with correct field names for click.js endpoint
+      // Prepare data - ensure field names match backend expectations
       const data = {
-        type: 'click',  // This triggers the click endpoint in sendAnalyticsData
+        type: 'click',
         originalQuery: this.core.originalQuery || '',
         clickedUrl: clickedUrl,
         clickedTitle: title,
@@ -109,7 +110,7 @@ class AnalyticsManager {
         timestamp: new Date().toISOString()
       };
 
-      // Send through core manager
+      // Send analytics data
       this.core.sendAnalyticsData(data);
 
       console.log(`Analytics: Tracked result click "${title}" (position ${position})`);
@@ -130,12 +131,12 @@ class AnalyticsManager {
       const facetName = this.getFacetName(link);
       const facetValue = this.getFacetValue(link);
 
-      // Use query for supplement endpoint, not originalQuery
+      // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
-        type: 'facet',  // This will route to supplement endpoint
-        query: this.core.originalQuery || '',  // Using query, not originalQuery
+        type: 'facet',
+        query: this.core.originalQuery || '', // Using the core's originalQuery value
         enrichmentData: {
-          facetType: 'facet',
+          actionType: 'facet',
           facetName: facetName,
           facetValue: facetValue,
           action: link.classList.contains('facet-group__clear') ? 'clear' : 'select'
@@ -172,11 +173,10 @@ class AnalyticsManager {
         pageNumber = 'prev';
       }
 
-      // Prepare data for supplement endpoint
+      // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'pagination',
-        // Use query instead of originalQuery for supplement endpoint
-        query: this.core.originalQuery || '',
+        query: this.core.originalQuery || '', // Using the core's originalQuery value
         enrichmentData: {
           actionType: 'pagination',
           pageNumber: pageNumber
@@ -210,11 +210,10 @@ class AnalyticsManager {
         link.getAttribute('aria-controls') ||
         'unknown';
 
-      // Prepare data for supplement endpoint
+      // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'tab',
-        // Use query instead of originalQuery for supplement endpoint
-        query: this.core.originalQuery || '',
+        query: this.core.originalQuery || '', // Using the core's originalQuery value
         enrichmentData: {
           actionType: 'tab',
           tabName: tabName,
@@ -244,11 +243,10 @@ class AnalyticsManager {
       const originalTerm = this.core.originalQuery || '';
       const suggestedTerm = link.textContent.trim() || '';
 
-      // Prepare data for supplement endpoint
+      // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'spelling',
-        // Use query instead of originalQuery for supplement endpoint
-        query: originalTerm,
+        query: originalTerm, // Using the core's originalQuery value
         enrichmentData: {
           actionType: 'spelling',
           suggestedQuery: suggestedTerm
