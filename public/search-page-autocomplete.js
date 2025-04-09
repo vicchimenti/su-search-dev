@@ -14,14 +14,14 @@
 const SessionManager = {
   // The cached session ID
   _sessionId: null,
-  
+
   // Flag to track if we've tried to initialize
   _initialized: false,
-  
+
   // Initialize the session ID from SessionService
   init() {
     if (this._initialized) return;
-    
+
     try {
       if (window.SessionService) {
         this._sessionId = window.SessionService.getSessionId();
@@ -34,17 +34,17 @@ const SessionManager = {
       console.error('Error accessing SessionService:', error);
       this._sessionId = null;
     }
-    
+
     this._initialized = true;
   },
-  
+
   // Get the current session ID, refreshing from SessionService if needed
   getSessionId() {
     // Initialize if not already done
     if (!this._initialized) {
       this.init();
     }
-    
+
     // Refresh from SessionService each time to ensure consistency
     try {
       if (window.SessionService) {
@@ -54,7 +54,7 @@ const SessionManager = {
       console.error('Error refreshing session ID from SessionService:', error);
       // Keep the existing session ID if there's an error
     }
-    
+
     return this._sessionId;
   }
 };
@@ -62,23 +62,23 @@ const SessionManager = {
 // Function to render the results page suggestions (3-column layout)
 function renderResultsPageSuggestions(data, container, query) {
   console.log('Rendering results page suggestions:', data);
-  
+
   // Extract and process data
   const general = data.general || [];
   const staff = data.staff || [];
   const programs = data.programs || {};
-  
+
   // Handle different formats for program data
-  const programResults = Array.isArray(programs) ? programs : 
-                        (programs.programs || []);
-  
+  const programResults = Array.isArray(programs) ? programs :
+    (programs.programs || []);
+
   // Check if we have any suggestions to display
   if (general.length === 0 && staff.length === 0 && programResults.length === 0) {
     container.innerHTML = '';
     container.hidden = true;
     return;
   }
-  
+
   // Build HTML for the three-column layout
   let html = `
     <div class="suggestions-list">
@@ -87,13 +87,13 @@ function renderResultsPageSuggestions(data, container, query) {
           <div class="suggestions-column">
             <div class="column-header">Suggestions</div>
             ${general.map((suggestion, index) => {
-              const display = suggestion.display || suggestion;
-              return `
+    const display = suggestion.display || suggestion;
+    return `
                 <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
                   <span class="suggestion-text">${display}</span>
                 </div>
               `;
-            }).join('')}
+  }).join('')}
           </div>
         ` : ''}
         
@@ -142,19 +142,19 @@ function renderResultsPageSuggestions(data, container, query) {
       </div>
     </div>
   `;
-  
+
   // Update the DOM
   container.innerHTML = html;
   container.hidden = false;
-  
+
   // Add click handlers for all suggestion items
   const attachClickHandlers = () => {
     container.querySelectorAll('.suggestion-item').forEach(item => {
-      item.addEventListener('click', function(e) {
+      item.addEventListener('click', function (e) {
         const text = this.querySelector('.suggestion-text').textContent;
         const type = this.dataset.type;
         const url = this.dataset.url;
-        
+
         // Get additional details for tracking
         let title = text;
         if (type === 'staff') {
@@ -169,18 +169,18 @@ function renderResultsPageSuggestions(data, container, query) {
             title = `${text} - ${typeElement.textContent}`;
           }
         }
-        
+
         console.log('Suggestion clicked:', { type, text, title, url });
-        
+
         // Find the search input and set its value
         const searchInput = document.getElementById('autocomplete-concierge-inputField');
         if (searchInput) {
           searchInput.value = text;
         }
-        
+
         // Track click for analytics (using SessionManager)
         trackSuggestionClick(text, type, url, title);
-        
+
         // Handle staff and program items with URLs
         if ((type === 'staff' || type === 'program') && url && url !== '#') {
           // If click was on a link, let it handle navigation
@@ -195,15 +195,15 @@ function renderResultsPageSuggestions(data, container, query) {
             }, 100);
             return; // Allow default navigation
           }
-          
+
           // Otherwise open in new tab and continue with search
           window.open(url, '_blank', 'noopener,noreferrer');
         }
-        
+
         // Hide suggestions
         container.innerHTML = '';
         container.hidden = true;
-        
+
         // Perform search and update URL
         const resultsContainer = document.getElementById('results');
         if (resultsContainer) {
@@ -213,7 +213,7 @@ function renderResultsPageSuggestions(data, container, query) {
       });
     });
   };
-  
+
   attachClickHandlers();
 
   // Add keyboard navigation support
@@ -225,7 +225,7 @@ function trackSuggestionClick(text, type, url, title) {
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
-    
+
     // Prepare data for the API call
     const data = {
       type: 'click',
@@ -235,19 +235,19 @@ function trackSuggestionClick(text, type, url, title) {
       clickType: type || 'suggestion',
       timestamp: new Date().toISOString()
     };
-    
+
     // Only add session ID if it's available
     if (sessionId) {
       data.sessionId = sessionId;
     }
-    
+
     // Get the API endpoint from global config
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                       'https://su-search-dev.vercel.app';
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
+      'https://su-search-dev.vercel.app';
     const endpoint = `${apiBaseUrl}/api/enhance`;
-    
+
     console.log('Tracking suggestion click:', data);
-    
+
     // Use sendBeacon if available for non-blocking operation
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(data)], {
@@ -272,37 +272,37 @@ function trackSuggestionClick(text, type, url, title) {
 // Enhanced fetch suggestions function
 async function fetchSuggestions(query, container, isResultsPage = true) {
   console.log('Fetching suggestions for:', query);
-  
+
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
-    
+
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                       'https://su-search-dev.vercel.app';
-    
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
+      'https://su-search-dev.vercel.app';
+
     // Prepare URL with parameters
     const params = new URLSearchParams({ query });
-    
+
     // Only add session ID if it's available
     if (sessionId) {
       params.append('sessionId', sessionId);
     }
-    
+
     // Fetch suggestions from API
     const url = `${apiBaseUrl}/api/suggestions?${params}`;
     console.log('Fetching suggestions from:', url);
-    
+
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
-    
+
     // Get JSON response
     const data = await response.json();
     console.log('Received suggestion data:', data);
-    
+
     // Render suggestions
     renderResultsPageSuggestions(data, container, query);
   } catch (error) {
@@ -316,54 +316,54 @@ async function fetchSuggestions(query, container, isResultsPage = true) {
 // Perform search via API
 async function performSearch(query, container) {
   console.log('Performing search for:', query);
-  
+
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
-    
+
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                      'https://su-search-dev.vercel.app';
-    const collection = window.seattleUConfig?.search?.collection || 
-                      'seattleu~sp-search';
-    const profile = window.seattleUConfig?.search?.profile || 
-                   '_default';
-    
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
+      'https://su-search-dev.vercel.app';
+    const collection = window.seattleUConfig?.search?.collection ||
+      'seattleu~sp-search';
+    const profile = window.seattleUConfig?.search?.profile ||
+      '_default';
+
     // Prepare URL with parameters
     const params = new URLSearchParams({
       query,
       collection,
       profile
     });
-    
+
     // Only add session ID if it's available
     if (sessionId) {
       params.append('sessionId', sessionId);
     }
-    
+
     // Fetch results from API
     const url = `${apiBaseUrl}/api/search?${params}`;
     console.log('Fetching search results from:', url);
-    
+
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
-    
+
     // Get HTML response
     const html = await response.text();
-    
+
     // Update results container
     container.innerHTML = `
       <div class="funnelback-search-container">
         ${html}
       </div>
     `;
-    
+
     // Attach click handlers for tracking
     attachResultClickHandlers(container, query);
-    
+
     // Scroll to results if not in viewport AND page is not already at the top
     if (!isElementInViewport(container) && window.scrollY > 0) {
       container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -382,7 +382,7 @@ async function performSearch(query, container) {
 // Update URL without page reload
 function updateUrl(query) {
   if (!window.history?.pushState) return;
-  
+
   const url = new URL(window.location);
   url.searchParams.set('query', query);
   window.history.pushState({}, '', url);
@@ -405,15 +405,15 @@ function attachResultClickHandlers(container, query) {
   const resultLinks = container.querySelectorAll(
     '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
   );
-  
+
   resultLinks.forEach((link, index) => {
-    link.addEventListener('click', function(e) {
+    link.addEventListener('click', function (e) {
       // Don't prevent default navigation
-      
+
       // Get link details
       const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
       const title = link.textContent.trim() || '';
-      
+
       // Track click
       trackResultClick(query, url, title, index + 1);
     });
@@ -425,7 +425,7 @@ function trackResultClick(query, url, title, position) {
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
-    
+
     // Prepare data
     const data = {
       type: 'click',
@@ -435,19 +435,19 @@ function trackResultClick(query, url, title, position) {
       clickPosition: position,
       timestamp: new Date().toISOString()
     };
-    
+
     // Only add session ID if it's available
     if (sessionId) {
       data.sessionId = sessionId;
     }
-    
+
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 
-                      'https://su-search-dev.vercel.app';
+    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
+      'https://su-search-dev.vercel.app';
     const endpoint = `${apiBaseUrl}/api/enhance`;
-    
+
     console.log('Tracking result click:', data);
-    
+
     // Use sendBeacon if available for non-blocking operation
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(data)], {
@@ -474,32 +474,32 @@ function addKeyboardNavigation(container) {
   // Store the current active item
   let activeItem = null;
   let activeColumn = null;
-  
+
   // Get all columns
   const columns = container.querySelectorAll('.suggestions-column');
-  
+
   // Handle keyboard events for the search input
   const searchInput = document.getElementById('autocomplete-concierge-inputField');
   if (!searchInput) return;
-  
+
   // Remove any existing listeners to prevent duplicates
   const oldListener = searchInput._keydownListener;
   if (oldListener) {
     searchInput.removeEventListener('keydown', oldListener);
   }
-  
+
   // Create and add new listener
-  const keydownListener = function(e) {
+  const keydownListener = function (e) {
     // Only handle navigation keys
     if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) {
       return;
     }
-    
+
     // Check if suggestions are visible
     if (container.hidden || container.querySelector('.suggestions-item') === null) {
       return;
     }
-    
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
@@ -531,10 +531,10 @@ function addKeyboardNavigation(container) {
         break;
     }
   };
-  
+
   searchInput._keydownListener = keydownListener;
   searchInput.addEventListener('keydown', keydownListener);
-  
+
   // Navigation functions
   function navigateDown() {
     if (!activeItem) {
@@ -552,61 +552,61 @@ function addKeyboardNavigation(container) {
       // Move down in current column
       const items = activeColumn.querySelectorAll('.suggestion-item');
       const currentIndex = Array.from(items).indexOf(activeItem);
-      
+
       if (currentIndex < items.length - 1) {
         activeItem.classList.remove('active');
         activeItem = items[currentIndex + 1];
         activeItem.classList.add('active');
       }
     }
-    
+
     // Ensure active item is visible
     if (activeItem) {
       activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
-  
+
   function navigateUp() {
     if (activeItem) {
       const items = activeColumn.querySelectorAll('.suggestion-item');
       const currentIndex = Array.from(items).indexOf(activeItem);
-      
+
       if (currentIndex > 0) {
         activeItem.classList.remove('active');
         activeItem = items[currentIndex - 1];
         activeItem.classList.add('active');
       }
     }
-    
+
     // Ensure active item is visible
     if (activeItem) {
       activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
-  
+
   function navigateRight() {
     if (!activeItem) return;
-    
+
     const columnIndex = Array.from(columns).indexOf(activeColumn);
     if (columnIndex < columns.length - 1) {
       // Find next column with items
       for (let i = columnIndex + 1; i < columns.length; i++) {
         const nextColumn = columns[i];
         const items = nextColumn.querySelectorAll('.suggestion-item');
-        
+
         if (items.length > 0) {
           activeItem.classList.remove('active');
-          
+
           // Try to maintain similar position in new column
           const currentItems = activeColumn.querySelectorAll('.suggestion-item');
           const currentIndex = Array.from(currentItems).indexOf(activeItem);
           const ratio = currentIndex / (currentItems.length - 1 || 1);
           const targetIndex = Math.min(Math.round(ratio * (items.length - 1)), items.length - 1);
-          
+
           activeItem = items[targetIndex];
           activeColumn = nextColumn;
           activeItem.classList.add('active');
-          
+
           // Ensure active item is visible
           activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           break;
@@ -614,30 +614,30 @@ function addKeyboardNavigation(container) {
       }
     }
   }
-  
+
   function navigateLeft() {
     if (!activeItem) return;
-    
+
     const columnIndex = Array.from(columns).indexOf(activeColumn);
     if (columnIndex > 0) {
       // Find previous column with items
       for (let i = columnIndex - 1; i >= 0; i--) {
         const prevColumn = columns[i];
         const items = prevColumn.querySelectorAll('.suggestion-item');
-        
+
         if (items.length > 0) {
           activeItem.classList.remove('active');
-          
+
           // Try to maintain similar position in new column
           const currentItems = activeColumn.querySelectorAll('.suggestion-item');
           const currentIndex = Array.from(currentItems).indexOf(activeItem);
           const ratio = currentIndex / (currentItems.length - 1 || 1);
           const targetIndex = Math.min(Math.round(ratio * (items.length - 1)), items.length - 1);
-          
+
           activeItem = items[targetIndex];
           activeColumn = prevColumn;
           activeItem.classList.add('active');
-          
+
           // Ensure active item is visible
           activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           break;
@@ -650,7 +650,7 @@ function addKeyboardNavigation(container) {
 // Helper for debouncing
 function debounce(func, wait) {
   let timeout;
-  return function() {
+  return function () {
     const context = this;
     const args = arguments;
     clearTimeout(timeout);
@@ -659,49 +659,49 @@ function debounce(func, wait) {
 }
 
 // Initialize search suggestions on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   console.log('Initializing search page autocomplete');
-  
+
   // Initialize SessionManager
   SessionManager.init();
-  
+
   // Find the search input and suggestions container
   const searchInput = document.getElementById('autocomplete-concierge-inputField');
   const suggestionsContainer = document.getElementById('autocomplete-suggestions');
-  
+
   if (!searchInput || !suggestionsContainer) {
     console.log('Search input or suggestions container not found');
     return;
   }
-  
+
   // Set up debounced input handler
   const debounceTime = window.seattleUConfig?.search?.debounceTime || 200;
   const minQueryLength = window.seattleUConfig?.search?.minQueryLength || 3;
-  
-  const handleInput = debounce(function() {
+
+  const handleInput = debounce(function () {
     const query = searchInput.value.trim();
-    
+
     if (query.length < minQueryLength) {
       suggestionsContainer.innerHTML = '';
       suggestionsContainer.hidden = true;
       return;
     }
-    
+
     fetchSuggestions(query, suggestionsContainer, true);
   }, debounceTime);
-  
+
   // Add input handler
   searchInput.addEventListener('input', handleInput);
-  
+
   // Handle clicks outside
-  document.addEventListener('click', function(e) {
+  document.addEventListener('click', function (e) {
     if (suggestionsContainer &&
-        !searchInput.contains(e.target) &&
-        !suggestionsContainer.contains(e.target)) {
+      !searchInput.contains(e.target) &&
+      !suggestionsContainer.contains(e.target)) {
       suggestionsContainer.innerHTML = '';
       suggestionsContainer.hidden = true;
     }
   });
-  
+
   console.log('Search page autocomplete initialized');
 });
