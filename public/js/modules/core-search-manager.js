@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.6.1
+ * @version 1.6.2
  * @lastModified 2025-04-08
  */
 
@@ -385,13 +385,10 @@ class SearchManager {
       let endpoint;
       let formattedData;
 
-      // Get base URL without the /proxy/ part
-      const baseUrl = this.config.proxyBaseUrl.replace('/proxy', '');
-
       // Determine endpoint and format data according to endpoint requirements
       if (data.type === 'click') {
         // Format data for click endpoint
-        endpoint = `${baseUrl}/analytics/click`;
+        endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
         // Ensure required fields for click endpoint - keep in a flat structure
         formattedData = {
@@ -414,7 +411,7 @@ class SearchManager {
       }
       else {
         // For all other types (facet, pagination, tab, spelling), use supplement endpoint
-        endpoint = `${baseUrl}/analytics/supplement`;
+        endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
 
         // For supplement endpoint, make sure we're using query (not originalQuery)
         // and include enrichmentData as expected by the backend
