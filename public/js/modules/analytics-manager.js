@@ -12,8 +12,8 @@
  * - Uses non-blocking sendBeacon for analytics data
  * 
  * @author Victor Chimenti
- * @version 1.1.0
- * @lastModified 2025-04-07
+ * @version 1.2.0
+ * @lastModified 2025-04-08
  */
 
 class AnalyticsManager {
@@ -99,10 +99,10 @@ class AnalyticsManager {
         position = allResults.indexOf(resultItem) + 1;
       }
 
-      // Prepare data
+      // Prepare data - ensure field names match backend expectations
       const data = {
         type: 'click',
-        originalQuery: this.core.originalQuery,
+        originalQuery: this.core.originalQuery || '',
         clickedUrl: clickedUrl,
         clickedTitle: title,
         clickPosition: position,
@@ -130,20 +130,24 @@ class AnalyticsManager {
       const facetName = this.getFacetName(link);
       const facetValue = this.getFacetValue(link);
 
-      // Prepare data
+      // Prepare data for supplement endpoint
       const data = {
         type: 'facet',
-        originalQuery: this.core.originalQuery,
-        facetName: facetName,
-        facetValue: facetValue,
-        action: link.classList.contains('facet-group__clear') ? 'clear' : 'select',
+        // Use query instead of originalQuery for supplement endpoint
+        query: this.core.originalQuery || '',
+        enrichmentData: {
+          facetType: 'facet',
+          facetName: facetName,
+          facetValue: facetValue,
+          action: link.classList.contains('facet-group__clear') ? 'clear' : 'select'
+        },
         timestamp: new Date().toISOString()
       };
 
       // Send analytics data
       this.core.sendAnalyticsData(data);
 
-      console.log(`Analytics: Tracked facet ${data.action} "${facetName}:${facetValue}"`);
+      console.log(`Analytics: Tracked facet ${data.enrichmentData.action} "${facetName}:${facetValue}"`);
     } catch (error) {
       console.error('Analytics: Error tracking facet selection', error);
     }
@@ -169,11 +173,15 @@ class AnalyticsManager {
         pageNumber = 'prev';
       }
 
-      // Prepare data
+      // Prepare data for supplement endpoint
       const data = {
         type: 'pagination',
-        originalQuery: this.core.originalQuery,
-        pageNumber: pageNumber,
+        // Use query instead of originalQuery for supplement endpoint
+        query: this.core.originalQuery || '',
+        enrichmentData: {
+          actionType: 'pagination',
+          pageNumber: pageNumber
+        },
         timestamp: new Date().toISOString()
       };
 
@@ -203,12 +211,16 @@ class AnalyticsManager {
         link.getAttribute('aria-controls') ||
         'unknown';
 
-      // Prepare data
+      // Prepare data for supplement endpoint
       const data = {
         type: 'tab',
-        originalQuery: this.core.originalQuery,
-        tabName: tabName,
-        tabId: tabId,
+        // Use query instead of originalQuery for supplement endpoint
+        query: this.core.originalQuery || '',
+        enrichmentData: {
+          actionType: 'tab',
+          tabName: tabName,
+          tabId: tabId
+        },
         timestamp: new Date().toISOString()
       };
 
@@ -233,11 +245,15 @@ class AnalyticsManager {
       const originalTerm = this.core.originalQuery || '';
       const suggestedTerm = link.textContent.trim() || '';
 
-      // Prepare data
+      // Prepare data for supplement endpoint
       const data = {
         type: 'spelling',
-        originalQuery: originalTerm,
-        suggestedQuery: suggestedTerm,
+        // Use query instead of originalQuery for supplement endpoint
+        query: originalTerm,
+        enrichmentData: {
+          actionType: 'spelling',
+          suggestedQuery: suggestedTerm
+        },
         timestamp: new Date().toISOString()
       };
 

@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.5.0
+ * @version 1.6.1
  * @lastModified 2025-04-08
  */
 
@@ -366,6 +366,9 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
+      // Always refresh session ID to ensure we have the latest
+      this.initializeSessionId();
+
       // Create a copy of the data to modify
       const analyticsData = { ...data };
 
@@ -387,13 +390,13 @@ class SearchManager {
         // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
-        // Ensure required fields for click endpoint
+        // Ensure required fields for click endpoint - keep in a flat structure
         formattedData = {
           originalQuery: analyticsData.originalQuery || this.originalQuery || '',
           clickedUrl: analyticsData.clickedUrl || '',
           clickedTitle: analyticsData.clickedTitle || '',
           clickPosition: analyticsData.clickPosition || -1,
-          sessionId: analyticsData.sessionId,
+          sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp,
           clickType: analyticsData.clickType || 'search'
         };
@@ -410,52 +413,17 @@ class SearchManager {
         // For all other types (facet, pagination, tab, spelling), use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
 
-        // Prepare data for supplement endpoint, which requires 'query' field
+        // For supplement endpoint, make sure we're using query (not originalQuery)
+        // and include enrichmentData as expected by the backend
         formattedData = {
-          // The supplement endpoint requires 'query' not 'originalQuery'
-          query: analyticsData.originalQuery || this.originalQuery || '',
-          sessionId: analyticsData.sessionId,
+          query: analyticsData.query || this.originalQuery || '',
+          sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp
         };
 
-        // Add type-specific fields
-        switch (data.type) {
-          case 'facet':
-            formattedData.enrichmentData = {
-              facetType: 'facet',
-              facetName: analyticsData.facetName || 'unknown',
-              facetValue: analyticsData.facetValue || 'unknown',
-              action: analyticsData.action || 'select'
-            };
-            break;
-
-          case 'pagination':
-            formattedData.enrichmentData = {
-              actionType: 'pagination',
-              pageNumber: analyticsData.pageNumber || 1
-            };
-            break;
-
-          case 'tab':
-            formattedData.enrichmentData = {
-              actionType: 'tab',
-              tabName: analyticsData.tabName || 'unknown',
-              tabId: analyticsData.tabId || 'unknown'
-            };
-            break;
-
-          case 'spelling':
-            formattedData.enrichmentData = {
-              actionType: 'spelling',
-              suggestedQuery: analyticsData.suggestedQuery || ''
-            };
-            break;
-
-          default:
-            formattedData.enrichmentData = {
-              actionType: data.type || 'unknown',
-              ...analyticsData
-            };
+        // Add enrichmentData if provided
+        if (analyticsData.enrichmentData) {
+          formattedData.enrichmentData = analyticsData.enrichmentData;
         }
 
         // Log what we're sending to supplement endpoint
