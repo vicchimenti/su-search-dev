@@ -385,10 +385,13 @@ class SearchManager {
       let endpoint;
       let formattedData;
 
+      // Get base URL without the /proxy/ part
+      const baseUrl = this.config.proxyBaseUrl.replace('/proxy', '');
+
       // Determine endpoint and format data according to endpoint requirements
       if (data.type === 'click') {
         // Format data for click endpoint
-        endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
+        endpoint = `${baseUrl}/analytics/click`;
 
         // Ensure required fields for click endpoint - keep in a flat structure
         formattedData = {
@@ -411,7 +414,7 @@ class SearchManager {
       }
       else {
         // For all other types (facet, pagination, tab, spelling), use supplement endpoint
-        endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
+        endpoint = `${baseUrl}/analytics/supplement`;
 
         // For supplement endpoint, make sure we're using query (not originalQuery)
         // and include enrichmentData as expected by the backend
