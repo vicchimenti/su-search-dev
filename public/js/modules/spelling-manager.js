@@ -25,12 +25,12 @@ class SpellingManager {
     this.core = core;
     this.resultsContainer = document.getElementById('results');
     this.searchInput = document.getElementById('autocomplete-concierge-inputField');
-    
+
     // Bind methods to maintain context
     this.handleSpellingSuggestionClick = this.handleSpellingSuggestionClick.bind(this);
     this.updateSearchInput = this.updateSearchInput.bind(this);
     this.updateUrlWithoutRefresh = this.updateUrlWithoutRefresh.bind(this);
-    
+
     this.initialize();
   }
 
@@ -51,7 +51,7 @@ class SpellingManager {
         this.handleSpellingSuggestionClick(e);
       }
     });
-    
+
     console.log('Spelling Manager: Initialized');
   }
 
@@ -61,35 +61,35 @@ class SpellingManager {
    */
   async handleSpellingSuggestionClick(e) {
     e.preventDefault();
-    
+
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       // Get suggested query
       const suggestedQuery = link.textContent.trim();
       if (!suggestedQuery) return;
-      
+
       // Update search input with suggested query
       this.updateSearchInput(suggestedQuery);
-      
+
       // Get original link href and adjust for proxy
       const href = link.getAttribute('href');
       if (!href) return;
-      
+
       // Fetch results using the spelling endpoint via core manager
       // This automatically handles session ID through the core manager
       const response = await this.core.fetchFromProxy(href, 'spelling');
-      
+
       // Update results container
       this.core.updateResults(response);
-      
+
       // Update URL without refreshing the page
       this.updateUrlWithoutRefresh(suggestedQuery);
-      
+
       // Update original query for analytics
       this.core.originalQuery = suggestedQuery;
-      
+
       console.log(`Spelling Manager: Applied suggestion "${suggestedQuery}"`);
     } catch (error) {
       console.error('Spelling Manager: Error handling spelling suggestion', error);
@@ -112,7 +112,7 @@ class SpellingManager {
    */
   updateUrlWithoutRefresh(query) {
     if (!window.history || !window.history.pushState) return;
-    
+
     const url = new URL(window.location);
     url.searchParams.set('query', query);
     window.history.pushState({}, '', url);

@@ -24,14 +24,14 @@ class AnalyticsManager {
   constructor(core) {
     this.core = core;
     this.resultsContainer = document.getElementById('results');
-    
+
     // Bind methods to maintain context
     this.trackResultClick = this.trackResultClick.bind(this);
     this.trackFacetSelection = this.trackFacetSelection.bind(this);
     this.trackPaginationEvent = this.trackPaginationEvent.bind(this);
     this.trackTabChange = this.trackTabChange.bind(this);
     this.trackSpellingSuggestion = this.trackSpellingSuggestion.bind(this);
-    
+
     this.initialize();
   }
 
@@ -50,28 +50,28 @@ class AnalyticsManager {
       if (e.target.closest('.fb-result h3 a, .search-result-item h3 a, .listing-item__title a')) {
         this.trackResultClick(e);
       }
-      
+
       // Handle facet clicks
       else if (e.target.closest('.facet-group__list a, a.facet-group__clear, .facet-breadcrumb__link')) {
         this.trackFacetSelection(e);
       }
-      
+
       // Handle pagination clicks
       else if (e.target.closest('a.pagination__link')) {
         this.trackPaginationEvent(e);
       }
-      
+
       // Handle tab clicks
       else if (e.target.closest('.tab-list__nav a')) {
         this.trackTabChange(e);
       }
-      
+
       // Handle spelling suggestion clicks
       else if (e.target.closest('.search-spelling-suggestions__link, .query-blending__highlight')) {
         this.trackSpellingSuggestion(e);
       }
     });
-    
+
     console.log('Analytics Manager: Initialized');
   }
 
@@ -83,14 +83,14 @@ class AnalyticsManager {
     // Don't prevent default navigation
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       // Prioritize data-live-url over href for accurate destination tracking
       const dataLiveUrl = link.getAttribute('data-live-url');
       const href = link.getAttribute('href');
       const clickedUrl = dataLiveUrl || href || '';
       const title = link.textContent.trim() || '';
-      
+
       // Determine position
       let position = -1;
       const resultItem = link.closest('.fb-result, .search-result-item, .listing-item');
@@ -98,7 +98,7 @@ class AnalyticsManager {
         const allResults = Array.from(document.querySelectorAll('.fb-result, .search-result-item, .listing-item'));
         position = allResults.indexOf(resultItem) + 1;
       }
-      
+
       // Prepare data
       const data = {
         type: 'click',
@@ -108,10 +108,10 @@ class AnalyticsManager {
         clickPosition: position,
         timestamp: new Date().toISOString()
       };
-      
+
       // Send analytics data
       this.core.sendAnalyticsData(data);
-      
+
       console.log(`Analytics: Tracked result click "${title}" (position ${position})`);
     } catch (error) {
       console.error('Analytics: Error tracking result click', error);
@@ -125,11 +125,11 @@ class AnalyticsManager {
   trackFacetSelection(e) {
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       const facetName = this.getFacetName(link);
       const facetValue = this.getFacetValue(link);
-      
+
       // Prepare data
       const data = {
         type: 'facet',
@@ -139,10 +139,10 @@ class AnalyticsManager {
         action: link.classList.contains('facet-group__clear') ? 'clear' : 'select',
         timestamp: new Date().toISOString()
       };
-      
+
       // Send analytics data
       this.core.sendAnalyticsData(data);
-      
+
       console.log(`Analytics: Tracked facet ${data.action} "${facetName}:${facetValue}"`);
     } catch (error) {
       console.error('Analytics: Error tracking facet selection', error);
@@ -156,10 +156,10 @@ class AnalyticsManager {
   trackPaginationEvent(e) {
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       let pageNumber = -1;
-      
+
       // Try to extract page number from link text or class
       if (link.textContent && !isNaN(parseInt(link.textContent.trim()))) {
         pageNumber = parseInt(link.textContent.trim());
@@ -168,7 +168,7 @@ class AnalyticsManager {
       } else if (link.classList.contains('pagination__link--prev')) {
         pageNumber = 'prev';
       }
-      
+
       // Prepare data
       const data = {
         type: 'pagination',
@@ -176,10 +176,10 @@ class AnalyticsManager {
         pageNumber: pageNumber,
         timestamp: new Date().toISOString()
       };
-      
+
       // Send analytics data
       this.core.sendAnalyticsData(data);
-      
+
       console.log(`Analytics: Tracked pagination to page ${pageNumber}`);
     } catch (error) {
       console.error('Analytics: Error tracking pagination event', error);
@@ -193,16 +193,16 @@ class AnalyticsManager {
   trackTabChange(e) {
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       const tabName = link.textContent.trim() || 'unknown';
-      
+
       // Try to get tab id from attributes
-      const tabId = link.getAttribute('data-tab-id') || 
-                   link.getAttribute('id') || 
-                   link.getAttribute('aria-controls') || 
-                   'unknown';
-      
+      const tabId = link.getAttribute('data-tab-id') ||
+        link.getAttribute('id') ||
+        link.getAttribute('aria-controls') ||
+        'unknown';
+
       // Prepare data
       const data = {
         type: 'tab',
@@ -211,10 +211,10 @@ class AnalyticsManager {
         tabId: tabId,
         timestamp: new Date().toISOString()
       };
-      
+
       // Send analytics data
       this.core.sendAnalyticsData(data);
-      
+
       console.log(`Analytics: Tracked tab change to "${tabName}"`);
     } catch (error) {
       console.error('Analytics: Error tracking tab change', error);
@@ -228,11 +228,11 @@ class AnalyticsManager {
   trackSpellingSuggestion(e) {
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       const originalTerm = this.core.originalQuery || '';
       const suggestedTerm = link.textContent.trim() || '';
-      
+
       // Prepare data
       const data = {
         type: 'spelling',
@@ -240,10 +240,10 @@ class AnalyticsManager {
         suggestedQuery: suggestedTerm,
         timestamp: new Date().toISOString()
       };
-      
+
       // Send analytics data
       this.core.sendAnalyticsData(data);
-      
+
       console.log(`Analytics: Tracked spelling suggestion "${suggestedTerm}"`);
     } catch (error) {
       console.error('Analytics: Error tracking spelling suggestion', error);
@@ -257,12 +257,12 @@ class AnalyticsManager {
    */
   getFacetName(link) {
     // Try to get facet name from various locations
-    
+
     // From data attribute
     if (link.hasAttribute('data-facet-name')) {
       return link.getAttribute('data-facet-name');
     }
-    
+
     // From parent facet group
     const facetGroup = link.closest('.facet-group');
     if (facetGroup) {
@@ -271,7 +271,7 @@ class AnalyticsManager {
         return heading.textContent.trim();
       }
     }
-    
+
     // From breadcrumb structure
     const breadcrumb = link.closest('.facet-breadcrumb__item');
     if (breadcrumb) {
@@ -280,7 +280,7 @@ class AnalyticsManager {
         return categoryEl.textContent.trim();
       }
     }
-    
+
     return 'unknown';
   }
 
@@ -291,18 +291,18 @@ class AnalyticsManager {
    */
   getFacetValue(link) {
     // Try to get facet value from various locations
-    
+
     // From data attribute
     if (link.hasAttribute('data-facet-value')) {
       return link.getAttribute('data-facet-value');
     }
-    
+
     // From link text for regular facets
     const valueEl = link.querySelector('.facet-group__list-link-text');
     if (valueEl) {
       return valueEl.textContent.trim();
     }
-    
+
     // From breadcrumb structure
     const breadcrumb = link.closest('.facet-breadcrumb__item');
     if (breadcrumb) {
@@ -311,12 +311,12 @@ class AnalyticsManager {
         return valueEl.textContent.trim();
       }
     }
-    
+
     // For clear facet links
     if (link.classList.contains('facet-group__clear')) {
       return 'all';
     }
-    
+
     return link.textContent.trim() || 'unknown';
   }
 

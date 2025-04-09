@@ -24,13 +24,13 @@ class FacetsManager {
   constructor(core) {
     this.core = core;
     this.resultsContainer = document.getElementById('results');
-    
+
     // Bind methods to maintain context
     this.handleFacetClick = this.handleFacetClick.bind(this);
     this.handleClearFacetClick = this.handleClearFacetClick.bind(this);
     this.handleShowMoreClick = this.handleShowMoreClick.bind(this);
     this.handleFacetToggle = this.handleFacetToggle.bind(this);
-    
+
     this.initialize();
   }
 
@@ -50,25 +50,25 @@ class FacetsManager {
         e.preventDefault();
         this.handleFacetClick(e);
       }
-      
+
       // Handle clear facet
       else if (e.target.closest('a.facet-group__clear, .facet-breadcrumb__link')) {
         e.preventDefault();
         this.handleClearFacetClick(e);
       }
-      
+
       // Handle show more/less
       else if (e.target.closest('[data-component="facet-group-show-more-button"]')) {
         e.preventDefault();
         this.handleShowMoreClick(e);
       }
-      
+
       // Handle facet toggle
       else if (e.target.closest('[data-component="facet-group-control"]')) {
         this.handleFacetToggle(e);
       }
     });
-    
+
     console.log('Facets Manager: Initialized');
   }
 
@@ -78,29 +78,29 @@ class FacetsManager {
    */
   async handleFacetClick(e) {
     e.preventDefault();
-    
+
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       // Show loading state
       this.resultsContainer.classList.add('loading');
-      
+
       // Get href for facet selection
       const href = link.getAttribute('href');
       if (!href) return;
-      
+
       // Determine facet category and value for logging
       const facetCategory = this.getFacetCategory(link);
       const facetValue = link.querySelector('.facet-group__list-link-text')?.textContent.trim() || link.textContent.trim();
-      
+
       // Fetch results using the search endpoint via core manager
       // This uses SessionService through the core manager
       const response = await this.core.fetchFromProxy(href, 'search');
-      
+
       // Update results container
       this.core.updateResults(response);
-      
+
       console.log(`Facets Manager: Selected "${facetValue}" in category "${facetCategory}"`);
     } catch (error) {
       console.error('Facets Manager: Error handling facet selection', error);
@@ -116,25 +116,25 @@ class FacetsManager {
    */
   async handleClearFacetClick(e) {
     e.preventDefault();
-    
+
     const link = e.target.closest('a');
     if (!link) return;
-    
+
     try {
       // Show loading state
       this.resultsContainer.classList.add('loading');
-      
+
       // Get href for facet clearing
       const href = link.getAttribute('href');
       if (!href) return;
-      
+
       // Fetch results using the search endpoint via core manager
       // This uses SessionService through the core manager
       const response = await this.core.fetchFromProxy(href, 'search');
-      
+
       // Update results container
       this.core.updateResults(response);
-      
+
       console.log('Facets Manager: Cleared facet filter');
     } catch (error) {
       console.error('Facets Manager: Error handling clear facet', error);
@@ -150,26 +150,26 @@ class FacetsManager {
    */
   handleShowMoreClick(e) {
     e.preventDefault();
-    
+
     const button = e.target.closest('[data-component="facet-group-show-more-button"]');
     if (!button) return;
-    
+
     try {
       // Find parent facet group
       const facetGroup = button.closest('.facet-group__list');
       if (!facetGroup) return;
-      
+
       // Get all hidden items
       const hiddenItems = facetGroup.querySelectorAll('.facet-group__list-item--hidden');
-      
+
       // Remove hidden class from all items
       hiddenItems.forEach(item => {
         item.classList.remove('facet-group__list-item--hidden');
       });
-      
+
       // Hide the button
       button.style.display = 'none';
-      
+
       console.log('Facets Manager: Expanded facet group');
     } catch (error) {
       console.error('Facets Manager: Error handling show more', error);
@@ -183,19 +183,19 @@ class FacetsManager {
   handleFacetToggle(e) {
     const toggleButton = e.target.closest('[data-component="facet-group-control"]');
     if (!toggleButton) return;
-    
+
     try {
       // Find content to toggle
       const content = toggleButton.nextElementSibling;
       if (!content) return;
-      
+
       // Toggle expanded state
       const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
       toggleButton.setAttribute('aria-expanded', (!isExpanded).toString());
-      
+
       // Toggle active class
       toggleButton.classList.toggle('facet-group__title--open');
-      
+
       // Toggle content visibility
       if (isExpanded) {
         content.classList.remove('facet-group__list--open');
@@ -206,7 +206,7 @@ class FacetsManager {
         content.setAttribute('aria-hidden', 'false');
         content.style.display = '';
       }
-      
+
       console.log(`Facets Manager: ${isExpanded ? 'Collapsed' : 'Expanded'} facet group`);
     } catch (error) {
       console.error('Facets Manager: Error handling facet toggle', error);
@@ -227,7 +227,7 @@ class FacetsManager {
         return heading.textContent.trim();
       }
     }
-    
+
     return 'unknown';
   }
 
@@ -237,7 +237,7 @@ class FacetsManager {
    */
   handleDomChanges(addedNodes) {
     if (!addedNodes || addedNodes.length === 0) return;
-    
+
     addedNodes.forEach(node => {
       if (node.nodeType === Node.ELEMENT_NODE) {
         // Initialize show more buttons if any
@@ -248,7 +248,7 @@ class FacetsManager {
             // No need to add event listeners here as we're using event delegation
           }
         });
-        
+
         // Initialize facet toggles if any
         const facetToggles = node.querySelectorAll('[data-component="facet-group-control"]');
         facetToggles.forEach(toggle => {
@@ -258,7 +258,7 @@ class FacetsManager {
             if (!toggle.hasAttribute('aria-expanded')) {
               const isOpen = toggle.classList.contains('facet-group__title--open');
               toggle.setAttribute('aria-expanded', isOpen.toString());
-              
+
               // Also set content state
               const content = toggle.nextElementSibling;
               if (content) {

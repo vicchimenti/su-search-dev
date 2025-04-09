@@ -22,29 +22,29 @@ class TabsManager {
     this.tabContainers = [];
     this.originalPerformSearch = null;
     this.originalUpdateUrl = null;
-    
+
     // More reliable tab selectors
     this.tabSelectors = [
-      '.tab-list__nav a', 
-      '.tab__button', 
+      '.tab-list__nav a',
+      '.tab__button',
       'a[role="tab"]',
       '.tab_button',
       '[data-tab-group-control]'
     ];
-    
+
     // Initialize
     this.initialize();
   }
-  
+
   /**
    * Initialize tab functionality by integrating with existing scripts
    */
   initialize() {
     console.log('Initializing Integrated TabsManager');
-    
+
     // Find tab containers
     this.findTabContainers();
-    
+
     // Override window.performSearch to intercept tab navigation
     if (window.performSearch) {
       // Store the original function
@@ -54,7 +54,7 @@ class TabsManager {
     } else {
       console.warn('Window performSearch function not found');
     }
-    
+
     // Override URL update functions to prevent URL changes during tab navigation
     const urlUpdateFunctions = ['updateSearchUrl', 'updateUrl'];
     for (const funcName of urlUpdateFunctions) {
@@ -62,26 +62,26 @@ class TabsManager {
         if (!this.originalUpdateUrl) {
           this.originalUpdateUrl = window[funcName];
         }
-        
+
         window[funcName] = this.enhancedUpdateUrl.bind(this);
       }
     }
-    
+
     if (this.originalUpdateUrl) {
       console.log('Enhanced URL update function installed');
     } else {
       console.warn('URL update functions not found');
     }
-    
+
     // Add direct capture of tab clicks
     this.installTabClickHandlers();
-    
+
     // Set initial active tab
     this.determineActiveTab();
-    
+
     console.log('TabsManager initialized successfully');
   }
-  
+
   /**
    * Find all tab containers in the page
    */
@@ -93,7 +93,7 @@ class TabsManager {
       '[role="tablist"]',
       '.tabs'
     ];
-    
+
     containerSelectors.forEach(selector => {
       const containers = document.querySelectorAll(selector);
       if (containers.length > 0) {
@@ -102,10 +102,10 @@ class TabsManager {
         });
       }
     });
-    
+
     console.log(`Found ${this.tabContainers.length} tab container(s)`);
   }
-  
+
   /**
    * Install tab click handlers via event delegation
    */
@@ -122,7 +122,7 @@ class TabsManager {
       console.log('Document-level tab click detection active');
     }
   }
-  
+
   /**
    * Determine the active tab on page load
    */
@@ -138,7 +138,7 @@ class TabsManager {
       '.tab__button.active',
       '.tab_button.active'
     ];
-    
+
     for (const selector of activeTabSelectors) {
       const activeTab = document.querySelector(selector);
       if (activeTab) {
@@ -148,7 +148,7 @@ class TabsManager {
       }
     }
   }
-  
+
   /**
    * Handle tab clicks with direct handlers
    * @param {Event} e - The click event
@@ -159,30 +159,30 @@ class TabsManager {
       const tabElement = e.target.closest(selector);
       if (tabElement) {
         console.log('Tab click captured directly:', tabElement);
-        
+
         // Prevent default navigation
         e.preventDefault();
-        
+
         // Set flag to prevent URL updates
         this.isFromTabNavigation = true;
-        
+
         // Store the active tab ID
         this.activeTabId = tabElement.id || tabElement.getAttribute('data-tab-group-control');
-        
+
         // Update visual state of tabs
         this.updateTabState(tabElement);
-        
+
         // Load tab content
         const href = tabElement.getAttribute('href');
         if (href) {
           this.loadTabContent(href, tabElement);
         }
-        
+
         return;
       }
     }
   }
-  
+
   /**
    * Flag tab clicks for window-level function interception
    * @param {Event} e - The click event
@@ -194,37 +194,37 @@ class TabsManager {
       if (element) {
         // Mark that this is a tab navigation
         this.isFromTabNavigation = true;
-        
+
         // Store the active tab ID
         this.activeTabId = element.id || element.getAttribute('data-tab-group-control');
-        
+
         console.log('Tab click flagged:', element.textContent.trim());
         break;
       }
     }
   }
-  
+
   /**
    * Update the visual state of tabs
    * @param {Element} activeTab - The newly active tab
    */
   updateTabState(activeTab) {
     if (!activeTab) return;
-    
+
     // Find all tabs in the same container
     const tabContainer = activeTab.closest('.tab-list__nav, .tab-container, [role="tablist"], .tabs');
     if (!tabContainer) return;
-    
+
     // Get all tabs in this container
     const allTabs = tabContainer.querySelectorAll(this.tabSelectors.join(', '));
-    
+
     // Update ARIA and class attributes
     allTabs.forEach(tab => {
       const isActive = tab === activeTab;
-      
+
       // Update ARIA attributes
       tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      
+
       // Update classes
       if (isActive) {
         tab.classList.add('active');
@@ -233,7 +233,7 @@ class TabsManager {
       }
     });
   }
-  
+
   /**
    * Load tab content from the specified URL
    * @param {string} href - The tab content URL
@@ -246,34 +246,34 @@ class TabsManager {
       console.error('Results container not found');
       return;
     }
-    
+
     console.log('Loading tab content from:', href);
-    
+
     // Show loading state
     resultsContainer.classList.add('loading');
-    
+
     try {
       // Use the core's fetch method (which handles session ID properly)
       const response = await this.core.fetchFromProxy(href, 'search');
-      
+
       // FIXED: Ensure container is still available before updating
       const container = document.getElementById('results');
       if (!container) {
         console.error('Results container disappeared during tab content loading');
         return;
       }
-      
+
       // Update results container
       container.innerHTML = `
         <div class="funnelback-search-container">
           ${response || "No results found."}
         </div>
       `;
-      
+
       console.log('Tab content loaded successfully');
     } catch (error) {
       console.error('Error loading tab content:', error);
-      
+
       // FIXED: Ensure container still exists before showing error
       const container = document.getElementById('results');
       if (container) {
@@ -294,7 +294,7 @@ class TabsManager {
       }
     }
   }
-  
+
   /**
    * Enhanced performSearch function that handles tab content specially
    * @param {string} query - The search query or tab URL
@@ -303,39 +303,39 @@ class TabsManager {
    */
   async enhancedPerformSearch(query, containerId, sessionId) {
     // Determine if this is a tab navigation by examining URL patterns
-    const isTabNavigation = this.isFromTabNavigation || 
-                           (typeof query === 'string' && 
-                            query.includes('form=partial') && 
-                            (query.includes('tab=') || 
-                             query.includes('Tab=') || 
-                             query.includes('profile=')));
-    
+    const isTabNavigation = this.isFromTabNavigation ||
+      (typeof query === 'string' &&
+        query.includes('form=partial') &&
+        (query.includes('tab=') ||
+          query.includes('Tab=') ||
+          query.includes('profile=')));
+
     // Get container reference
-    const container = typeof containerId === 'string' ? 
-                     document.getElementById(containerId) : containerId;
-    
+    const container = typeof containerId === 'string' ?
+      document.getElementById(containerId) : containerId;
+
     if (!container) {
       console.error('Container not found for search/tab navigation');
       return;
     }
-    
+
     // Session ID is now handled by the core, no need to generate here
     // Just pass along whatever was provided or let core handle it
-    
+
     if (isTabNavigation) {
       console.log('Tab navigation detected, using specialized handler');
-      
+
       // Set the flag to prevent URL updates
       this.isFromTabNavigation = true;
-      
+
       try {
         // Show loading state
         container.classList.add('loading');
-        
+
         // Use our core's fetch method to get the content (it handles session ID properly)
         console.log('Fetching tab content via core manager');
         const response = await this.core.fetchFromProxy(query, 'search');
-        
+
         // FIXED: Check if container still exists before updating
         if (container.isConnected) {
           // Update results container
@@ -344,22 +344,22 @@ class TabsManager {
               ${response || "No results found."}
             </div>
           `;
-          
+
           console.log('Tab content fetched and displayed');
         } else {
           console.error('Container removed from DOM during tab content fetch');
         }
-        
+
         // Reset the tab navigation flag after a short delay
         // to allow time for other handlers to see it
         setTimeout(() => {
           this.isFromTabNavigation = false;
         }, 100);
-        
+
         return; // Skip the original function
       } catch (error) {
         console.error('Error fetching tab content:', error);
-        
+
         // FIXED: Check if container still exists before showing error
         if (container.isConnected) {
           // Show error in container
@@ -383,7 +383,7 @@ class TabsManager {
       return this.originalPerformSearch(query, containerId, sessionId);
     }
   }
-  
+
   /**
    * Enhanced URL update function that prevents updates during tab navigation
    * @param {string} query - The query to add to the URL
@@ -394,21 +394,21 @@ class TabsManager {
       console.log('Blocking URL update for tab navigation');
       return;
     }
-    
+
     // For normal searches, use the original function
     return this.originalUpdateUrl(query);
   }
-  
+
   /**
    * Handle DOM changes (required interface method)
    * @param {NodeList} addedNodes - The nodes added to the DOM
    */
   handleDomChanges(addedNodes) {
     if (!addedNodes || addedNodes.length === 0) return;
-    
+
     // Check for new tab containers
     const newTabContainers = [];
-    
+
     addedNodes.forEach(node => {
       if (node.nodeType === Node.ELEMENT_NODE) {
         // Check if this node is a tab container
@@ -418,12 +418,12 @@ class TabsManager {
           '[role="tablist"]',
           '.tabs'
         ];
-        
+
         for (const selector of containerSelectors) {
           if (node.matches(selector)) {
             newTabContainers.push(node);
           }
-          
+
           // Check children
           const childContainers = node.querySelectorAll(selector);
           childContainers.forEach(container => {
@@ -432,7 +432,7 @@ class TabsManager {
         }
       }
     });
-    
+
     // Add event listeners to new containers
     if (newTabContainers.length > 0) {
       newTabContainers.forEach(container => {
@@ -442,11 +442,11 @@ class TabsManager {
           container.addEventListener('click', this.handleTabClick.bind(this));
         }
       });
-      
+
       console.log(`Added event listeners to ${newTabContainers.length} new tab container(s)`);
     }
   }
-  
+
   /**
    * Clean up resources
    */
@@ -455,18 +455,18 @@ class TabsManager {
     if (this.originalPerformSearch) {
       window.performSearch = this.originalPerformSearch;
     }
-    
+
     if (this.originalUpdateUrl) {
       window.updateSearchUrl = window.updateUrl = this.originalUpdateUrl;
     }
-    
+
     // Remove event listeners
     this.tabContainers.forEach(container => {
       container.removeEventListener('click', this.handleTabClick.bind(this));
     });
-    
+
     document.removeEventListener('click', this.flagTabClick.bind(this));
-    
+
     console.log('TabsManager destroyed');
   }
 }

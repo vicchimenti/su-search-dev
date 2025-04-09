@@ -33,16 +33,16 @@ class SearchManager {
       resultsContainerSelector: '#results',
       defaultResultsPerPage: 10
     };
-    
+
     // Module registry
     this.modules = {};
-    
+
     // State
     this.sessionId = null; // No longer initialize here; will get from SessionService
     this.originalQuery = null;
     this.isInitialized = false;
   }
-  
+
   /**
    * Initialize the search manager with configuration
    * @param {Object} options - Configuration options
@@ -53,44 +53,44 @@ class SearchManager {
       console.warn('Search Manager already initialized');
       return this;
     }
-    
+
     // Merge configuration
     this.config = {
       ...this.config,
       ...options
     };
-    
+
     // Initialize if on search page
     if (window.location.pathname.includes('search-test')) {
       this.initialize();
       this.isInitialized = true;
     }
-    
+
     return this;
   }
-  
+
   /**
    * Initialize the search manager and all enabled modules
    */
   async initialize() {
     // Get session ID from SessionService - the single source of truth
     this.initializeSessionId();
-    
+
     // Extract query from URL or input
     this.extractOriginalQuery();
-    
+
     // Set up observer for dynamic content
     this.initializeObserver();
-    
+
     // Initialize modules
     await this.loadModules();
-    
+
     // Start observing for DOM changes
     this.startObserving();
-    
+
     console.log('Search Manager initialized with modules:', Object.keys(this.modules));
   }
-  
+
   /**
    * Initialize session ID using SessionService
    */
@@ -108,7 +108,7 @@ class SearchManager {
       this.sessionId = null;
     }
   }
-  
+
   /**
    * Load all enabled modules dynamically
    */
@@ -118,7 +118,7 @@ class SearchManager {
         // Dynamic import the module
         const module = await import(`./${moduleName}-manager.js`);
         const ModuleClass = module.default;
-        
+
         // Initialize the module
         this.modules[moduleName] = new ModuleClass(this);
         console.log(`Loaded module: ${moduleName}`);
@@ -126,11 +126,11 @@ class SearchManager {
         console.error(`Failed to load module: ${moduleName}`, error);
       }
     });
-    
+
     // Wait for all modules to load
     await Promise.all(modulePromises);
   }
-  
+
   /**
    * Extract the original search query from URL or search input
    */
@@ -138,19 +138,19 @@ class SearchManager {
     // Try to get query from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const urlQuery = urlParams.get('query');
-    
+
     if (urlQuery) {
       this.originalQuery = urlQuery;
       return;
     }
-    
+
     // Try to get query from search input field
     const searchInput = document.getElementById('autocomplete-concierge-inputField');
     if (searchInput && searchInput.value) {
       this.originalQuery = searchInput.value;
     }
   }
-  
+
   /**
    * Get session ID - should be called by modules rather than accessing this.sessionId directly
    * Ensures consistent session ID usage across the application
@@ -161,10 +161,10 @@ class SearchManager {
     if (this.sessionId === null) {
       this.initializeSessionId();
     }
-    
+
     return this.sessionId;
   }
-  
+
   /**
    * Initialize the MutationObserver to watch for DOM changes
    */
@@ -182,7 +182,7 @@ class SearchManager {
       });
     });
   }
-  
+
   /**
    * Start observing the results container for changes
    */
@@ -196,7 +196,7 @@ class SearchManager {
       this.waitForResultsContainer();
     }
   }
-  
+
   /**
    * Wait for the results container to appear in the DOM
    */
@@ -209,13 +209,13 @@ class SearchManager {
         console.log('Results container found and observer started');
       }
     });
- 
+
     bodyObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
   }
-  
+
   /**
    * Fetch data from Funnelback API via proxy
    * @param {string} url - The original Funnelback URL
@@ -224,20 +224,20 @@ class SearchManager {
    */
   async fetchFromProxy(url, type = 'search') {
     const endpoint = `${this.config.proxyBaseUrl}/funnelback/${type}`;
-    
+
     try {
       let queryString;
       let fullUrl;
-      
+
       switch (type) {
         case 'search':
           queryString = url.includes('?') ? url.split('?')[1] : '';
           // Only include sessionId if available
-          fullUrl = this.sessionId 
-            ? `${endpoint}?${queryString}&sessionId=${this.sessionId}` 
+          fullUrl = this.sessionId
+            ? `${endpoint}?${queryString}&sessionId=${this.sessionId}`
             : `${endpoint}?${queryString}`;
           break;
-          
+
         case 'tools':
           queryString = new URLSearchParams({
             path: url.split('/s/')[1]
@@ -248,7 +248,7 @@ class SearchManager {
           }
           fullUrl = `${endpoint}?${queryString}`;
           break;
-          
+
         case 'spelling':
           queryString = url.includes('?') ? url.split('?')[1] : '';
           const params = new URLSearchParams(queryString);
@@ -258,25 +258,25 @@ class SearchManager {
           }
           fullUrl = `${endpoint}?${params.toString()}`;
           break;
-          
+
         default:
           throw new Error(`Unknown request type: ${type}`);
       }
-      
+
       console.log(`Fetching from ${type} endpoint:`, fullUrl);
       const response = await fetch(fullUrl);
-      
+
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
       }
-      
+
       return await response.text();
     } catch (error) {
       console.error(`Error with ${type} request:`, error);
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
   }
-  
+
   /**
    * Update the results container with new content
    * @param {string} html - The HTML content to display
@@ -292,7 +292,7 @@ class SearchManager {
 
       // Scroll to results if not in viewport and page is not already at the top
       if (!this.isElementInViewport(resultsContainer) && window.scrollY > 0) {
-        resultsContainer.scrollIntoView({ 
+        resultsContainer.scrollIntoView({
           behavior: 'smooth',
           block: 'start'
         });
@@ -301,7 +301,7 @@ class SearchManager {
       console.error('Results container not found when updating results');
     }
   }
-  
+
   /**
    * Check if an element is visible in the viewport
    * @param {Element} el - The element to check
@@ -324,26 +324,26 @@ class SearchManager {
   sendAnalyticsData(data) {
     try {
       // Create a copy of the data to modify
-      const analyticsData = {...data};
-      
+      const analyticsData = { ...data };
+
       // Only include sessionId if available
       if (this.sessionId) {
         analyticsData.sessionId = this.sessionId;
       }
-      
+
       // Add timestamp if missing
       if (!analyticsData.timestamp) {
         analyticsData.timestamp = new Date().toISOString();
       }
-      
+
       let endpoint;
       let formattedData;
-      
+
       // Determine endpoint and format data according to endpoint requirements
       if (data.type === 'click') {
         // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
-        
+
         // Ensure required fields for click endpoint
         formattedData = {
           originalQuery: analyticsData.originalQuery || this.originalQuery || '',
@@ -354,7 +354,7 @@ class SearchManager {
           timestamp: analyticsData.timestamp,
           clickType: analyticsData.clickType || 'search'
         };
-        
+
         // Log what we're sending to click endpoint
         console.log('Sending click data:', {
           query: formattedData.originalQuery,
@@ -362,11 +362,11 @@ class SearchManager {
           position: formattedData.clickPosition,
           sessionId: formattedData.sessionId || '(none)'
         });
-      } 
+      }
       else {
         // For all other types (facet, pagination, tab, spelling), use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
-        
+
         // Prepare data for supplement endpoint, which requires 'query' field
         formattedData = {
           // The supplement endpoint requires 'query' not 'originalQuery'
@@ -374,7 +374,7 @@ class SearchManager {
           sessionId: analyticsData.sessionId,
           timestamp: analyticsData.timestamp
         };
-        
+
         // Add type-specific fields
         switch (data.type) {
           case 'facet':
@@ -385,14 +385,14 @@ class SearchManager {
               action: analyticsData.action || 'select'
             };
             break;
-            
+
           case 'pagination':
             formattedData.enrichmentData = {
               actionType: 'pagination',
               pageNumber: analyticsData.pageNumber || 1
             };
             break;
-            
+
           case 'tab':
             formattedData.enrichmentData = {
               actionType: 'tab',
@@ -400,21 +400,21 @@ class SearchManager {
               tabId: analyticsData.tabId || 'unknown'
             };
             break;
-            
+
           case 'spelling':
             formattedData.enrichmentData = {
               actionType: 'spelling',
               suggestedQuery: analyticsData.suggestedQuery || ''
             };
             break;
-            
+
           default:
             formattedData.enrichmentData = {
               actionType: data.type || 'unknown',
               ...analyticsData
             };
         }
-        
+
         // Log what we're sending to supplement endpoint
         console.log('Sending supplement data:', {
           query: formattedData.query,
@@ -423,28 +423,28 @@ class SearchManager {
           sessionId: formattedData.sessionId || '(none)'
         });
       }
-      
+
       // Send the data using sendBeacon if available (works during page unload)
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(formattedData)], {
           type: 'application/json'
         });
-        
+
         const success = navigator.sendBeacon(endpoint, blob);
         if (!success) {
           console.warn('sendBeacon failed, falling back to fetch');
           this.sendAnalyticsWithFetch(endpoint, formattedData);
         }
         return;
-      } 
-      
+      }
+
       // Fallback to fetch with keepalive
       this.sendAnalyticsWithFetch(endpoint, formattedData);
     } catch (error) {
       console.error('Failed to send analytics data:', error);
     }
   }
-  
+
   /**
    * Send analytics data using fetch API (fallback)
    * @param {string} endpoint - The API endpoint
@@ -464,7 +464,7 @@ class SearchManager {
       console.error('Error sending analytics data via fetch:', error);
     });
   }
-  
+
   /**
    * Clean up resources when the manager is destroyed
    */
@@ -473,7 +473,7 @@ class SearchManager {
     if (this.observer) {
       this.observer.disconnect();
     }
-    
+
     // Destroy all modules
     Object.values(this.modules).forEach(module => {
       if (typeof module.destroy === 'function') {

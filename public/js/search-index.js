@@ -29,10 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInputSelector: '#autocomplete-concierge-inputField',
     resultsContainerSelector: '#results'
   };
-  
+
   // Initialize the search manager with configuration
   searchManager.init(config);
-  
+
   console.log('Search functionality initialized');
 });
 

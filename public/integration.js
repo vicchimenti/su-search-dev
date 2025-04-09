@@ -10,7 +10,7 @@
  * @lastModified 2025-04-08
  */
 
-(function() {
+(function () {
   // Configuration for the frontend API
   const config = {
     apiBaseUrl: 'https://su-search-dev.vercel.app',
@@ -19,7 +19,7 @@
     minQueryLength: 3,
     debounceTime: 200
   };
-  
+
   // Make config available globally
   window.seattleUConfig = window.seattleUConfig || {};
   window.seattleUConfig.search = {
@@ -28,31 +28,31 @@
   };
 
   // Initialize on DOM ready
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     console.log('🔍 Frontend Search Integration: Initializing');
-    
+
     // Detect environment
     const isResultsPage = window.location.pathname.includes('search-test');
     console.log('🔍 On results page:', isResultsPage);
-    
+
     // Find search components
     const searchComponents = findSearchComponents();
-    
+
     // Set up integrations based on detected components
     if (searchComponents.header) {
       setupHeaderSearch(searchComponents.header);
     }
-    
+
     if (isResultsPage && searchComponents.results) {
       setupResultsSearch(searchComponents.results);
-      
+
       // Process URL parameters for initial search
       processUrlParameters(searchComponents.results);
     }
-    
+
     console.log('🔍 Frontend Search Integration: Initialized');
   });
-  
+
   /**
    * Find search components on the page
    * @returns {Object} Object containing references to header and results search components
@@ -62,12 +62,12 @@
       header: null,
       results: null
     };
-    
+
     // Header search components
     const headerInput = document.getElementById('search-input');
     const headerForm = headerInput?.closest('form');
     const headerButton = headerForm?.querySelector('button[type="submit"]');
-    
+
     if (headerInput && headerForm) {
       components.header = {
         input: headerInput,
@@ -75,7 +75,7 @@
         button: headerButton,
         container: document.createElement('div')
       };
-      
+
       // Create suggestions container if not exists
       if (!document.getElementById('header-suggestions')) {
         const suggestionsContainer = document.createElement('div');
@@ -83,7 +83,7 @@
         suggestionsContainer.className = 'header-suggestions-container';
         suggestionsContainer.setAttribute('role', 'listbox');
         suggestionsContainer.hidden = true;
-        
+
         // Insert after search form
         headerForm.parentNode.insertBefore(suggestionsContainer, headerForm.nextSibling);
         components.header.suggestionsContainer = suggestionsContainer;
@@ -91,14 +91,14 @@
         components.header.suggestionsContainer = document.getElementById('header-suggestions');
       }
     }
-    
+
     // Results page components
     const resultsInput = document.getElementById('autocomplete-concierge-inputField');
     const resultsForm = resultsInput?.closest('form');
     const resultsButton = resultsForm?.querySelector('#on-page-search-button');
     const resultsContainer = document.getElementById('results');
     const suggestionsContainer = document.getElementById('autocomplete-suggestions');
-    
+
     if (resultsInput && resultsContainer) {
       components.results = {
         input: resultsInput,
@@ -108,57 +108,57 @@
         suggestionsContainer: suggestionsContainer
       };
     }
-    
+
     return components;
   }
-  
+
   /**
    * Set up header search integration
    * @param {Object} component - Header search component references
    */
   function setupHeaderSearch(component) {
     console.log('🔍 Setting up header search integration');
-    
+
     // Intercept form submission
-    component.form.addEventListener('submit', function(e) {
+    component.form.addEventListener('submit', function (e) {
       e.preventDefault();
-      
+
       const query = component.input.value.trim();
       if (!query) return;
-      
+
       // Navigate to search page with query
       window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
     });
-    
+
     // Set up suggestions
     if (component.suggestionsContainer) {
       // Create debounced function for input handling
-      const handleInput = debounce(async function() {
+      const handleInput = debounce(async function () {
         const query = component.input.value.trim();
-        
+
         if (query.length < config.minQueryLength) {
           component.suggestionsContainer.innerHTML = '';
           component.suggestionsContainer.hidden = true;
           return;
         }
-        
+
         fetchHeaderSuggestions(query, component.suggestionsContainer);
       }, config.debounceTime);
-      
+
       component.input.addEventListener('input', handleInput);
     }
-    
+
     // Handle clicks outside
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       if (component.suggestionsContainer &&
-          !component.input.contains(e.target) &&
-          !component.suggestionsContainer.contains(e.target)) {
+        !component.input.contains(e.target) &&
+        !component.suggestionsContainer.contains(e.target)) {
         component.suggestionsContainer.innerHTML = '';
         component.suggestionsContainer.hidden = true;
       }
     });
   }
-  
+
   /**
    * Fetch suggestions for header search
    * @param {string} query - Search query
@@ -166,11 +166,11 @@
    */
   async function fetchHeaderSuggestions(query, container) {
     console.log('🔍 Fetching header suggestions for:', query);
-    
+
     try {
       // Prepare URL with parameters
       const params = new URLSearchParams({ query });
-      
+
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
@@ -178,18 +178,18 @@
           params.append('sessionId', sessionId);
         }
       }
-      
+
       // Fetch suggestions from API
       const url = `${config.apiBaseUrl}/api/suggestions?${params}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
-      
+
       // Get JSON response
       const data = await response.json();
-      
+
       // Render header suggestions (simple list)
       renderHeaderSuggestions(data, container, query);
     } catch (error) {
@@ -199,7 +199,7 @@
       // Continue with normal operation despite fetch failure
     }
   }
-  
+
   /**
    * Render header suggestions (simple list)
    * @param {Object} data - Suggestions data
@@ -208,15 +208,15 @@
    */
   function renderHeaderSuggestions(data, container, query) {
     const suggestions = data.general || [];
-    
+
     if (suggestions.length === 0) {
       container.innerHTML = '';
       container.hidden = true;
       return;
     }
-    
+
     let html = '<div class="suggestions-list">';
-    
+
     suggestions.forEach((suggestion, index) => {
       const display = suggestion.display || suggestion;
       html += `
@@ -225,23 +225,23 @@
         </div>
       `;
     });
-    
+
     html += '</div>';
-    
+
     container.innerHTML = html;
     container.hidden = false;
-    
+
     // Add click handlers
     container.querySelectorAll('.suggestion-item').forEach(item => {
-      item.addEventListener('click', function() {
+      item.addEventListener('click', function () {
         const text = this.querySelector('.suggestion-text').textContent;
-        
+
         // Set input value
         const input = document.getElementById('search-input');
         if (input) {
           input.value = text;
         }
-        
+
         // Redirect to search page
         window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
       });
@@ -254,28 +254,28 @@
    */
   function setupResultsSearch(component) {
     console.log('🔍 Setting up results page search integration');
-    
+
     // Make sure search button is visible
     if (component.button) {
       component.button.classList.remove('empty-query');
     }
-    
+
     // Intercept form submission
     if (component.form) {
-      component.form.addEventListener('submit', function(e) {
+      component.form.addEventListener('submit', function (e) {
         e.preventDefault();
-        
+
         const query = component.input.value.trim();
         if (!query) return;
-        
+
         // Perform search
         performSearch(query, component.container);
-        
+
         // Update URL without reload
         updateUrl(query);
       });
     }
-    
+
     // Set up click tracking on results
     const urlParams = new URLSearchParams(window.location.search);
     const queryParam = urlParams.get('query') || '';
@@ -288,23 +288,23 @@
    */
   function processUrlParameters(component) {
     console.log('🔍 Processing URL parameters');
-    
+
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get('query');
-    
+
     if (query) {
       console.log('🔍 Found query parameter:', query);
-      
+
       // Set input value
       if (component.input) {
         component.input.value = query;
       }
-      
+
       // Perform search
       performSearch(query, component.container);
     }
   }
-  
+
   /**
    * Perform search via API
    * @param {string} query - Search query
@@ -312,7 +312,7 @@
    */
   async function performSearch(query, container) {
     console.log('🔍 Performing search for:', query);
-    
+
     try {
       // Prepare URL with parameters
       const params = new URLSearchParams({
@@ -320,7 +320,7 @@
         collection: config.collection,
         profile: config.profile
       });
-      
+
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
@@ -328,28 +328,28 @@
           params.append('sessionId', sessionId);
         }
       }
-      
+
       // Fetch results from API
       const url = `${config.apiBaseUrl}/api/search?${params}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
-      
+
       // Get HTML response
       const html = await response.text();
-      
+
       // Update results container
       container.innerHTML = `
         <div class="funnelback-search-container">
           ${html}
         </div>
       `;
-      
+
       // Attach click handlers for tracking
       attachResultClickHandlers(container, query);
-      
+
       // Scroll to results if not in viewport AND page is not already at the top
       if (!isElementInViewport(container) && window.scrollY > 0) {
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -375,15 +375,15 @@
     const resultLinks = container.querySelectorAll(
       '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
     );
-    
+
     resultLinks.forEach((link, index) => {
-      link.addEventListener('click', function(e) {
+      link.addEventListener('click', function (e) {
         // Don't prevent default navigation
-        
+
         // Get link details
         const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
         const title = link.textContent.trim() || '';
-        
+
         // Track click
         trackResultClick(query, url, title, index + 1);
       });
@@ -400,7 +400,7 @@
   function trackResultClick(query, url, title, position) {
     try {
       console.log('🔍 Tracking result click:', { query, url, title, position });
-      
+
       // Prepare data
       const data = {
         type: 'click',
@@ -410,7 +410,7 @@
         clickPosition: position,
         timestamp: new Date().toISOString()
       };
-      
+
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
@@ -418,10 +418,10 @@
           data.sessionId = sessionId;
         }
       }
-      
+
       // Use sendBeacon if available for non-blocking operation
       const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
+
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
           type: 'application/json'
@@ -441,7 +441,7 @@
       // Continue with normal operation despite tracking failure
     }
   }
-  
+
   /**
    * Track suggestion click for analytics
    * Exposed globally for use by other components
@@ -450,10 +450,10 @@
    * @param {string} url - Clicked URL (for staff and programs)
    * @param {string} title - Display title (with additional context)
    */
-  window.trackSuggestionClick = function(text, type, url, title) {
+  window.trackSuggestionClick = function (text, type, url, title) {
     try {
       console.log('🔍 Tracking suggestion click:', { text, type, url, title });
-      
+
       // Prepare data for the API call
       const data = {
         type: 'click',
@@ -463,7 +463,7 @@
         clickType: type || 'suggestion',
         timestamp: new Date().toISOString()
       };
-      
+
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
@@ -471,10 +471,10 @@
           data.sessionId = sessionId;
         }
       }
-      
+
       // Use sendBeacon if available for non-blocking operation
       const endpoint = `${config.apiBaseUrl}/api/enhance`;
-      
+
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
           type: 'application/json'
@@ -494,20 +494,20 @@
       // Continue with normal operation despite tracking failure
     }
   };
-  
+
   /**
    * Update URL without page reload
    * @param {string} query - Search query
    */
   function updateUrl(query) {
     if (!window.history?.pushState) return;
-    
+
     const url = new URL(window.location);
     url.searchParams.set('query', query);
     window.history.pushState({}, '', url);
     console.log('🔍 Updated URL:', url.toString());
   }
-  
+
   /**
    * Debounce function to limit execution frequency
    * @param {Function} func - Function to debounce
@@ -516,17 +516,17 @@
    */
   function debounce(func, wait) {
     let timeout;
-    return function() {
+    return function () {
       const context = this;
       const args = arguments;
       clearTimeout(timeout);
       timeout = setTimeout(() => func.apply(context, args), wait);
     };
   }
-  
+
   // Expose debounce function globally for other components
   window.debounceFunction = debounce;
-  
+
   /**
    * Check if element is in viewport
    * @param {HTMLElement} el - Element to check
@@ -542,27 +542,27 @@
     );
     return isVisible;
   }
-  
+
   // Expose configuration globally for other components
   window.searchConfig = config;
-  
+
   /**
    * Perform search via API (exposed globally for other components)
    * @param {string} query - Search query
    * @param {string|HTMLElement} containerId - Container ID or element for results
    */
-  window.performSearch = function(query, containerId) {
-    const container = typeof containerId === 'string' ? 
-                    document.getElementById(containerId) : containerId;
-    
+  window.performSearch = function (query, containerId) {
+    const container = typeof containerId === 'string' ?
+      document.getElementById(containerId) : containerId;
+
     if (!container) {
       console.error('🔍 Container not found:', containerId);
       return;
     }
-    
+
     return performSearch(query, container);
   };
-  
+
   /**
    * Update URL without page reload (exposed globally for other components)
    */
