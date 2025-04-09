@@ -12,8 +12,8 @@
  * - Uses non-blocking sendBeacon for analytics data
  * 
  * @author Victor Chimenti
- * @version 1.2.0
- * @lastModified 2025-04-08
+ * @version 2.0.0
+ * @lastModified 2025-04-09
  */
 
 class AnalyticsManager {
@@ -80,12 +80,11 @@ class AnalyticsManager {
    * @param {Event} e - The click event
    */
   trackResultClick(e) {
-    // Don't prevent default navigation
     const link = e.target.closest('a');
     if (!link) return;
 
     try {
-      // Prioritize data-live-url over href for accurate destination tracking
+      // Get URL, prioritizing data-live-url
       const dataLiveUrl = link.getAttribute('data-live-url');
       const href = link.getAttribute('href');
       const clickedUrl = dataLiveUrl || href || '';
@@ -99,17 +98,18 @@ class AnalyticsManager {
         position = allResults.indexOf(resultItem) + 1;
       }
 
-      // Prepare data - ensure field names match backend expectations
+      // Prepare data with correct field names for click.js endpoint
       const data = {
-        type: 'click',
+        type: 'click',  // This triggers the click endpoint in sendAnalyticsData
         originalQuery: this.core.originalQuery || '',
         clickedUrl: clickedUrl,
         clickedTitle: title,
         clickPosition: position,
+        clickType: 'search',
         timestamp: new Date().toISOString()
       };
 
-      // Send analytics data
+      // Send through core manager
       this.core.sendAnalyticsData(data);
 
       console.log(`Analytics: Tracked result click "${title}" (position ${position})`);
@@ -130,11 +130,10 @@ class AnalyticsManager {
       const facetName = this.getFacetName(link);
       const facetValue = this.getFacetValue(link);
 
-      // Prepare data for supplement endpoint
+      // Use query for supplement endpoint, not originalQuery
       const data = {
-        type: 'facet',
-        // Use query instead of originalQuery for supplement endpoint
-        query: this.core.originalQuery || '',
+        type: 'facet',  // This will route to supplement endpoint
+        query: this.core.originalQuery || '',  // Using query, not originalQuery
         enrichmentData: {
           facetType: 'facet',
           facetName: facetName,

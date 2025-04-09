@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 1.6.2
- * @lastModified 2025-04-08
+ * @version 2.0.0
+ * @lastModified 2025-04-09
  */
 
 // Core Search Manager
@@ -366,15 +366,13 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
-      // Always refresh session ID to ensure we have the latest
-      this.initializeSessionId();
-
       // Create a copy of the data to modify
       const analyticsData = { ...data };
 
-      // Only include sessionId if available
-      if (this.sessionId) {
-        analyticsData.sessionId = this.sessionId;
+      // Add sessionId using the existing SessionService method
+      const sessionId = this.getSessionId();
+      if (sessionId) {
+        analyticsData.sessionId = sessionId;
       }
 
       // Add timestamp if missing
@@ -385,12 +383,12 @@ class SearchManager {
       let endpoint;
       let formattedData;
 
-      // Determine endpoint and format data according to endpoint requirements
+      // Format data based on type
       if (data.type === 'click') {
         // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
-        // Ensure required fields for click endpoint - keep in a flat structure
+        // Ensure required fields for click endpoint
         formattedData = {
           originalQuery: analyticsData.originalQuery || this.originalQuery || '',
           clickedUrl: analyticsData.clickedUrl || '',
@@ -398,44 +396,49 @@ class SearchManager {
           clickPosition: analyticsData.clickPosition || -1,
           sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp,
-          clickType: analyticsData.clickType || 'search'
+          clickType: analyticsData.clickType || 'search'  // Default to 'search'
         };
+      }
+      else if (data.type === 'batch') {
+        // Format data for clicks-batch endpoint
+        endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
 
-        // Log what we're sending to click endpoint
-        console.log('Sending click data:', {
-          query: formattedData.originalQuery,
-          url: formattedData.clickedUrl,
-          position: formattedData.clickPosition,
-          sessionId: formattedData.sessionId || '(none)'
-        });
+        // Format clicks array
+        formattedData = {
+          clicks: analyticsData.clicks.map(click => ({
+            originalQuery: click.originalQuery || this.originalQuery || '',
+            clickedUrl: click.clickedUrl || '',
+            clickedTitle: click.clickedTitle || '',
+            clickPosition: click.clickPosition || -1,
+            sessionId: sessionId || undefined,
+            timestamp: click.timestamp || analyticsData.timestamp,
+            clickType: click.clickType || 'search'
+          }))
+        };
       }
       else {
-        // For all other types (facet, pagination, tab, spelling), use supplement endpoint
+        // For all other types, use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
 
-        // For supplement endpoint, make sure we're using query (not originalQuery)
-        // and include enrichmentData as expected by the backend
+        // For supplement endpoint, use query (not originalQuery)
         formattedData = {
           query: analyticsData.query || this.originalQuery || '',
           sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp
         };
 
+        // Add resultCount if provided
+        if (analyticsData.resultCount !== undefined) {
+          formattedData.resultCount = analyticsData.resultCount;
+        }
+
         // Add enrichmentData if provided
         if (analyticsData.enrichmentData) {
           formattedData.enrichmentData = analyticsData.enrichmentData;
         }
-
-        // Log what we're sending to supplement endpoint
-        console.log('Sending supplement data:', {
-          query: formattedData.query,
-          type: data.type,
-          details: formattedData.enrichmentData,
-          sessionId: formattedData.sessionId || '(none)'
-        });
       }
 
-      // Send the data using sendBeacon if available (works during page unload)
+      // Send data using appropriate method
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(formattedData)], {
           type: 'application/json'
@@ -446,13 +449,15 @@ class SearchManager {
           console.warn('sendBeacon failed, falling back to fetch');
           this.sendAnalyticsWithFetch(endpoint, formattedData);
         }
-        return;
+      } else {
+        // Fallback to fetch with keepalive
+        this.sendAnalyticsWithFetch(endpoint, formattedData);
       }
 
-      // Fallback to fetch with keepalive
-      this.sendAnalyticsWithFetch(endpoint, formattedData);
+      return true;
     } catch (error) {
       console.error('Failed to send analytics data:', error);
+      return false;
     }
   }
 
