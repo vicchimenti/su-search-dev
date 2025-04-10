@@ -159,11 +159,11 @@ class TabsManager {
     if (typeof value !== 'string') {
       return value;
     }
-    
+
     // Replace line breaks, tabs, and control characters with spaces
     return value.replace(/[\r\n\t\f\v]+/g, ' ')
-                .replace(/\s+/g, ' ')  // Normalize spaces
-                .trim();  // Remove leading/trailing whitespace
+      .replace(/\s+/g, ' ')  // Normalize spaces
+      .trim();  // Remove leading/trailing whitespace
   }
 
   /**
@@ -235,21 +235,21 @@ class TabsManager {
     try {
       // Extract tab information - ensure we sanitize all string values
       const tabName = this.sanitizeValue(tabElement.textContent) || 'unknown';
-      
+
       // Try to get tab id from multiple attributes
-      let tabId = tabElement.getAttribute('data-tab-id') || 
-                 tabElement.id || 
-                 tabElement.getAttribute('aria-controls') ||
-                 this.activeTabId ||
-                 'unknown';
-      
+      let tabId = tabElement.getAttribute('data-tab-id') ||
+        tabElement.id ||
+        tabElement.getAttribute('aria-controls') ||
+        this.activeTabId ||
+        'unknown';
+
       // Sanitize the tab ID as well
       tabId = this.sanitizeValue(tabId);
-      
+
       // Extract query from URL or input field
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get('query') || this.core.originalQuery || '';
-      
+
       // Create clean and properly structured data object for supplement endpoint
       const analyticsData = {
         type: 'tab', // This is used by core-search-manager for routing
@@ -261,14 +261,14 @@ class TabsManager {
           timestamp: Date.now()
         }
       };
-      
+
       // Log what we're sending
       console.log('Tab change tracked:', {
         tabName: analyticsData.enrichmentData.tabName,
         tabId: analyticsData.enrichmentData.tabId,
         query: analyticsData.query
       });
-      
+
       // Let core manager handle analytics submission and session ID
       this.core.sendAnalyticsData(analyticsData);
     } catch (error) {
