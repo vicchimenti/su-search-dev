@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.3.0
+ * @version 2.4.0
  * @lastModified 2025-04-10
  */
 
@@ -34,7 +34,7 @@ class SearchManager {
     this.modules = {};
 
     // State
-    this.sessionId = null;
+    this.sessionId = null; // No longer initialize here; will get from SessionService
     this.originalQuery = null;
     this.isInitialized = false;
   }
@@ -213,6 +213,30 @@ class SearchManager {
   }
 
   /**
+   * Sanitize a string value to ensure it contains no line breaks
+   * or special characters that could break the JSON
+   * @param {string} value - The value to sanitize
+   * @returns {string} Sanitized value
+   */
+  sanitizeValue(value) {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    
+    // Replace line breaks, tabs, and control characters with spaces
+    let sanitized = value.replace(/[\r\n\t\f\v]+/g, ' ')
+                        .replace(/\s+/g, ' ')  // Normalize spaces
+                        .trim();  // Remove leading/trailing whitespace
+    
+    // Remove common counter patterns that might be in the text
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, ''); // Remove " (26)" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, ''); // Remove "(26)" anywhere
+    
+    return sanitized;
+  }
+
+  /**
    * Fetch data from Funnelback API via proxy
    * @param {string} url - The original Funnelback URL
    * @param {string} type - The type of request (search, tools, spelling)
@@ -381,10 +405,10 @@ class SearchManager {
       // Determine endpoint and prepare data format based on data type
       let endpoint;
       let formattedData;
-
+      
       // Extract the type from analyticsData and store it
       const dataType = analyticsData.type;
-
+      
       // IMPORTANT: Remove the type field from analyticsData as this is only used
       // for routing and is not expected by the backend endpoints
       delete analyticsData.type;
@@ -411,6 +435,12 @@ class SearchManager {
           clickType: analyticsData.clickType || 'search'
         };
 
+        // Sanitize all string values
+        formattedData.originalQuery = this.sanitizeValue(formattedData.originalQuery);
+        formattedData.clickedUrl = this.sanitizeValue(formattedData.clickedUrl);
+        formattedData.clickedTitle = this.sanitizeValue(formattedData.clickedTitle);
+        formattedData.clickType = this.sanitizeValue(formattedData.clickType);
+
         // Log what we're sending to click endpoint
         console.log('Sending click data:', {
           endpoint: endpoint,
@@ -427,15 +457,25 @@ class SearchManager {
 
         // Format batch data for clicks-batch endpoint
         formattedData = {
-          clicks: (analyticsData.clicks || []).map(click => ({
-            originalQuery: click.originalQuery || click.query || this.originalQuery || '',
-            clickedUrl: click.clickedUrl || click.url || '',
-            clickedTitle: click.clickedTitle || click.title || '',
-            clickPosition: click.clickPosition || click.position || -1,
-            sessionId: this.sessionId || undefined,
-            timestamp: click.timestamp || analyticsData.timestamp,
-            clickType: click.clickType || 'search'
-          }))
+          clicks: (analyticsData.clicks || []).map(click => {
+            const formattedClick = {
+              originalQuery: click.originalQuery || click.query || this.originalQuery || '',
+              clickedUrl: click.clickedUrl || click.url || '',
+              clickedTitle: click.clickedTitle || click.title || '',
+              clickPosition: click.clickPosition || click.position || -1,
+              sessionId: this.sessionId || undefined,
+              timestamp: click.timestamp || analyticsData.timestamp,
+              clickType: click.clickType || 'search'
+            };
+
+            // Sanitize all string values
+            formattedClick.originalQuery = this.sanitizeValue(formattedClick.originalQuery);
+            formattedClick.clickedUrl = this.sanitizeValue(formattedClick.clickedUrl);
+            formattedClick.clickedTitle = this.sanitizeValue(formattedClick.clickedTitle);
+            formattedClick.clickType = this.sanitizeValue(formattedClick.clickType);
+
+            return formattedClick;
+          })
         };
 
         // Log what we're sending to batch endpoint
@@ -461,6 +501,9 @@ class SearchManager {
           analyticsData.query = this.originalQuery || '';
         }
 
+        // Sanitize query
+        analyticsData.query = this.sanitizeValue(analyticsData.query);
+
         // Create a properly formatted object for supplement endpoint
         formattedData = {
           query: analyticsData.query,
@@ -472,9 +515,51 @@ class SearchManager {
           formattedData.resultCount = analyticsData.resultCount;
         }
 
-        // Add enrichmentData if provided
+        // Process enrichmentData if provided
         if (analyticsData.enrichmentData) {
-          formattedData.enrichmentData = analyticsData.enrichmentData;
+          // Create a clean enrichmentData object
+          const cleanEnrichmentData = {};
+          
+          // Copy actionType
+          if (analyticsData.enrichmentData.actionType) {
+            cleanEnrichmentData.actionType = this.sanitizeValue(analyticsData.enrichmentData.actionType);
+          }
+          
+          // For tab changes, only include tabName (not tabId)
+          if (cleanEnrichmentData.actionType === 'tab' && analyticsData.enrichmentData.tabName) {
+            cleanEnrichmentData.tabName = this.sanitizeValue(analyticsData.enrichmentData.tabName);
+          }
+          
+          // For facet selections
+          if (cleanEnrichmentData.actionType === 'facet') {
+            if (analyticsData.enrichmentData.facetName) {
+              cleanEnrichmentData.facetName = this.sanitizeValue(analyticsData.enrichmentData.facetName);
+            }
+            if (analyticsData.enrichmentData.facetValue) {
+              cleanEnrichmentData.facetValue = this.sanitizeValue(analyticsData.enrichmentData.facetValue);
+            }
+            if (analyticsData.enrichmentData.action) {
+              cleanEnrichmentData.action = this.sanitizeValue(analyticsData.enrichmentData.action);
+            }
+          }
+          
+          // For pagination
+          if (cleanEnrichmentData.actionType === 'pagination' && analyticsData.enrichmentData.pageNumber !== undefined) {
+            cleanEnrichmentData.pageNumber = analyticsData.enrichmentData.pageNumber;
+          }
+          
+          // For spelling suggestions
+          if (cleanEnrichmentData.actionType === 'spelling' && analyticsData.enrichmentData.suggestedQuery) {
+            cleanEnrichmentData.suggestedQuery = this.sanitizeValue(analyticsData.enrichmentData.suggestedQuery);
+          }
+          
+          // Include timestamp if provided
+          if (analyticsData.enrichmentData.timestamp) {
+            cleanEnrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
+          }
+          
+          // Add the cleaned enrichmentData to formattedData
+          formattedData.enrichmentData = cleanEnrichmentData;
         }
 
         // Log what we're sending to supplement endpoint
