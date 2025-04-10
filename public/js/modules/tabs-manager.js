@@ -6,7 +6,7 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.5.0
+ * @version 3.5.1
  * @lastModified 2025-04-10
  */
 
@@ -143,9 +143,52 @@ class TabsManager {
       const activeTab = document.querySelector(selector);
       if (activeTab) {
         this.activeTabId = activeTab.id || activeTab.getAttribute('data-tab-group-control');
-        console.log('Initial active tab:', this.activeTabId);
+        const tabName = this.extractCleanTabName(activeTab);
+        console.log(`Initial active tab: ${tabName} (${this.activeTabId})`);
         break;
       }
+    }
+  }
+
+  /**
+   * Extract the clean tab name without counters
+   * @param {Element} tabElement - The tab element
+   * @returns {string} The clean tab name
+   */
+  extractCleanTabName(tabElement) {
+    if (!tabElement) return 'unknown';
+
+    try {
+      // Method 1: Look for a specific element that contains just the tab name
+      const nameElement = tabElement.querySelector('.tab-name, .tab-title, .tab-label');
+      if (nameElement) {
+        return this.sanitizeValue(nameElement.textContent);
+      }
+
+      // Method 2: Try to get just the first text node (before any child elements)
+      let cleanName = '';
+      // Iterate through the child nodes to find the first text node
+      for (let i = 0; i < tabElement.childNodes.length; i++) {
+        const node = tabElement.childNodes[i];
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          cleanName = node.textContent.trim();
+          break;
+        }
+      }
+
+      if (cleanName) {
+        return this.sanitizeValue(cleanName);
+      }
+
+      // Method 3: Use regex to remove patterns like " (23)" from the text
+      // This is our fallback if DOM traversal doesn't work
+      let fullText = tabElement.textContent || '';
+      fullText = fullText.replace(/\s*\(\d+\)$/g, ''); // Remove trailing counter like " (26)"
+      return this.sanitizeValue(fullText);
+    } catch (error) {
+      console.error('Error extracting tab name:', error);
+      // Return a sanitized version of the full textContent as last resort
+      return this.sanitizeValue(tabElement.textContent || 'unknown');
     }
   }
 
@@ -161,9 +204,15 @@ class TabsManager {
     }
 
     // Replace line breaks, tabs, and control characters with spaces
-    return value.replace(/[\r\n\t\f\v]+/g, ' ')
+    let sanitized = value.replace(/[\r\n\t\f\v]+/g, ' ')
       .replace(/\s+/g, ' ')  // Normalize spaces
       .trim();  // Remove leading/trailing whitespace
+
+    // Remove common counter patterns that might be in the text
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, ''); // Remove " (26)" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
+
+    return sanitized;
   }
 
   /**
@@ -175,7 +224,8 @@ class TabsManager {
     for (const selector of this.tabSelectors) {
       const tabElement = e.target.closest(selector);
       if (tabElement) {
-        console.log('Tab click captured directly:', tabElement.textContent.trim());
+        const cleanTabName = this.extractCleanTabName(tabElement);
+        console.log('Tab click captured directly:', cleanTabName);
 
         // Prevent default navigation
         e.preventDefault();
@@ -218,10 +268,13 @@ class TabsManager {
         // Store the active tab ID
         this.activeTabId = element.id || element.getAttribute('data-tab-group-control');
 
+        // Extract clean tab name
+        const cleanTabName = this.extractCleanTabName(element);
+
         // Track tab selection
         this.trackTabChange(element);
 
-        console.log('Tab click flagged:', this.sanitizeValue(element.textContent));
+        console.log('Tab click flagged:', cleanTabName);
         break;
       }
     }
@@ -233,8 +286,8 @@ class TabsManager {
    */
   trackTabChange(tabElement) {
     try {
-      // Extract tab information - ensure we sanitize all string values
-      const tabName = this.sanitizeValue(tabElement.textContent) || 'unknown';
+      // Extract tab information with clean name
+      const tabName = this.extractCleanTabName(tabElement);
 
       // Try to get tab id from multiple attributes
       let tabId = tabElement.getAttribute('data-tab-id') ||
