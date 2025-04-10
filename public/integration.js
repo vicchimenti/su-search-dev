@@ -6,14 +6,15 @@
  * while maintaining compatibility with the current UI components.
  *
  * @author Victor Chimenti
- * @version 1.5.0
- * @lastModified 2025-04-08
+ * @version 2.0.0
+ * @lastModified 2025-04-10
  */
 
 (function () {
   // Configuration for the frontend API
   const config = {
     apiBaseUrl: 'https://su-search-dev.vercel.app',
+    proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
     collection: 'seattleu~sp-search',
     profile: '_default',
     minQueryLength: 3,
@@ -242,6 +243,9 @@
           input.value = text;
         }
 
+        // Track suggestion click
+        trackSuggestionClick(text, 'general', '', text);
+
         // Redirect to search page
         window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
       });
@@ -403,11 +407,11 @@
 
       // Prepare data
       const data = {
-        type: 'click',
         originalQuery: query,
         clickedUrl: url,
         clickedTitle: title,
         clickPosition: position,
+        clickType: 'search',
         timestamp: new Date().toISOString()
       };
 
@@ -420,7 +424,7 @@
       }
 
       // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
+      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
@@ -456,11 +460,11 @@
 
       // Prepare data for the API call
       const data = {
-        type: 'click',
         originalQuery: text,
         clickedUrl: url || '',
         clickedTitle: title || text,
         clickType: type || 'suggestion',
+        clickPosition: -1, // -1 for suggestions
         timestamp: new Date().toISOString()
       };
 
@@ -473,7 +477,7 @@
       }
 
       // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
+      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
@@ -491,6 +495,59 @@
       }
     } catch (error) {
       console.error('Error tracking suggestion click:', error);
+      // Continue with normal operation despite tracking failure
+    }
+  };
+
+  /**
+   * Track tab change for analytics
+   * Exposed globally for use by other components
+   * @param {string} query - Original query
+   * @param {string} tabName - Tab name
+   * @param {string} tabId - Tab ID
+   */
+  window.trackTabChange = function (query, tabName, tabId) {
+    try {
+      console.log('🔍 Tracking tab change:', { query, tabName, tabId });
+
+      // Prepare data for the API call
+      const data = {
+        query: query,
+        enrichmentData: {
+          actionType: 'tab',
+          tabName: tabName,
+          tabId: tabId
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      // Get session ID directly from SessionService if available
+      if (window.SessionService) {
+        const sessionId = window.SessionService.getSessionId();
+        if (sessionId) {
+          data.sessionId = sessionId;
+        }
+      }
+
+      // Use sendBeacon if available for non-blocking operation
+      const endpoint = `${config.proxyBaseUrl}/analytics/supplement`;
+
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(data)], {
+          type: 'application/json'
+        });
+        navigator.sendBeacon(endpoint, blob);
+      } else {
+        // Fallback to fetch with keepalive
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          keepalive: true
+        }).catch(err => console.error('Error tracking tab change:', err));
+      }
+    } catch (error) {
+      console.error('Error tracking tab change:', error);
       // Continue with normal operation despite tracking failure
     }
   };
