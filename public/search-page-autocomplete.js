@@ -6,8 +6,8 @@
  * staff/faculty profiles, and academic programs.
  *
  * @author Victor Chimenti
- * @version 1.2.0
- * @lastModified 2025-04-07
+ * @version 2.0.0
+ * @lastModified 2025-04-10
  */
 
 // Create a module-level session handler that serves as the single source of truth within this file
@@ -228,23 +228,23 @@ function trackSuggestionClick(text, type, url, title) {
 
     // Prepare data for the API call
     const data = {
-      type: 'click',
       originalQuery: text,
       clickedUrl: url || '',
       clickedTitle: title || text,
       clickType: type || 'suggestion',
+      clickPosition: -1, // -1 for suggestions as they're not in the results list
       timestamp: new Date().toISOString()
     };
 
-    // Only add session ID if it's available
+    // Only add sessionId if it's available
     if (sessionId) {
       data.sessionId = sessionId;
     }
 
-    // Get the API endpoint from global config
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
-      'https://su-search-dev.vercel.app';
-    const endpoint = `${apiBaseUrl}/api/enhance`;
+    // Get the API endpoint from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.proxyBaseUrl || 
+      'https://funnelback-proxy-dev.vercel.app/proxy';
+    const endpoint = `${apiBaseUrl}/analytics/click`;
 
     console.log('Tracking suggestion click:', data);
 
@@ -428,23 +428,23 @@ function trackResultClick(query, url, title, position) {
 
     // Prepare data
     const data = {
-      type: 'click',
       originalQuery: query,
       clickedUrl: url,
       clickedTitle: title,
       clickPosition: position,
+      clickType: 'search',
       timestamp: new Date().toISOString()
     };
 
-    // Only add session ID if it's available
+    // Only add sessionId if it's available
     if (sessionId) {
       data.sessionId = sessionId;
     }
 
-    // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
-      'https://su-search-dev.vercel.app';
-    const endpoint = `${apiBaseUrl}/api/enhance`;
+    // Get API endpoint from global config or use default
+    const apiBaseUrl = window.seattleUConfig?.search?.proxyBaseUrl || 
+      'https://funnelback-proxy-dev.vercel.app/proxy';
+    const endpoint = `${apiBaseUrl}/analytics/click`;
 
     console.log('Tracking result click:', data);
 
