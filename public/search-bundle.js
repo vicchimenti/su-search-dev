@@ -5,15 +5,15 @@
  * the search system into the Seattle University CMS.
  *
  * @author Victor Chimenti
- * @version 1.2.0
- * @lastModified 2025-04-07
+ * @version 2.0.0
+ * @lastModified 2025-04-10
  */
 
 (function () {
   // Configuration with defaults
   const config = window.seattleUConfig?.search || {
     apiBaseUrl: 'https://frontend-search-api.vercel.app',
-    backendUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
+    proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
     collection: 'seattleu~sp-search',
     profile: '_default'
   };
@@ -246,6 +246,9 @@
           searchInput.value = text;
         }
 
+        // Track suggestion click before navigating
+        trackSuggestionClick(text, 'general', '', text, sessionId);
+
         // Redirect to search page
         window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
       });
@@ -336,7 +339,7 @@
         }
 
         // Track click
-        trackSuggestionClick(text, type, url, sessionId);
+        trackSuggestionClick(text, type, url, text, sessionId);
 
         // For staff and program items with URLs
         if ((type === 'staff' || type === 'program') && url && url !== '#') {
@@ -432,14 +435,15 @@
   }
 
   // Track suggestion click for analytics
-  function trackSuggestionClick(text, type, url, sessionId) {
+  function trackSuggestionClick(text, type, url, title, sessionId) {
     try {
       // Prepare data
       const data = {
         originalQuery: text,
         clickedUrl: url || '',
-        clickedTitle: text,
+        clickedTitle: title || text,
         clickType: type || 'suggestion',
+        clickPosition: -1, // -1 for suggestions
         timestamp: new Date().toISOString()
       };
 
@@ -448,11 +452,13 @@
         data.sessionId = sessionId;
       }
 
-      // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
+      // Use the proxy backend URL for the analytics endpoint
+      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
+
+      console.log('Tracking suggestion click:', data);
 
       if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ type: 'click', ...data })], {
+        const blob = new Blob([JSON.stringify(data)], {
           type: 'application/json'
         });
         navigator.sendBeacon(endpoint, blob);
@@ -461,7 +467,7 @@
         fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'click', ...data }),
+          body: JSON.stringify(data),
           keepalive: true
         }).catch(err => console.error('Error tracking suggestion click:', err));
       }
@@ -479,6 +485,7 @@
         clickedUrl: url,
         clickedTitle: title,
         clickPosition: position,
+        clickType: 'search',
         timestamp: new Date().toISOString()
       };
 
@@ -487,11 +494,13 @@
         data.sessionId = sessionId;
       }
 
-      // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.apiBaseUrl}/api/enhance`;
+      // Use the proxy backend URL for the analytics endpoint
+      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
+
+      console.log('Tracking result click:', data);
 
       if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ type: 'click', ...data })], {
+        const blob = new Blob([JSON.stringify(data)], {
           type: 'application/json'
         });
         navigator.sendBeacon(endpoint, blob);
@@ -500,12 +509,55 @@
         fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'click', ...data }),
+          body: JSON.stringify(data),
           keepalive: true
         }).catch(err => console.error('Error tracking result click:', err));
       }
     } catch (error) {
       console.error('Error tracking result click:', error);
+    }
+  }
+
+  // Track tab change for analytics
+  function trackTabChange(query, tabName, tabId, sessionId) {
+    try {
+      // Prepare data
+      const data = {
+        query: query,
+        enrichmentData: {
+          actionType: 'tab',
+          tabName: tabName,
+          tabId: tabId
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      // Only add sessionId if it's available
+      if (sessionId) {
+        data.sessionId = sessionId;
+      }
+
+      // Use the proxy backend URL for the analytics endpoint
+      const endpoint = `${config.proxyBaseUrl}/analytics/supplement`;
+
+      console.log('Tracking tab change:', data);
+
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(data)], {
+          type: 'application/json'
+        });
+        navigator.sendBeacon(endpoint, blob);
+      } else {
+        // Fallback to fetch
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          keepalive: true
+        }).catch(err => console.error('Error tracking tab change:', err));
+      }
+    } catch (error) {
+      console.error('Error tracking tab change:', error);
     }
   }
 
@@ -528,6 +580,22 @@
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   }
+
+  // Make track functions available globally for other components
+  window.trackSuggestionClick = function(text, type, url, title) {
+    const sessionId = getSessionId();
+    trackSuggestionClick(text, type, url, title, sessionId);
+  };
+
+  window.trackResultClick = function(query, url, title, position) {
+    const sessionId = getSessionId();
+    trackResultClick(query, url, title, position, sessionId);
+  };
+
+  window.trackTabChange = function(query, tabName, tabId) {
+    const sessionId = getSessionId();
+    trackTabChange(query, tabName, tabId, sessionId);
+  };
 
   // Initialize search when DOM is ready
   if (document.readyState === 'loading') {
