@@ -6,7 +6,7 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.5.1
+ * @version 3.5.2
  * @lastModified 2025-04-10
  */
 
@@ -144,7 +144,7 @@ class TabsManager {
       if (activeTab) {
         this.activeTabId = activeTab.id || activeTab.getAttribute('data-tab-group-control');
         const tabName = this.extractCleanTabName(activeTab);
-        console.log(`Initial active tab: ${tabName} (${this.activeTabId})`);
+        console.log(`Initial active tab: ${tabName}`);
         break;
       }
     }
@@ -159,60 +159,71 @@ class TabsManager {
     if (!tabElement) return 'unknown';
 
     try {
+      // Start with a null tabName
+      let tabName = null;
+
       // Method 1: Look for a specific element that contains just the tab name
       const nameElement = tabElement.querySelector('.tab-name, .tab-title, .tab-label');
       if (nameElement) {
-        return this.sanitizeValue(nameElement.textContent);
+        tabName = nameElement.textContent.trim();
       }
 
       // Method 2: Try to get just the first text node (before any child elements)
-      let cleanName = '';
-      // Iterate through the child nodes to find the first text node
-      for (let i = 0; i < tabElement.childNodes.length; i++) {
-        const node = tabElement.childNodes[i];
-        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-          cleanName = node.textContent.trim();
-          break;
+      if (!tabName) {
+        for (let i = 0; i < tabElement.childNodes.length; i++) {
+          const node = tabElement.childNodes[i];
+          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+            tabName = node.textContent.trim();
+            break;
+          }
         }
       }
 
-      if (cleanName) {
-        return this.sanitizeValue(cleanName);
+      // Method 3: Use regex to remove patterns like " (23)" from the full text
+      if (!tabName) {
+        tabName = tabElement.textContent.trim();
       }
 
-      // Method 3: Use regex to remove patterns like " (23)" from the text
-      // This is our fallback if DOM traversal doesn't work
-      let fullText = tabElement.textContent || '';
-      fullText = fullText.replace(/\s*\(\d+\)$/g, ''); // Remove trailing counter like " (26)"
-      return this.sanitizeValue(fullText);
+      // Apply sanitization regardless of which method succeeded
+      return this.sanitizeTabName(tabName);
     } catch (error) {
       console.error('Error extracting tab name:', error);
       // Return a sanitized version of the full textContent as last resort
-      return this.sanitizeValue(tabElement.textContent || 'unknown');
+      return this.sanitizeTabName(tabElement.textContent || 'unknown');
     }
   }
 
   /**
-   * Sanitize a string value to ensure it contains no line breaks
-   * or special characters that could break the JSON
-   * @param {string} value - The value to sanitize
-   * @returns {string} Sanitized value
+   * Sanitize a tab name to ensure it's clean for analytics
+   * @param {string} tabName - The tab name to sanitize
+   * @returns {string} Sanitized tab name
    */
-  sanitizeValue(value) {
-    if (typeof value !== 'string') {
-      return value;
+  sanitizeTabName(tabName) {
+    if (typeof tabName !== 'string') {
+      return 'unknown';
     }
 
-    // Replace line breaks, tabs, and control characters with spaces
-    let sanitized = value.replace(/[\r\n\t\f\v]+/g, ' ')
-      .replace(/\s+/g, ' ')  // Normalize spaces
-      .trim();  // Remove leading/trailing whitespace
+    // First, remove any surrounding whitespace
+    let sanitized = tabName.trim();
 
     // Remove common counter patterns that might be in the text
-    sanitized = sanitized.replace(/\s*\(\d+\)$/g, ''); // Remove " (26)" at the end
-    sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
+    // Remove " (26)" or "(26)" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, '');
+    // Remove " [26]" or "[26]" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, '');
+    // Remove any number in parentheses anywhere
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, '');
 
-    return sanitized;
+    // Replace line breaks, tabs, and control characters with spaces
+    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, ' ');
+
+    // Normalize multiple spaces to a single space
+    sanitized = sanitized.replace(/\s+/g, ' ');
+
+    // Final trim to remove any leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    return sanitized || 'unknown';
   }
 
   /**
@@ -240,7 +251,7 @@ class TabsManager {
         this.updateTabState(tabElement);
 
         // Track tab selection
-        this.trackTabChange(tabElement);
+        this.trackTabChange(tabElement, cleanTabName);
 
         // Load tab content
         const href = tabElement.getAttribute('href');
@@ -272,7 +283,7 @@ class TabsManager {
         const cleanTabName = this.extractCleanTabName(element);
 
         // Track tab selection
-        this.trackTabChange(element);
+        this.trackTabChange(element, cleanTabName);
 
         console.log('Tab click flagged:', cleanTabName);
         break;
@@ -283,21 +294,19 @@ class TabsManager {
   /**
    * Track tab change for analytics
    * @param {Element} tabElement - The tab element that was clicked
+   * @param {string} cleanTabName - The already-sanitized tab name
    */
-  trackTabChange(tabElement) {
+  trackTabChange(tabElement, cleanTabName) {
     try {
-      // Extract tab information with clean name
-      const tabName = this.extractCleanTabName(tabElement);
+      // Use the provided cleanTabName or extract it if not provided
+      const tabName = cleanTabName || this.extractCleanTabName(tabElement);
 
-      // Try to get tab id from multiple attributes
-      let tabId = tabElement.getAttribute('data-tab-id') ||
-        tabElement.id ||
+      // Get the tab ID (this is less critical but still useful for tracking)
+      const tabId = tabElement.id ||
+        tabElement.getAttribute('data-tab-id') ||
         tabElement.getAttribute('aria-controls') ||
         this.activeTabId ||
         'unknown';
-
-      // Sanitize the tab ID as well
-      tabId = this.sanitizeValue(tabId);
 
       // Extract query from URL or input field
       const urlParams = new URLSearchParams(window.location.search);
@@ -318,7 +327,6 @@ class TabsManager {
       // Log what we're sending
       console.log('Tab change tracked:', {
         tabName: analyticsData.enrichmentData.tabName,
-        tabId: analyticsData.enrichmentData.tabId,
         query: analyticsData.query
       });
 
