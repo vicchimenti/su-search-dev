@@ -11,17 +11,13 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-04-09
+ * @version 2.3.0
+ * @lastModified 2025-04-10
  */
 
-// Core Search Manager
 class SearchManager {
-  /**
-   * Create a new Search Manager instance
-   */
+
   constructor() {
-    // Default configuration
     this.config = {
       proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
       enabledModules: ['tabs', 'facets', 'pagination', 'spelling', 'analytics'],
@@ -38,7 +34,7 @@ class SearchManager {
     this.modules = {};
 
     // State
-    this.sessionId = null; // No longer initialize here; will get from SessionService
+    this.sessionId = null;
     this.originalQuery = null;
     this.isInitialized = false;
   }
@@ -145,7 +141,7 @@ class SearchManager {
     }
 
     // Try to get query from search input field
-    const searchInput = document.getElementById('autocomplete-concierge-inputField');
+    const searchInput = document.querySelector(this.config.searchInputSelector);
     if (searchInput && searchInput.value) {
       this.originalQuery = searchInput.value;
     }
@@ -187,7 +183,7 @@ class SearchManager {
    * Start observing the results container for changes
    */
   startObserving() {
-    const resultsContainer = document.getElementById('results');
+    const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
     if (resultsContainer) {
       this.observer.observe(resultsContainer, this.config.observerConfig);
       console.log('Observer started watching results container');
@@ -202,7 +198,7 @@ class SearchManager {
    */
   waitForResultsContainer() {
     const bodyObserver = new MutationObserver((mutations, obs) => {
-      const resultsContainer = document.getElementById('results');
+      const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
       if (resultsContainer) {
         obs.disconnect();
         this.observer.observe(resultsContainer, this.config.observerConfig);
@@ -325,7 +321,7 @@ class SearchManager {
    * @param {string} html - The HTML content to display
    */
   updateResults(html) {
-    const resultsContainer = document.getElementById('results');
+    const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
     if (resultsContainer) {
       resultsContainer.innerHTML = `
         <div class="funnelback-search-container">
@@ -369,8 +365,8 @@ class SearchManager {
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
 
-      // Create a copy of the data to modify
-      const analyticsData = { ...data };
+      // Create a deep copy of the data to modify
+      const analyticsData = JSON.parse(JSON.stringify(data));
 
       // Only include sessionId if available
       if (this.sessionId) {
@@ -382,20 +378,34 @@ class SearchManager {
         analyticsData.timestamp = new Date().toISOString();
       }
 
+      // Determine endpoint and prepare data format based on data type
       let endpoint;
       let formattedData;
 
-      // Determine endpoint and format data according to endpoint requirements
-      if (data.type === 'click') {
+      // Extract the type from analyticsData and store it
+      const dataType = analyticsData.type;
+
+      // IMPORTANT: Remove the type field from analyticsData as this is only used
+      // for routing and is not expected by the backend endpoints
+      delete analyticsData.type;
+
+      // Format data according to endpoint requirements
+      if (dataType === 'click') {
         // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
-        // Ensure required fields for click endpoint - keep in a flat structure
+        // Convert from originalQuery to query if needed
+        if (analyticsData.originalQuery && !analyticsData.query) {
+          analyticsData.query = analyticsData.originalQuery;
+          delete analyticsData.originalQuery;
+        }
+
+        // Ensure required fields for click endpoint in a flat structure
         formattedData = {
-          originalQuery: analyticsData.originalQuery || this.originalQuery || '',
-          clickedUrl: analyticsData.clickedUrl || '',
-          clickedTitle: analyticsData.clickedTitle || '',
-          clickPosition: analyticsData.clickPosition || -1,
+          originalQuery: analyticsData.originalQuery || analyticsData.query || this.originalQuery || '',
+          clickedUrl: analyticsData.clickedUrl || analyticsData.url || '',
+          clickedTitle: analyticsData.clickedTitle || analyticsData.title || '',
+          clickPosition: analyticsData.clickPosition || analyticsData.position || -1,
           sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp,
           clickType: analyticsData.clickType || 'search'
@@ -411,17 +421,17 @@ class SearchManager {
           sessionId: formattedData.sessionId || '(none)'
         });
       }
-      else if (data.type === 'batch') {
+      else if (dataType === 'batch') {
         // Format data for batch clicks endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
 
         // Format batch data for clicks-batch endpoint
         formattedData = {
           clicks: (analyticsData.clicks || []).map(click => ({
-            originalQuery: click.originalQuery || this.originalQuery || '',
-            clickedUrl: click.clickedUrl || '',
-            clickedTitle: click.clickedTitle || '',
-            clickPosition: click.clickPosition || -1,
+            originalQuery: click.originalQuery || click.query || this.originalQuery || '',
+            clickedUrl: click.clickedUrl || click.url || '',
+            clickedTitle: click.clickedTitle || click.title || '',
+            clickPosition: click.clickPosition || click.position || -1,
             sessionId: this.sessionId || undefined,
             timestamp: click.timestamp || analyticsData.timestamp,
             clickType: click.clickType || 'search'
@@ -441,10 +451,20 @@ class SearchManager {
 
         // For supplement endpoint, make sure we're using query (not originalQuery)
         // and include enrichmentData as expected by the backend
+        if (analyticsData.originalQuery && !analyticsData.query) {
+          analyticsData.query = analyticsData.originalQuery;
+          delete analyticsData.originalQuery;
+        }
+
+        // Ensure we have a valid query
+        if (!analyticsData.query) {
+          analyticsData.query = this.originalQuery || '';
+        }
+
+        // Create a properly formatted object for supplement endpoint
         formattedData = {
-          query: analyticsData.query || this.originalQuery || '',
-          sessionId: analyticsData.sessionId || undefined,
-          timestamp: analyticsData.timestamp
+          query: analyticsData.query,
+          sessionId: analyticsData.sessionId
         };
 
         // Add resultCount if provided
@@ -461,7 +481,7 @@ class SearchManager {
         console.log('Sending supplement data:', {
           endpoint: endpoint,
           query: formattedData.query,
-          type: data.type,
+          type: dataType, // Log the type for debugging, but don't include in payload
           details: formattedData.enrichmentData,
           sessionId: formattedData.sessionId || '(none)'
         });
@@ -509,12 +529,12 @@ class SearchManager {
     })
       .then(response => {
         if (!response.ok) {
-          console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
-            endpoint,
-            sentData: data
-          });
           return response.text().then(text => {
-            console.error('Error response:', text);
+            console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
+              endpoint,
+              sentData: data,
+              responseText: text
+            });
           });
         }
         console.log(`Analytics request successful: ${endpoint}`);
