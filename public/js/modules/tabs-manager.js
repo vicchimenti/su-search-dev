@@ -6,8 +6,8 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.2.0
- * @lastModified 2025-04-07
+ * @version 3.4.0
+ * @lastModified 2025-04-10
  */
 
 class TabsManager {
@@ -172,6 +172,9 @@ class TabsManager {
         // Update visual state of tabs
         this.updateTabState(tabElement);
 
+        // Track tab selection
+        this.trackTabChange(tabElement);
+
         // Load tab content
         const href = tabElement.getAttribute('href');
         if (href) {
@@ -198,9 +201,69 @@ class TabsManager {
         // Store the active tab ID
         this.activeTabId = element.id || element.getAttribute('data-tab-group-control');
 
+        // Track tab selection
+        this.trackTabChange(element);
+
         console.log('Tab click flagged:', element.textContent.trim());
         break;
       }
+    }
+  }
+
+  /**
+   * Track tab change for analytics
+   * @param {Element} tabElement - The tab element that was clicked
+   */
+  trackTabChange(tabElement) {
+    try {
+      // Extract tab information
+      const tabName = tabElement.textContent.trim() || 'unknown';
+
+      // Try to get tab id from multiple attributes
+      const tabId = tabElement.getAttribute('data-tab-id') ||
+        tabElement.id ||
+        tabElement.getAttribute('aria-controls') ||
+        this.activeTabId ||
+        'unknown';
+
+      // Extract query from URL or input field
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get('query') || this.core.originalQuery || '';
+
+      if (!query) {
+        console.warn('No query found for tab analytics tracking');
+      }
+
+      // Create data object for supplement endpoint
+      // IMPORTANT: Using the format expected by supplement.js backend
+      const data = {
+        // Use "query" not "originalQuery" for supplement endpoint
+        query: query,
+        // Add enrichmentData with relevant tab info
+        enrichmentData: {
+          actionType: 'tab',
+          tabName: tabName,
+          tabId: tabId,
+          timestamp: Date.now()
+        },
+        // Add timestamp
+        timestamp: new Date().toISOString()
+      };
+
+      // Let core manager handle analytics submission and session ID
+      this.core.sendAnalyticsData({
+        ...data,
+        // Add type field for core manager routing
+        type: 'tab'
+      });
+
+      console.log('Tab change tracked:', {
+        tabName: tabName,
+        tabId: tabId,
+        query: query
+      });
+    } catch (error) {
+      console.error('Error tracking tab change:', error);
     }
   }
 
