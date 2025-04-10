@@ -6,7 +6,7 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.4.0
+ * @version 3.5.0
  * @lastModified 2025-04-10
  */
 
@@ -150,6 +150,23 @@ class TabsManager {
   }
 
   /**
+   * Sanitize a string value to ensure it contains no line breaks
+   * or special characters that could break the JSON
+   * @param {string} value - The value to sanitize
+   * @returns {string} Sanitized value
+   */
+  sanitizeValue(value) {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    
+    // Replace line breaks, tabs, and control characters with spaces
+    return value.replace(/[\r\n\t\f\v]+/g, ' ')
+                .replace(/\s+/g, ' ')  // Normalize spaces
+                .trim();  // Remove leading/trailing whitespace
+  }
+
+  /**
    * Handle tab clicks with direct handlers
    * @param {Event} e - The click event
    */
@@ -158,7 +175,7 @@ class TabsManager {
     for (const selector of this.tabSelectors) {
       const tabElement = e.target.closest(selector);
       if (tabElement) {
-        console.log('Tab click captured directly:', tabElement);
+        console.log('Tab click captured directly:', tabElement.textContent.trim());
 
         // Prevent default navigation
         e.preventDefault();
@@ -204,7 +221,7 @@ class TabsManager {
         // Track tab selection
         this.trackTabChange(element);
 
-        console.log('Tab click flagged:', element.textContent.trim());
+        console.log('Tab click flagged:', this.sanitizeValue(element.textContent));
         break;
       }
     }
@@ -216,52 +233,44 @@ class TabsManager {
    */
   trackTabChange(tabElement) {
     try {
-      // Extract tab information
-      const tabName = tabElement.textContent.trim() || 'unknown';
-
+      // Extract tab information - ensure we sanitize all string values
+      const tabName = this.sanitizeValue(tabElement.textContent) || 'unknown';
+      
       // Try to get tab id from multiple attributes
-      const tabId = tabElement.getAttribute('data-tab-id') ||
-        tabElement.id ||
-        tabElement.getAttribute('aria-controls') ||
-        this.activeTabId ||
-        'unknown';
-
+      let tabId = tabElement.getAttribute('data-tab-id') || 
+                 tabElement.id || 
+                 tabElement.getAttribute('aria-controls') ||
+                 this.activeTabId ||
+                 'unknown';
+      
+      // Sanitize the tab ID as well
+      tabId = this.sanitizeValue(tabId);
+      
       // Extract query from URL or input field
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get('query') || this.core.originalQuery || '';
-
-      if (!query) {
-        console.warn('No query found for tab analytics tracking');
-      }
-
-      // Create data object for supplement endpoint
-      // IMPORTANT: Using the format expected by supplement.js backend
-      const data = {
-        // Use "query" not "originalQuery" for supplement endpoint
-        query: query,
-        // Add enrichmentData with relevant tab info
+      
+      // Create clean and properly structured data object for supplement endpoint
+      const analyticsData = {
+        type: 'tab', // This is used by core-search-manager for routing
+        query: query, // Use "query" rather than "originalQuery" for supplement endpoint
         enrichmentData: {
           actionType: 'tab',
           tabName: tabName,
           tabId: tabId,
           timestamp: Date.now()
-        },
-        // Add timestamp
-        timestamp: new Date().toISOString()
+        }
       };
-
-      // Let core manager handle analytics submission and session ID
-      this.core.sendAnalyticsData({
-        ...data,
-        // Add type field for core manager routing
-        type: 'tab'
-      });
-
+      
+      // Log what we're sending
       console.log('Tab change tracked:', {
-        tabName: tabName,
-        tabId: tabId,
-        query: query
+        tabName: analyticsData.enrichmentData.tabName,
+        tabId: analyticsData.enrichmentData.tabId,
+        query: analyticsData.query
       });
+      
+      // Let core manager handle analytics submission and session ID
+      this.core.sendAnalyticsData(analyticsData);
     } catch (error) {
       console.error('Error tracking tab change:', error);
     }
@@ -303,7 +312,7 @@ class TabsManager {
    * @param {Element} tabElement - The tab element that was clicked
    */
   async loadTabContent(href, tabElement) {
-    // Get the results container - FIXED: Ensure it exists before proceeding
+    // Get the results container - ensure it exists before proceeding
     const resultsContainer = document.getElementById('results');
     if (!resultsContainer) {
       console.error('Results container not found');
@@ -319,7 +328,7 @@ class TabsManager {
       // Use the core's fetch method (which handles session ID properly)
       const response = await this.core.fetchFromProxy(href, 'search');
 
-      // FIXED: Ensure container is still available before updating
+      // Ensure container is still available before updating
       const container = document.getElementById('results');
       if (!container) {
         console.error('Results container disappeared during tab content loading');
@@ -337,7 +346,7 @@ class TabsManager {
     } catch (error) {
       console.error('Error loading tab content:', error);
 
-      // FIXED: Ensure container still exists before showing error
+      // Ensure container still exists before showing error
       const container = document.getElementById('results');
       if (container) {
         // Show error in container
@@ -349,7 +358,7 @@ class TabsManager {
         `;
       }
     } finally {
-      // FIXED: Ensure container still exists before removing loading state
+      // Ensure container still exists before removing loading state
       const container = document.getElementById('results');
       if (container) {
         // Remove loading state
@@ -399,7 +408,7 @@ class TabsManager {
         console.log('Fetching tab content via core manager');
         const response = await this.core.fetchFromProxy(query, 'search');
 
-        // FIXED: Check if container still exists before updating
+        // Check if container still exists before updating
         if (container.isConnected) {
           // Update results container
           container.innerHTML = `
@@ -423,7 +432,7 @@ class TabsManager {
       } catch (error) {
         console.error('Error fetching tab content:', error);
 
-        // FIXED: Check if container still exists before showing error
+        // Check if container still exists before showing error
         if (container.isConnected) {
           // Show error in container
           container.innerHTML = `
@@ -434,7 +443,7 @@ class TabsManager {
           `;
         }
       } finally {
-        // FIXED: Check if container still exists before removing loading state
+        // Check if container still exists before removing loading state
         if (container.isConnected) {
           // Remove loading state
           container.classList.remove('loading');
