@@ -6,8 +6,8 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.5.2
- * @lastModified 2025-04-10
+ * @version 3.5.3
+ * @lastModified 2025-04-12
  */
 
 class TabsManager {
@@ -220,6 +220,9 @@ class TabsManager {
     // Normalize multiple spaces to a single space
     sanitized = sanitized.replace(/\s+/g, ' ');
 
+    // Remove any HTML tags that might be present
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
+
     // Final trim to remove any leading/trailing whitespace
     sanitized = sanitized.trim();
 
@@ -301,13 +304,6 @@ class TabsManager {
       // Use the provided cleanTabName or extract it if not provided
       const tabName = cleanTabName || this.extractCleanTabName(tabElement);
 
-      // Get the tab ID (this is less critical but still useful for tracking)
-      const tabId = tabElement.id ||
-        tabElement.getAttribute('data-tab-id') ||
-        tabElement.getAttribute('aria-controls') ||
-        this.activeTabId ||
-        'unknown';
-
       // Extract query from URL or input field
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get('query') || this.core.originalQuery || '';
@@ -319,7 +315,6 @@ class TabsManager {
         enrichmentData: {
           actionType: 'tab',
           tabName: tabName,
-          tabId: tabId,
           timestamp: Date.now()
         }
       };
