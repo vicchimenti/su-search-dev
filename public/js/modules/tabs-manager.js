@@ -6,7 +6,7 @@
  * and handles content loading properly.
  * 
  * @author Victor Chimenti
- * @version 3.5.3
+ * @version 3.5.4
  * @lastModified 2025-04-12
  */
 
@@ -22,6 +22,9 @@ class TabsManager {
     this.tabContainers = [];
     this.originalPerformSearch = null;
     this.originalUpdateUrl = null;
+    this.lastTrackedTab = null;
+    this.lastTrackedTime = 0;
+    this.trackingDebounceTime = 300;
 
     // More reliable tab selectors
     this.tabSelectors = [
@@ -118,7 +121,7 @@ class TabsManager {
       console.log('Tab click handlers added to tab containers');
     } else {
       // Fallback to document-level delegation
-      document.addEventListener('click', this.flagTabClick.bind(this));
+      document.addEventListener('click', this.handleTabClick.bind(this));
       console.log('Document-level tab click detection active');
     }
   }
@@ -217,11 +220,11 @@ class TabsManager {
     // Replace line breaks, tabs, and control characters with spaces
     sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, ' ');
 
-    // Normalize multiple spaces to a single space
-    sanitized = sanitized.replace(/\s+/g, ' ');
-
     // Remove any HTML tags that might be present
     sanitized = sanitized.replace(/<[^>]*>/g, '');
+
+    // Normalize multiple spaces to a single space
+    sanitized = sanitized.replace(/\s+/g, ' ');
 
     // Final trim to remove any leading/trailing whitespace
     sanitized = sanitized.trim();
@@ -253,8 +256,8 @@ class TabsManager {
         // Update visual state of tabs
         this.updateTabState(tabElement);
 
-        // Track tab selection
-        this.trackTabChange(tabElement, cleanTabName);
+        // Track tab selection - only if not recently tracked
+        this.debouncedTrackTabChange(tabElement, cleanTabName);
 
         // Load tab content
         const href = tabElement.getAttribute('href');
@@ -268,30 +271,29 @@ class TabsManager {
   }
 
   /**
-   * Flag tab clicks for window-level function interception
-   * @param {Event} e - The click event
+   * Debounced version of trackTabChange to prevent duplicate tracking
+   * @param {Element} tabElement - The tab element that was clicked
+   * @param {string} cleanTabName - The already-sanitized tab name
    */
-  flagTabClick(e) {
-    // Check if any tab element was clicked
-    for (const selector of this.tabSelectors) {
-      const element = e.target.closest(selector);
-      if (element) {
-        // Mark that this is a tab navigation
-        this.isFromTabNavigation = true;
-
-        // Store the active tab ID
-        this.activeTabId = element.id || element.getAttribute('data-tab-group-control');
-
-        // Extract clean tab name
-        const cleanTabName = this.extractCleanTabName(element);
-
-        // Track tab selection
-        this.trackTabChange(element, cleanTabName);
-
-        console.log('Tab click flagged:', cleanTabName);
-        break;
-      }
+  debouncedTrackTabChange(tabElement, cleanTabName) {
+    const now = Date.now();
+    const tabNameAndId = `${cleanTabName}-${this.activeTabId || ''}`;
+    
+    // Check if this is a duplicate within the debounce time window
+    if (
+      this.lastTrackedTab === tabNameAndId &&
+      now - this.lastTrackedTime < this.trackingDebounceTime
+    ) {
+      console.log(`Tab change tracking debounced for "${cleanTabName}"`);
+      return;
     }
+    
+    // Update tracking state
+    this.lastTrackedTab = tabNameAndId;
+    this.lastTrackedTime = now;
+    
+    // Track the tab change
+    this.trackTabChange(tabElement, cleanTabName);
   }
 
   /**
@@ -593,7 +595,7 @@ class TabsManager {
       container.removeEventListener('click', this.handleTabClick.bind(this));
     });
 
-    document.removeEventListener('click', this.flagTabClick.bind(this));
+    document.removeEventListener('click', this.handleTabClick.bind(this));
 
     console.log('TabsManager destroyed');
   }
