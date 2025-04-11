@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.4.0
- * @lastModified 2025-04-10
+ * @version 2.5.0
+ * @lastModified 2025-04-12
  */
 
 class SearchManager {
@@ -37,6 +37,7 @@ class SearchManager {
     this.sessionId = null; // No longer initialize here; will get from SessionService
     this.originalQuery = null;
     this.isInitialized = false;
+    this.recentAnalyticsEvents = []; // For deduplication
   }
 
   /**
@@ -233,6 +234,9 @@ class SearchManager {
     sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
     sanitized = sanitized.replace(/\s*\(\d+\)/g, ''); // Remove "(26)" anywhere
     
+    // Remove HTML tags
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
+    
     return sanitized;
   }
 
@@ -381,6 +385,38 @@ class SearchManager {
   }
 
   /**
+   * Check if an event should be considered a duplicate
+   * @param {string} eventType - The type of event 
+   * @param {Object} data - The event data
+   * @returns {boolean} True if event is a duplicate
+   */
+  isDuplicateEvent(eventType, data) {
+    const now = Date.now();
+    const fingerprint = `${eventType}-${JSON.stringify(data)}`;
+    
+    // Check for recent duplicates (within last 300ms)
+    const isDuplicate = this.recentAnalyticsEvents.some(event => {
+      return event.fingerprint === fingerprint && 
+             (now - event.timestamp) < 300;
+    });
+    
+    if (!isDuplicate) {
+      // Add to recent events list
+      this.recentAnalyticsEvents.push({
+        fingerprint,
+        timestamp: now
+      });
+      
+      // Trim old events (keep only last 1 second)
+      this.recentAnalyticsEvents = this.recentAnalyticsEvents.filter(
+        event => (now - event.timestamp) < 1000
+      );
+    }
+    
+    return isDuplicate;
+  }
+
+  /**
    * Send analytics data to the appropriate endpoint
    * @param {Object} data - The analytics data to send
    */
@@ -389,186 +425,139 @@ class SearchManager {
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
 
-      // Create a deep copy of the data to modify
-      const analyticsData = JSON.parse(JSON.stringify(data));
+      // Extract the type from data before modifying
+      const dataType = data.type;
+      
+      // Check for duplicate events
+      if (this.isDuplicateEvent(dataType, data)) {
+        console.debug(`Duplicate analytics event detected, ignoring: ${dataType}`);
+        return;
+      }
 
-      // Only include sessionId if available
+      // Create a deep copy to avoid modifying the original data
+      const analyticsData = JSON.parse(JSON.stringify(data));
+      
+      // Add session ID if available
       if (this.sessionId) {
         analyticsData.sessionId = this.sessionId;
       }
-
-      // Add timestamp if missing
-      if (!analyticsData.timestamp) {
-        analyticsData.timestamp = new Date().toISOString();
-      }
-
-      // Determine endpoint and prepare data format based on data type
+      
+      // Format data and determine endpoint based on the event type
       let endpoint;
       let formattedData;
       
-      // Extract the type from analyticsData and store it
-      const dataType = analyticsData.type;
-      
-      // IMPORTANT: Remove the type field from analyticsData as this is only used
-      // for routing and is not expected by the backend endpoints
+      // IMPORTANT: remove the type field since it's only used for routing
+      // and is not expected by the backend endpoints
       delete analyticsData.type;
 
-      // Format data according to endpoint requirements
+      // Format data for click tracking
       if (dataType === 'click') {
-        // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
-
-        // Convert from originalQuery to query if needed
-        if (analyticsData.originalQuery && !analyticsData.query) {
-          analyticsData.query = analyticsData.originalQuery;
-          delete analyticsData.originalQuery;
-        }
-
-        // Ensure required fields for click endpoint in a flat structure
+        
+        // Required fields for click endpoint
         formattedData = {
-          originalQuery: analyticsData.originalQuery || analyticsData.query || this.originalQuery || '',
-          clickedUrl: analyticsData.clickedUrl || analyticsData.url || '',
-          clickedTitle: analyticsData.clickedTitle || analyticsData.title || '',
-          clickPosition: analyticsData.clickPosition || analyticsData.position || -1,
+          originalQuery: this.sanitizeValue(analyticsData.query || analyticsData.originalQuery || this.originalQuery || ''),
+          clickedUrl: this.sanitizeValue(analyticsData.clickedUrl || analyticsData.url || ''),
+          clickedTitle: this.sanitizeValue(analyticsData.clickedTitle || analyticsData.title || ''),
+          clickPosition: analyticsData.clickPosition || analyticsData.position || 0,
           sessionId: analyticsData.sessionId || undefined,
-          timestamp: analyticsData.timestamp,
-          clickType: analyticsData.clickType || 'search'
+          clickType: this.sanitizeValue(analyticsData.clickType || 'search')
         };
-
-        // Sanitize all string values
-        formattedData.originalQuery = this.sanitizeValue(formattedData.originalQuery);
-        formattedData.clickedUrl = this.sanitizeValue(formattedData.clickedUrl);
-        formattedData.clickedTitle = this.sanitizeValue(formattedData.clickedTitle);
-        formattedData.clickType = this.sanitizeValue(formattedData.clickType);
-
+        
         // Log what we're sending to click endpoint
         console.log('Sending click data:', {
-          endpoint: endpoint,
-          query: formattedData.originalQuery,
+          endpoint,
           url: formattedData.clickedUrl,
-          position: formattedData.clickPosition,
-          clickType: formattedData.clickType,
-          sessionId: formattedData.sessionId || '(none)'
+          position: formattedData.clickPosition
         });
-      }
+      } 
+      // Format data for batch click tracking
       else if (dataType === 'batch') {
-        // Format data for batch clicks endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
-
-        // Format batch data for clicks-batch endpoint
+        
+        // Format batch clicks data
         formattedData = {
-          clicks: (analyticsData.clicks || []).map(click => {
-            const formattedClick = {
-              originalQuery: click.originalQuery || click.query || this.originalQuery || '',
-              clickedUrl: click.clickedUrl || click.url || '',
-              clickedTitle: click.clickedTitle || click.title || '',
-              clickPosition: click.clickPosition || click.position || -1,
-              sessionId: this.sessionId || undefined,
-              timestamp: click.timestamp || analyticsData.timestamp,
-              clickType: click.clickType || 'search'
-            };
-
-            // Sanitize all string values
-            formattedClick.originalQuery = this.sanitizeValue(formattedClick.originalQuery);
-            formattedClick.clickedUrl = this.sanitizeValue(formattedClick.clickedUrl);
-            formattedClick.clickedTitle = this.sanitizeValue(formattedClick.clickedTitle);
-            formattedClick.clickType = this.sanitizeValue(formattedClick.clickType);
-
-            return formattedClick;
-          })
+          clicks: (analyticsData.clicks || []).map(click => ({
+            originalQuery: this.sanitizeValue(click.query || click.originalQuery || this.originalQuery || ''),
+            clickedUrl: this.sanitizeValue(click.clickedUrl || click.url || ''),
+            clickedTitle: this.sanitizeValue(click.clickedTitle || click.title || ''),
+            clickPosition: click.clickPosition || click.position || 0,
+            sessionId: analyticsData.sessionId || undefined,
+            clickType: this.sanitizeValue(click.clickType || 'search')
+          }))
         };
-
-        // Log what we're sending to batch endpoint
-        console.log('Sending batch click data:', {
-          endpoint: endpoint,
-          clickCount: formattedData.clicks.length,
-          sessionId: this.sessionId || '(none)'
+        
+        console.log('Sending batch clicks:', {
+          endpoint,
+          clickCount: formattedData.clicks.length
         });
       }
+      // Format data for all other events (facet, tab, pagination, spelling)
       else {
-        // For all other types (facet, pagination, tab, spelling), use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
-
-        // For supplement endpoint, make sure we're using query (not originalQuery)
-        // and include enrichmentData as expected by the backend
-        if (analyticsData.originalQuery && !analyticsData.query) {
-          analyticsData.query = analyticsData.originalQuery;
-          delete analyticsData.originalQuery;
-        }
-
-        // Ensure we have a valid query
-        if (!analyticsData.query) {
-          analyticsData.query = this.originalQuery || '';
-        }
-
-        // Sanitize query
-        analyticsData.query = this.sanitizeValue(analyticsData.query);
-
-        // Create a properly formatted object for supplement endpoint
+        
+        // Format supplement data
         formattedData = {
-          query: analyticsData.query,
+          query: this.sanitizeValue(analyticsData.query || this.originalQuery || ''),
           sessionId: analyticsData.sessionId
         };
-
-        // Add resultCount if provided
-        if (analyticsData.resultCount !== undefined) {
-          formattedData.resultCount = analyticsData.resultCount;
-        }
-
-        // Process enrichmentData if provided
+        
+        // Add enrichment data based on event type
         if (analyticsData.enrichmentData) {
-          // Create a clean enrichmentData object
-          const cleanEnrichmentData = {};
+          const enrichmentData = {};
           
-          // Copy actionType
+          // Add common fields
           if (analyticsData.enrichmentData.actionType) {
-            cleanEnrichmentData.actionType = this.sanitizeValue(analyticsData.enrichmentData.actionType);
+            enrichmentData.actionType = this.sanitizeValue(analyticsData.enrichmentData.actionType);
           }
           
-          // For tab changes, only include tabName (not tabId)
-          if (cleanEnrichmentData.actionType === 'tab' && analyticsData.enrichmentData.tabName) {
-            cleanEnrichmentData.tabName = this.sanitizeValue(analyticsData.enrichmentData.tabName);
-          }
-          
-          // For facet selections
-          if (cleanEnrichmentData.actionType === 'facet') {
-            if (analyticsData.enrichmentData.facetName) {
-              cleanEnrichmentData.facetName = this.sanitizeValue(analyticsData.enrichmentData.facetName);
-            }
-            if (analyticsData.enrichmentData.facetValue) {
-              cleanEnrichmentData.facetValue = this.sanitizeValue(analyticsData.enrichmentData.facetValue);
-            }
-            if (analyticsData.enrichmentData.action) {
-              cleanEnrichmentData.action = this.sanitizeValue(analyticsData.enrichmentData.action);
-            }
-          }
-          
-          // For pagination
-          if (cleanEnrichmentData.actionType === 'pagination' && analyticsData.enrichmentData.pageNumber !== undefined) {
-            cleanEnrichmentData.pageNumber = analyticsData.enrichmentData.pageNumber;
-          }
-          
-          // For spelling suggestions
-          if (cleanEnrichmentData.actionType === 'spelling' && analyticsData.enrichmentData.suggestedQuery) {
-            cleanEnrichmentData.suggestedQuery = this.sanitizeValue(analyticsData.enrichmentData.suggestedQuery);
-          }
-          
-          // Include timestamp if provided
           if (analyticsData.enrichmentData.timestamp) {
-            cleanEnrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
+            enrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
           }
           
-          // Add the cleaned enrichmentData to formattedData
-          formattedData.enrichmentData = cleanEnrichmentData;
+          // Add specific fields based on action type
+          switch (dataType) {
+            case 'tab':
+              if (analyticsData.enrichmentData.tabName) {
+                enrichmentData.tabName = this.sanitizeValue(analyticsData.enrichmentData.tabName);
+              }
+              break;
+              
+            case 'facet':
+              if (analyticsData.enrichmentData.facetName) {
+                enrichmentData.facetName = this.sanitizeValue(analyticsData.enrichmentData.facetName);
+              }
+              if (analyticsData.enrichmentData.facetValue) {
+                enrichmentData.facetValue = this.sanitizeValue(analyticsData.enrichmentData.facetValue);
+              }
+              if (analyticsData.enrichmentData.action) {
+                enrichmentData.action = this.sanitizeValue(analyticsData.enrichmentData.action);
+              }
+              break;
+              
+            case 'pagination':
+              if (analyticsData.enrichmentData.pageNumber !== undefined) {
+                enrichmentData.pageNumber = analyticsData.enrichmentData.pageNumber;
+              }
+              break;
+              
+            case 'spelling':
+              if (analyticsData.enrichmentData.suggestedQuery) {
+                enrichmentData.suggestedQuery = this.sanitizeValue(analyticsData.enrichmentData.suggestedQuery);
+              }
+              break;
+          }
+          
+          // Add enrichment data to formatted data
+          formattedData.enrichmentData = enrichmentData;
         }
-
+        
         // Log what we're sending to supplement endpoint
         console.log('Sending supplement data:', {
-          endpoint: endpoint,
+          endpoint,
           query: formattedData.query,
-          type: dataType, // Log the type for debugging, but don't include in payload
-          details: formattedData.enrichmentData,
-          sessionId: formattedData.sessionId || '(none)'
+          type: dataType,
+          details: formattedData.enrichmentData
         });
       }
 
@@ -594,14 +583,11 @@ class SearchManager {
   }
 
   /**
-   * Send analytics data using fetch API (fallback) with detailed error handling
+   * Send analytics data using fetch API (fallback)
    * @param {string} endpoint - The API endpoint
    * @param {Object} data - The formatted data to send
    */
   sendAnalyticsWithFetch(endpoint, data) {
-    // Log exactly what we're sending
-    console.log(`Sending analytics to ${endpoint} using fetch:`, data);
-
     fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -615,20 +601,13 @@ class SearchManager {
       .then(response => {
         if (!response.ok) {
           return response.text().then(text => {
-            console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
-              endpoint,
-              sentData: data,
-              responseText: text
-            });
+            console.error(`Analytics request failed: ${response.status} ${response.statusText}`, text);
           });
         }
         console.log(`Analytics request successful: ${endpoint}`);
       })
       .catch(error => {
-        console.error('Error sending analytics data via fetch:', error, {
-          endpoint,
-          sentData: data
-        });
+        console.error('Error sending analytics data via fetch:', error);
       });
   }
 
