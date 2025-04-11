@@ -12,7 +12,7 @@
  * - Uses non-blocking sendBeacon for analytics data
  * 
  * @author Victor Chimenti
- * @version 2.2.0
+ * @version 2.2.1
  * @lastModified 2025-04-12
  */
 
@@ -102,7 +102,7 @@ class AnalyticsManager {
       // Prepare data using the expected format for click endpoint
       const data = {
         type: 'click',
-        query: this.core.originalQuery || '',
+        originalQuery: this.core.originalQuery || '',
         clickedUrl: clickedUrl,
         clickedTitle: title,
         clickPosition: position,
