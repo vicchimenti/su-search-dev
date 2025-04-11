@@ -8,12 +8,12 @@
  * - Tracks result clicks with position data
  * - Captures facet interactions
  * - Records pagination events
- * - Monitors tab changes and spelling suggestions
+ * - Monitors spelling suggestions
  * - Uses non-blocking sendBeacon for analytics data
  * 
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-04-09
+ * @version 2.2.0
+ * @lastModified 2025-04-12
  */
 
 class AnalyticsManager {
@@ -29,7 +29,6 @@ class AnalyticsManager {
     this.trackResultClick = this.trackResultClick.bind(this);
     this.trackFacetSelection = this.trackFacetSelection.bind(this);
     this.trackPaginationEvent = this.trackPaginationEvent.bind(this);
-    this.trackTabChange = this.trackTabChange.bind(this);
     this.trackSpellingSuggestion = this.trackSpellingSuggestion.bind(this);
 
     this.initialize();
@@ -52,7 +51,7 @@ class AnalyticsManager {
       }
 
       // Handle facet clicks
-      else if (e.target.closest('.facet-group__list a, a.facet-group__clear, .facet-breadcrumb__link')) {
+      else if (e.target.closest('.facet-group__list a:not(.facet-group__clear):not(.facet-group__show-more), a.facet-group__clear, .facet-breadcrumb__link')) {
         this.trackFacetSelection(e);
       }
 
@@ -61,15 +60,12 @@ class AnalyticsManager {
         this.trackPaginationEvent(e);
       }
 
-      // Handle tab clicks
-      else if (e.target.closest('.tab-list__nav a')) {
-        this.trackTabChange(e);
-      }
-
       // Handle spelling suggestion clicks
       else if (e.target.closest('.search-spelling-suggestions__link, .query-blending__highlight')) {
         this.trackSpellingSuggestion(e);
       }
+
+      // NOTE: Tab tracking is now handled by TabsManager exclusively
     });
 
     console.log('Analytics Manager: Initialized');
@@ -89,7 +85,11 @@ class AnalyticsManager {
       const dataLiveUrl = link.getAttribute('data-live-url');
       const href = link.getAttribute('href');
       const clickedUrl = dataLiveUrl || href || '';
-      const title = link.textContent.trim() || '';
+      
+      // Clean up title text
+      const titleElement = link.closest('h3') || link;
+      const rawTitle = titleElement.textContent || '';
+      const title = this.sanitizeText(rawTitle);
 
       // Determine position
       let position = -1;
@@ -99,18 +99,18 @@ class AnalyticsManager {
         position = allResults.indexOf(resultItem) + 1;
       }
 
-      // Prepare data - ensure field names match backend expectations
+      // Prepare data using the expected format for click endpoint
       const data = {
         type: 'click',
-        originalQuery: this.core.originalQuery || '',
+        query: this.core.originalQuery || '',
         clickedUrl: clickedUrl,
         clickedTitle: title,
         clickPosition: position,
         clickType: 'search',
-        timestamp: new Date().toISOString()
+        timestamp: Date.now()
       };
 
-      // Send analytics data
+      // Send analytics data through core manager (handles session ID)
       this.core.sendAnalyticsData(data);
 
       console.log(`Analytics: Tracked result click "${title}" (position ${position})`);
@@ -130,24 +130,29 @@ class AnalyticsManager {
     try {
       const facetName = this.getFacetName(link);
       const facetValue = this.getFacetValue(link);
+      
+      // Determine action type (select or clear)
+      const action = link.classList.contains('facet-group__clear') || 
+                     link.classList.contains('facet-breadcrumb__link') ? 
+                     'clear' : 'select';
 
       // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'facet',
-        query: this.core.originalQuery || '', // Using the core's originalQuery value
+        query: this.core.originalQuery || '', 
         enrichmentData: {
           actionType: 'facet',
-          facetName: facetName,
-          facetValue: facetValue,
-          action: link.classList.contains('facet-group__clear') ? 'clear' : 'select'
-        },
-        timestamp: new Date().toISOString()
+          facetName: this.sanitizeText(facetName),
+          facetValue: this.sanitizeText(facetValue),
+          action: action,
+          timestamp: Date.now()
+        }
       };
 
-      // Send analytics data
+      // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
 
-      console.log(`Analytics: Tracked facet ${data.enrichmentData.action} "${facetName}:${facetValue}"`);
+      console.log(`Analytics: Tracked facet ${action} "${facetName}:${facetValue}"`);
     } catch (error) {
       console.error('Analytics: Error tracking facet selection', error);
     }
@@ -176,58 +181,20 @@ class AnalyticsManager {
       // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'pagination',
-        query: this.core.originalQuery || '', // Using the core's originalQuery value
+        query: this.core.originalQuery || '',
         enrichmentData: {
           actionType: 'pagination',
-          pageNumber: pageNumber
-        },
-        timestamp: new Date().toISOString()
+          pageNumber: pageNumber,
+          timestamp: Date.now()
+        }
       };
 
-      // Send analytics data
+      // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
 
       console.log(`Analytics: Tracked pagination to page ${pageNumber}`);
     } catch (error) {
       console.error('Analytics: Error tracking pagination event', error);
-    }
-  }
-
-  /**
-   * Tracks tab change events.
-   * @param {Event} e - The click event
-   */
-  trackTabChange(e) {
-    const link = e.target.closest('a');
-    if (!link) return;
-
-    try {
-      const tabName = link.textContent.trim() || 'unknown';
-
-      // Try to get tab id from attributes
-      const tabId = link.getAttribute('data-tab-id') ||
-        link.getAttribute('id') ||
-        link.getAttribute('aria-controls') ||
-        'unknown';
-
-      // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
-      const data = {
-        type: 'tab',
-        query: this.core.originalQuery || '', // Using the core's originalQuery value
-        enrichmentData: {
-          actionType: 'tab',
-          tabName: tabName,
-          tabId: tabId
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      // Send analytics data
-      this.core.sendAnalyticsData(data);
-
-      console.log(`Analytics: Tracked tab change to "${tabName}"`);
-    } catch (error) {
-      console.error('Analytics: Error tracking tab change', error);
     }
   }
 
@@ -241,20 +208,20 @@ class AnalyticsManager {
 
     try {
       const originalTerm = this.core.originalQuery || '';
-      const suggestedTerm = link.textContent.trim() || '';
+      const suggestedTerm = this.sanitizeText(link.textContent) || '';
 
       // Prepare data for supplement endpoint - IMPORTANT: use "query" not "originalQuery"
       const data = {
         type: 'spelling',
-        query: originalTerm, // Using the core's originalQuery value
+        query: originalTerm,
         enrichmentData: {
           actionType: 'spelling',
-          suggestedQuery: suggestedTerm
-        },
-        timestamp: new Date().toISOString()
+          suggestedQuery: suggestedTerm,
+          timestamp: Date.now()
+        }
       };
 
-      // Send analytics data
+      // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
 
       console.log(`Analytics: Tracked spelling suggestion "${suggestedTerm}"`);
@@ -303,8 +270,6 @@ class AnalyticsManager {
    * @returns {string} The facet value
    */
   getFacetValue(link) {
-    // Try to get facet value from various locations
-
     // From data attribute
     if (link.hasAttribute('data-facet-value')) {
       return link.getAttribute('data-facet-value');
@@ -334,11 +299,47 @@ class AnalyticsManager {
   }
 
   /**
+   * Sanitize a string value for analytics
+   * @param {string} text - The text to sanitize
+   * @returns {string} Sanitized text
+   */
+  sanitizeText(text) {
+    if (typeof text !== 'string') {
+      return 'unknown';
+    }
+
+    // First, remove any surrounding whitespace
+    let sanitized = text.trim();
+
+    // Remove common counter patterns that might be in the text
+    // Remove " (26)" or "(26)" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, '');
+    // Remove " [26]" or "[26]" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, '');
+    // Remove any number in parentheses anywhere
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, '');
+
+    // Replace line breaks, tabs, and control characters with spaces
+    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, ' ');
+
+    // Remove any HTML tags that might be present
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
+
+    // Normalize multiple spaces to a single space
+    sanitized = sanitized.replace(/\s+/g, ' ');
+
+    // Final trim to remove any leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    return sanitized || 'unknown';
+  }
+
+  /**
    * Handles DOM changes by adding listeners to new content.
    * @param {NodeList} addedNodes - Nodes added to the DOM
    */
   handleDomChanges(addedNodes) {
-    // No specific action needed as we're using event delegation
+    // Using event delegation, no specific action needed here
   }
 
   /**
