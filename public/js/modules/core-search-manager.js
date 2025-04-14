@@ -11,7 +11,7 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.5.1
+ * @version 2.5.2
  * @lastModified 2025-04-14
  */
 
@@ -34,10 +34,10 @@ class SearchManager {
     this.modules = {};
 
     // State
-    this.sessionId = null; // No longer initialize here; will get from SessionService
+    this.sessionId = null;
     this.originalQuery = null;
     this.isInitialized = false;
-    this.recentAnalyticsEvents = []; // For deduplication
+    this.recentAnalyticsEvents = [];
   }
 
   /**
@@ -433,9 +433,15 @@ class SearchManager {
         console.debug(`Duplicate analytics event detected, ignoring: ${dataType}`);
         return;
       }
+      
+      // Debug logs for deep copy
+      console.debug('Original data before deep copy:', data);
 
       // Create a deep copy to avoid modifying the original data
       const analyticsData = JSON.parse(JSON.stringify(data));
+
+      console.debug('Deep copied data:', analyticsData);
+      console.debug('Is deep copy different from original:', data !== analyticsData);
       
       // Add session ID if available
       if (this.sessionId) {
@@ -459,6 +465,8 @@ class SearchManager {
         if (!query) {
           console.warn('Missing originalQuery for click tracking. Current originalQuery:', this.originalQuery);
         }
+
+        console.debug('Formatting click data with query:', query);
         
         // Required fields for click endpoint - ensure backend field names are used
         formattedData = {
@@ -469,6 +477,27 @@ class SearchManager {
           sessionId: analyticsData.sessionId || undefined,
           clickType: this.sanitizeValue(analyticsData.clickType || analyticsData.type || 'search')
         };
+
+        console.debug('Formatted click data:', {
+          originalQuery: formattedData.originalQuery,
+          clickedUrl: formattedData.clickedUrl,
+          clickedTitle: formattedData.clickedTitle,
+          clickPosition: formattedData.clickPosition,
+          sessionId: formattedData.sessionId,
+          clickType: formattedData.clickType
+        });
+
+        // Validate source objects for debugging
+        console.debug('Source objects for formatting:', {
+          analyticsData_clickedUrl: analyticsData.clickedUrl,
+          analyticsData_url: analyticsData.url,
+          analyticsData_clickedTitle: analyticsData.clickedTitle,
+          analyticsData_title: analyticsData.title,
+          analyticsData_clickPosition: analyticsData.clickPosition,
+          analyticsData_position: analyticsData.position,
+          analyticsData_clickType: analyticsData.clickType,
+          analyticsData_type: analyticsData.type
+        });
         
         // Field validation before sending (match backend requirements)
         if (!formattedData.originalQuery) {
@@ -484,6 +513,7 @@ class SearchManager {
         // Log what we're sending to click endpoint
         console.log('Sending click data:', {
           endpoint,
+          sessionId: formattedData.sessionId,
           originalQuery: formattedData.originalQuery,
           clickedUrl: formattedData.clickedUrl,
           clickPosition: formattedData.clickPosition
