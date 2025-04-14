@@ -99,6 +99,14 @@ class AnalyticsManager {
         position = allResults.indexOf(resultItem) + 1;
       }
 
+      console.debug('Analytics debug - Tracking click with query context:', {
+        coreOriginalQuery: this.core.originalQuery,
+        coreOriginalQueryType: typeof this.core.originalQuery,
+        urlQueryParam: new URLSearchParams(window.location.search).get('query'),
+        searchInputValue: document.querySelector(this.core.config.searchInputSelector)?.value || 'not found',
+        resultsContainerExists: !!this.resultsContainer
+      });
+
       // Prepare data using the expected format for click endpoint
       const data = {
         type: 'click',
@@ -109,6 +117,13 @@ class AnalyticsManager {
         clickType: 'search',
         timestamp: Date.now()
       };
+
+      console.debug('Analytics debug - Constructed click data:', {
+        dataOriginalQuery: data.originalQuery,
+        dataOriginalQueryExists: !!data.originalQuery,
+        dataComplete: !!(data.originalQuery && data.clickedUrl)
+      });
+
 
       // Send analytics data through core manager (handles session ID)
       this.core.sendAnalyticsData(data);
