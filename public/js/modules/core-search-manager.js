@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.5.0
- * @lastModified 2025-04-12
+ * @version 2.5.1
+ * @lastModified 2025-04-14
  */
 
 class SearchManager {
@@ -454,38 +454,67 @@ class SearchManager {
       if (dataType === 'click') {
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
         
-        // Required fields for click endpoint
+        // Make sure we have a valid query
+        const query = this.originalQuery || '';
+        if (!query) {
+          console.warn('Missing originalQuery for click tracking. Current originalQuery:', this.originalQuery);
+        }
+        
+        // Required fields for click endpoint - ensure backend field names are used
         formattedData = {
-          originalQuery: this.sanitizeValue(analyticsData.query || analyticsData.originalQuery || this.originalQuery || ''),
-          clickedUrl: this.sanitizeValue(analyticsData.clickedUrl || analyticsData.url || ''),
+          originalQuery: query, // Always use originalQuery from manager state
+          clickedUrl: analyticsData.clickedUrl || analyticsData.url || '',
           clickedTitle: this.sanitizeValue(analyticsData.clickedTitle || analyticsData.title || ''),
           clickPosition: analyticsData.clickPosition || analyticsData.position || 0,
           sessionId: analyticsData.sessionId || undefined,
-          clickType: this.sanitizeValue(analyticsData.clickType || 'search')
+          clickType: this.sanitizeValue(analyticsData.clickType || analyticsData.type || 'search')
         };
+        
+        // Field validation before sending (match backend requirements)
+        if (!formattedData.originalQuery) {
+          console.error('Missing required field: originalQuery, cannot send click data');
+          return;
+        }
+        
+        if (!formattedData.clickedUrl) {
+          console.error('Missing required field: clickedUrl, cannot send click data');
+          return;
+        }
         
         // Log what we're sending to click endpoint
         console.log('Sending click data:', {
           endpoint,
-          url: formattedData.clickedUrl,
-          position: formattedData.clickPosition
+          originalQuery: formattedData.originalQuery,
+          clickedUrl: formattedData.clickedUrl,
+          clickPosition: formattedData.clickPosition
         });
       } 
       // Format data for batch click tracking
       else if (dataType === 'batch') {
         endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
         
-        // Format batch clicks data
+        // Format batch clicks data - ensure backend field names are used
         formattedData = {
-          clicks: (analyticsData.clicks || []).map(click => ({
-            originalQuery: this.sanitizeValue(click.query || click.originalQuery || this.originalQuery || ''),
-            clickedUrl: this.sanitizeValue(click.clickedUrl || click.url || ''),
-            clickedTitle: this.sanitizeValue(click.clickedTitle || click.title || ''),
-            clickPosition: click.clickPosition || click.position || 0,
-            sessionId: analyticsData.sessionId || undefined,
-            clickType: this.sanitizeValue(click.clickType || 'search')
-          }))
+          clicks: (analyticsData.clicks || []).map(click => {
+            // Make sure we have a valid query for each click
+            const query = click.originalQuery || click.query || this.originalQuery || '';
+            
+            return {
+              originalQuery: query,
+              clickedUrl: click.clickedUrl || click.url || '',
+              clickedTitle: this.sanitizeValue(click.clickedTitle || click.title || ''),
+              clickPosition: click.clickPosition || click.position || 0,
+              sessionId: analyticsData.sessionId || undefined,
+              clickType: this.sanitizeValue(click.clickType || click.type || 'search')
+            };
+          }).filter(click => click.originalQuery && click.clickedUrl) // Filter out invalid clicks
         };
+        
+        // Validate clicks array
+        if (!formattedData.clicks || formattedData.clicks.length === 0) {
+          console.error('No valid clicks to send in batch');
+          return;
+        }
         
         console.log('Sending batch clicks:', {
           endpoint,
@@ -496,7 +525,7 @@ class SearchManager {
       else {
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
         
-        // Format supplement data
+        // Format supplement data - use 'query' not 'originalQuery' for supplement endpoint
         formattedData = {
           query: this.sanitizeValue(analyticsData.query || this.originalQuery || ''),
           sessionId: analyticsData.sessionId
