@@ -11,8 +11,8 @@
  * - Comprehensive analytics tracking
  * 
  * @author Victor Chimenti
- * @version 2.5.2
- * @lastModified 2025-04-14
+ * @version 2.5.3
+ * @lastModified 2025-04-15
  */
 
 class SearchManager {
@@ -75,12 +75,20 @@ class SearchManager {
 
     // Extract query from URL or input
     this.extractOriginalQuery();
+    console.debug('Core manager: Initialization extracted query:', this.originalQuery);
 
     // Set up observer for dynamic content
     this.initializeObserver();
 
     // Initialize modules
     await this.loadModules();
+
+    // Re-check query in case it wasn't available at first extraction
+    if (!this.originalQuery) {
+      console.debug('Core manager: Re-extracting missing query after modules loaded');
+      this.extractOriginalQuery();
+      console.debug('Core manager: Re-extracted query:', this.originalQuery);
+    }
 
     // Start observing for DOM changes
     this.startObserving();
@@ -132,20 +140,26 @@ class SearchManager {
    * Extract the original search query from URL or search input
    */
   extractOriginalQuery() {
-    // Try to get query from URL parameters
+    // First, try to get query from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const urlQuery = urlParams.get('query');
 
     if (urlQuery) {
+      console.debug('Core manager: Setting originalQuery from URL:', urlQuery);
       this.originalQuery = urlQuery;
       return;
     }
 
-    // Try to get query from search input field
+    // If not in URL, try to get from search input field
     const searchInput = document.querySelector(this.config.searchInputSelector);
     if (searchInput && searchInput.value) {
+      console.debug('Core manager: Setting originalQuery from input:', searchInput.value);
       this.originalQuery = searchInput.value;
+      return;
     }
+
+    console.debug('Core manager: No query found in URL or input');
+    // Don't set to empty string or null - keep previous value if it exists
   }
 
   /**
@@ -265,6 +279,13 @@ class SearchManager {
           // Parse and sanitize query parameters
           const searchParams = new URLSearchParams(queryString);
 
+          // Extract and update originalQuery if present in the URL
+          const queryParam = searchParams.get('query');
+          if (queryParam) {
+            console.debug('Core manager: Updating originalQuery from search URL:', queryParam);
+            this.originalQuery = queryParam;
+          }
+
           // Remove any existing sessionId parameters
           if (searchParams.has('sessionId')) {
             const existingValues = searchParams.getAll('sessionId');
@@ -307,6 +328,13 @@ class SearchManager {
 
           // Parse parameters
           const spellingParams = new URLSearchParams(queryString);
+
+          // Extract and update originalQuery if present
+          const spellingQueryParam = spellingParams.get('query');
+          if (spellingQueryParam) {
+            console.debug('Core manager: Updating originalQuery from spelling URL:', spellingQueryParam);
+            this.originalQuery = spellingQueryParam;
+          }
 
           // Remove any existing sessionId parameters
           if (spellingParams.has('sessionId')) {
@@ -460,17 +488,29 @@ class SearchManager {
       if (dataType === 'click') {
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
         
-        // Make sure we have a valid query
-        const query = this.originalQuery || '';
-        if (!query) {
-          console.warn('Missing originalQuery for click tracking. Current originalQuery:', this.originalQuery);
+        // Make sure we have a valid query - try to recover if missing
+        if (!analyticsData.originalQuery && !this.originalQuery) {
+          // Try to recover from URL or input
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlQuery = urlParams.get('query');
+          
+          if (urlQuery) {
+            console.debug('Core manager: Recovering missing originalQuery from URL:', urlQuery);
+            this.originalQuery = urlQuery;
+            analyticsData.originalQuery = urlQuery;
+          } else {
+            const searchInput = document.querySelector(this.config.searchInputSelector);
+            if (searchInput && searchInput.value) {
+              console.debug('Core manager: Recovering missing originalQuery from input:', searchInput.value);
+              this.originalQuery = searchInput.value;
+              analyticsData.originalQuery = searchInput.value;
+            }
+          }
         }
-
-        console.debug('Formatting click data with query:', query);
         
         // Required fields for click endpoint - ensure backend field names are used
         formattedData = {
-          originalQuery: query, // Always use originalQuery from manager state
+          originalQuery: analyticsData.originalQuery || this.originalQuery || '',
           clickedUrl: analyticsData.clickedUrl || analyticsData.url || '',
           clickedTitle: this.sanitizeValue(analyticsData.clickedTitle || analyticsData.title || ''),
           clickPosition: analyticsData.clickPosition || analyticsData.position || 0,
@@ -555,11 +595,22 @@ class SearchManager {
       else {
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
         
+        // If query is missing, try to get it from core
+        if (!analyticsData.query && this.originalQuery) {
+          analyticsData.query = this.originalQuery;
+        }
+        
         // Format supplement data - use 'query' not 'originalQuery' for supplement endpoint
         formattedData = {
           query: this.sanitizeValue(analyticsData.query || this.originalQuery || ''),
           sessionId: analyticsData.sessionId
         };
+        
+        // Validate query
+        if (!formattedData.query) {
+          console.error('Missing required field: query, cannot send supplement data');
+          return;
+        }
         
         // Add enrichment data based on event type
         if (analyticsData.enrichmentData) {
