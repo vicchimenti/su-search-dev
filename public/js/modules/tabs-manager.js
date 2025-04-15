@@ -1,13 +1,13 @@
 /**
  * @fileoverview Integrated Tabs Manager
- *
+ * 
  * This module enhances tab navigation without conflicting with
  * existing scripts. It intercepts tab clicks, prevents URL updates,
- * and handles content loading with caching support.
- *
+ * and handles content loading properly.
+ * 
  * @author Victor Chimenti
- * @version 4.3.1
- * @lastModified 2025-04-15
+ * @version 3.5.4
+ * @lastModified 2025-04-12
  */
 
 class TabsManager {
@@ -25,24 +25,14 @@ class TabsManager {
     this.lastTrackedTab = null;
     this.lastTrackedTime = 0;
     this.trackingDebounceTime = 300;
-    this.useCacheEndpoint = true; // Enable the use of cacheable API endpoint
-    this.retryOnError = true; // Enable retry logic for failed requests
-
-    // Define the fixed API endpoints
-    this.apiBaseUrl =
-      window.seattleUConfig?.search?.apiBaseUrl ||
-      "https://su-search-dev.vercel.app";
-    this.proxyBaseUrl =
-      window.seattleUConfig?.search?.proxyBaseUrl ||
-      "https://funnelback-proxy-dev.vercel.app/proxy";
 
     // More reliable tab selectors
     this.tabSelectors = [
-      ".tab-list__nav a",
-      ".tab__button",
+      '.tab-list__nav a',
+      '.tab__button',
       'a[role="tab"]',
-      ".tab_button",
-      "[data-tab-group-control]",
+      '.tab_button',
+      '[data-tab-group-control]'
     ];
 
     // Initialize
@@ -53,7 +43,7 @@ class TabsManager {
    * Initialize tab functionality by integrating with existing scripts
    */
   initialize() {
-    console.log("Initializing Integrated TabsManager");
+    console.log('Initializing Integrated TabsManager');
 
     // Find tab containers
     this.findTabContainers();
@@ -63,13 +53,13 @@ class TabsManager {
       // Store the original function
       this.originalPerformSearch = window.performSearch;
       window.performSearch = this.enhancedPerformSearch.bind(this);
-      console.log("Enhanced performSearch function installed");
+      console.log('Enhanced performSearch function installed');
     } else {
-      console.warn("Window performSearch function not found");
+      console.warn('Window performSearch function not found');
     }
 
     // Override URL update functions to prevent URL changes during tab navigation
-    const urlUpdateFunctions = ["updateSearchUrl", "updateUrl"];
+    const urlUpdateFunctions = ['updateSearchUrl', 'updateUrl'];
     for (const funcName of urlUpdateFunctions) {
       if (window[funcName]) {
         if (!this.originalUpdateUrl) {
@@ -81,9 +71,9 @@ class TabsManager {
     }
 
     if (this.originalUpdateUrl) {
-      console.log("Enhanced URL update function installed");
+      console.log('Enhanced URL update function installed');
     } else {
-      console.warn("URL update functions not found");
+      console.warn('URL update functions not found');
     }
 
     // Add direct capture of tab clicks
@@ -92,7 +82,7 @@ class TabsManager {
     // Set initial active tab
     this.determineActiveTab();
 
-    console.log("TabsManager initialized successfully");
+    console.log('TabsManager initialized successfully');
   }
 
   /**
@@ -101,16 +91,16 @@ class TabsManager {
   findTabContainers() {
     // Look for common tab container selectors
     const containerSelectors = [
-      ".tab-list__nav",
-      ".tab-container",
+      '.tab-list__nav',
+      '.tab-container',
       '[role="tablist"]',
-      ".tabs",
+      '.tabs'
     ];
 
-    containerSelectors.forEach((selector) => {
+    containerSelectors.forEach(selector => {
       const containers = document.querySelectorAll(selector);
       if (containers.length > 0) {
-        containers.forEach((container) => {
+        containers.forEach(container => {
           this.tabContainers.push(container);
         });
       }
@@ -125,14 +115,14 @@ class TabsManager {
   installTabClickHandlers() {
     // Use direct tab container if found
     if (this.tabContainers.length > 0) {
-      this.tabContainers.forEach((container) => {
-        container.addEventListener("click", this.handleTabClick.bind(this));
+      this.tabContainers.forEach(container => {
+        container.addEventListener('click', this.handleTabClick.bind(this));
       });
-      console.log("Tab click handlers added to tab containers");
+      console.log('Tab click handlers added to tab containers');
     } else {
       // Fallback to document-level delegation
-      document.addEventListener("click", this.handleTabClick.bind(this));
-      console.log("Document-level tab click detection active");
+      document.addEventListener('click', this.handleTabClick.bind(this));
+      console.log('Document-level tab click detection active');
     }
   }
 
@@ -147,16 +137,15 @@ class TabsManager {
       'a[role="tab"][aria-selected="true"]',
       '.tab_button[aria-selected="true"]',
       '[data-tab-group-control][aria-selected="true"]',
-      ".tab-list__nav a.active",
-      ".tab__button.active",
-      ".tab_button.active",
+      '.tab-list__nav a.active',
+      '.tab__button.active',
+      '.tab_button.active'
     ];
 
     for (const selector of activeTabSelectors) {
       const activeTab = document.querySelector(selector);
       if (activeTab) {
-        this.activeTabId =
-          activeTab.id || activeTab.getAttribute("data-tab-group-control");
+        this.activeTabId = activeTab.id || activeTab.getAttribute('data-tab-group-control');
         const tabName = this.extractCleanTabName(activeTab);
         console.log(`Initial active tab: ${tabName}`);
         break;
@@ -170,16 +159,14 @@ class TabsManager {
    * @returns {string} The clean tab name
    */
   extractCleanTabName(tabElement) {
-    if (!tabElement) return "unknown";
+    if (!tabElement) return 'unknown';
 
     try {
       // Start with a null tabName
       let tabName = null;
 
       // Method 1: Look for a specific element that contains just the tab name
-      const nameElement = tabElement.querySelector(
-        ".tab-name, .tab-title, .tab-label"
-      );
+      const nameElement = tabElement.querySelector('.tab-name, .tab-title, .tab-label');
       if (nameElement) {
         tabName = nameElement.textContent.trim();
       }
@@ -203,9 +190,9 @@ class TabsManager {
       // Apply sanitization regardless of which method succeeded
       return this.sanitizeTabName(tabName);
     } catch (error) {
-      console.error("Error extracting tab name:", error);
+      console.error('Error extracting tab name:', error);
       // Return a sanitized version of the full textContent as last resort
-      return this.sanitizeTabName(tabElement.textContent || "unknown");
+      return this.sanitizeTabName(tabElement.textContent || 'unknown');
     }
   }
 
@@ -215,8 +202,8 @@ class TabsManager {
    * @returns {string} Sanitized tab name
    */
   sanitizeTabName(tabName) {
-    if (typeof tabName !== "string") {
-      return "unknown";
+    if (typeof tabName !== 'string') {
+      return 'unknown';
     }
 
     // First, remove any surrounding whitespace
@@ -224,25 +211,25 @@ class TabsManager {
 
     // Remove common counter patterns that might be in the text
     // Remove " (26)" or "(26)" at the end
-    sanitized = sanitized.replace(/\s*\(\d+\)$/g, "");
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, '');
     // Remove " [26]" or "[26]" at the end
-    sanitized = sanitized.replace(/\s*\[\d+\]$/g, "");
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, '');
     // Remove any number in parentheses anywhere
-    sanitized = sanitized.replace(/\s*\(\d+\)/g, "");
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, '');
 
     // Replace line breaks, tabs, and control characters with spaces
-    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, " ");
+    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, ' ');
 
     // Remove any HTML tags that might be present
-    sanitized = sanitized.replace(/<[^>]*>/g, "");
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
 
     // Normalize multiple spaces to a single space
-    sanitized = sanitized.replace(/\s+/g, " ");
+    sanitized = sanitized.replace(/\s+/g, ' ');
 
     // Final trim to remove any leading/trailing whitespace
     sanitized = sanitized.trim();
 
-    return sanitized || "unknown";
+    return sanitized || 'unknown';
   }
 
   /**
@@ -255,7 +242,7 @@ class TabsManager {
       const tabElement = e.target.closest(selector);
       if (tabElement) {
         const cleanTabName = this.extractCleanTabName(tabElement);
-        console.log("Tab click captured directly:", cleanTabName);
+        console.log('Tab click captured directly:', cleanTabName);
 
         // Prevent default navigation
         e.preventDefault();
@@ -264,8 +251,7 @@ class TabsManager {
         this.isFromTabNavigation = true;
 
         // Store the active tab ID
-        this.activeTabId =
-          tabElement.id || tabElement.getAttribute("data-tab-group-control");
+        this.activeTabId = tabElement.id || tabElement.getAttribute('data-tab-group-control');
 
         // Update visual state of tabs
         this.updateTabState(tabElement);
@@ -274,7 +260,7 @@ class TabsManager {
         this.debouncedTrackTabChange(tabElement, cleanTabName);
 
         // Load tab content
-        const href = tabElement.getAttribute("href");
+        const href = tabElement.getAttribute('href');
         if (href) {
           this.loadTabContent(href, tabElement);
         }
@@ -291,8 +277,8 @@ class TabsManager {
    */
   debouncedTrackTabChange(tabElement, cleanTabName) {
     const now = Date.now();
-    const tabNameAndId = `${cleanTabName}-${this.activeTabId || ""}`;
-
+    const tabNameAndId = `${cleanTabName}-${this.activeTabId || ''}`;
+    
     // Check if this is a duplicate within the debounce time window
     if (
       this.lastTrackedTab === tabNameAndId &&
@@ -301,11 +287,11 @@ class TabsManager {
       console.log(`Tab change tracking debounced for "${cleanTabName}"`);
       return;
     }
-
+    
     // Update tracking state
     this.lastTrackedTab = tabNameAndId;
     this.lastTrackedTime = now;
-
+    
     // Track the tab change
     this.trackTabChange(tabElement, cleanTabName);
   }
@@ -322,29 +308,29 @@ class TabsManager {
 
       // Extract query from URL or input field
       const urlParams = new URLSearchParams(window.location.search);
-      const query = urlParams.get("query") || this.core.originalQuery || "";
+      const query = urlParams.get('query') || this.core.originalQuery || '';
 
       // Create clean and properly structured data object for supplement endpoint
       const analyticsData = {
-        type: "tab", // This is used by core-search-manager for routing
+        type: 'tab', // This is used by core-search-manager for routing
         query: query, // Use "query" rather than "originalQuery" for supplement endpoint
         enrichmentData: {
-          actionType: "tab",
+          actionType: 'tab',
           tabName: tabName,
-          timestamp: Date.now(),
-        },
+          timestamp: Date.now()
+        }
       };
 
       // Log what we're sending
-      console.log("Tab change tracked:", {
+      console.log('Tab change tracked:', {
         tabName: analyticsData.enrichmentData.tabName,
-        query: analyticsData.query,
+        query: analyticsData.query
       });
 
       // Let core manager handle analytics submission and session ID
       this.core.sendAnalyticsData(analyticsData);
     } catch (error) {
-      console.error("Error tracking tab change:", error);
+      console.error('Error tracking tab change:', error);
     }
   }
 
@@ -356,446 +342,86 @@ class TabsManager {
     if (!activeTab) return;
 
     // Find all tabs in the same container
-    const tabContainer = activeTab.closest(
-      '.tab-list__nav, .tab-container, [role="tablist"], .tabs'
-    );
+    const tabContainer = activeTab.closest('.tab-list__nav, .tab-container, [role="tablist"], .tabs');
     if (!tabContainer) return;
 
     // Get all tabs in this container
-    const allTabs = tabContainer.querySelectorAll(this.tabSelectors.join(", "));
+    const allTabs = tabContainer.querySelectorAll(this.tabSelectors.join(', '));
 
     // Update ARIA and class attributes
-    allTabs.forEach((tab) => {
+    allTabs.forEach(tab => {
       const isActive = tab === activeTab;
 
       // Update ARIA attributes
-      tab.setAttribute("aria-selected", isActive ? "true" : "false");
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
       // Update classes
       if (isActive) {
-        tab.classList.add("active");
+        tab.classList.add('active');
       } else {
-        tab.classList.remove("active");
+        tab.classList.remove('active');
       }
     });
   }
 
   /**
-   * Load tab content from the specified URL using cacheable endpoint
+   * Load tab content from the specified URL
    * @param {string} href - The tab content URL
    * @param {Element} tabElement - The tab element that was clicked
    */
   async loadTabContent(href, tabElement) {
     // Get the results container - ensure it exists before proceeding
-    const resultsContainer = document.getElementById("results");
+    const resultsContainer = document.getElementById('results');
     if (!resultsContainer) {
-      console.error("Results container not found");
+      console.error('Results container not found');
       return;
     }
 
-    console.log("Loading tab content from:", href);
+    console.log('Loading tab content from:', href);
 
     // Show loading state
-    resultsContainer.classList.add("loading");
+    resultsContainer.classList.add('loading');
 
     try {
-      // Check if we should use the cacheable endpoint
-      if (this.useCacheEndpoint) {
-        await this.loadTabContentWithCaching(
-          href,
-          tabElement,
-          resultsContainer
-        );
-      } else {
-        // Use the core's fetch method (which handles session ID properly)
-        const response = await this.core.fetchFromProxy(href, "search");
+      // Use the core's fetch method (which handles session ID properly)
+      const response = await this.core.fetchFromProxy(href, 'search');
 
-        // Update results container
-        this.updateResultsContainer(resultsContainer, response);
-      }
-
-      console.log("Tab content loaded successfully");
-    } catch (error) {
-      console.error("Error loading tab content:", error);
-
-      // Show error in container
-      resultsContainer.innerHTML = `
-        <div class="search-error">
-          <h3>Error Loading Tab Content</h3>
-          <p>${error.message}</p>
-        </div>
-      `;
-    } finally {
-      // Remove loading state
-      resultsContainer.classList.remove("loading");
-    }
-  }
-
-  /**
-   * Load tab content using cacheable endpoint
-   * @param {string} href - The original tab URL
-   * @param {Element} tabElement - The tab element that was clicked
-   * @param {HTMLElement} container - The results container
-   */
-  /**
-   * Load tab content using cacheable endpoint
-   * @param {string} href - The original tab URL
-   * @param {Element} tabElement - The tab element that was clicked
-   * @param {HTMLElement} container - The results container
-   */
-  async loadTabContentWithCaching(href, tabElement, container) {
-    try {
-      // Extract the tab ID
-      const tabId =
-        tabElement.id || tabElement.getAttribute("data-tab-group-control");
-
-      // Extract query from URL or input field
-      const urlParams = new URLSearchParams(window.location.search);
-      const query = urlParams.get("query") || this.core.originalQuery || "";
-
-      if (!query) {
-        console.error("No query available for tab content request");
-        throw new Error("No query available");
-      }
-
-      // Parse the original href to extract any additional parameters
-      let additionalParams = {};
-      if (href) {
-        try {
-          // Create a URL from the href (adding base if it's relative)
-          const hrefUrl = new URL(href, window.location.origin);
-          const hrefParams = hrefUrl.searchParams;
-
-          // Copy relevant parameters but avoid duplicates
-          if (hrefParams.has("collection") && !additionalParams.collection) {
-            additionalParams.collection = hrefParams.get("collection");
-          }
-
-          if (hrefParams.has("profile") && !additionalParams.profile) {
-            additionalParams.profile = hrefParams.get("profile");
-          }
-
-          // Check for any Funnelback-specific parameters (starting with 'f.')
-          for (const [key, value] of hrefParams.entries()) {
-            if (key.startsWith("f.")) {
-              additionalParams[key] = value;
-            }
-          }
-
-          console.log(
-            "Extracted additional params from original href:",
-            additionalParams
-          );
-        } catch (e) {
-          console.warn("Error parsing href URL, using basic parameters", e);
-        }
-      }
-
-      // Get session ID if available
-      const sessionId = this.core.getSessionId
-        ? this.core.getSessionId()
-        : null;
-
-      // Build API URL with the explicitly defined API base URL
-      let apiUrl = `${this.apiBaseUrl}/api/search?query=${encodeURIComponent(
-        query
-      )}&tab=${encodeURIComponent(tabId || "")}`;
-
-      // Add collection, profile if available
-      if (additionalParams.collection) {
-        apiUrl += `&collection=${encodeURIComponent(
-          additionalParams.collection
-        )}`;
-      }
-
-      if (additionalParams.profile) {
-        apiUrl += `&profile=${encodeURIComponent(additionalParams.profile)}`;
-      }
-
-      // Add session ID if available
-      if (sessionId) {
-        apiUrl += `&sessionId=${encodeURIComponent(sessionId)}`;
-      }
-
-      // Add form parameter
-      apiUrl += "&form=partial";
-
-      // Add any Funnelback-specific parameters (f.*)
-      for (const [key, value] of Object.entries(additionalParams)) {
-        if (key.startsWith("f.")) {
-          apiUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-        }
-      }
-
-      console.log("Fetching tab content with API URL:", apiUrl);
-
-      // Fetch from API
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: {
-          Accept: "text/html, */*",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      // Get content type to help determine how to handle the response
-      const contentType = response.headers.get("content-type") || "";
-
-      // This will hold our HTML content
-      let html = "";
-
-      // Handle response based on content type
-      if (contentType.includes("application/json")) {
-        // It's JSON, try to extract HTML from it
-        const jsonResponse = await response.json();
-
-        if (typeof jsonResponse === "string") {
-          // If the JSON response is actually a string, use it directly
-          html = jsonResponse;
-        } else if (jsonResponse.html) {
-          // If it has an html property, use that
-          html = jsonResponse.html;
-        } else if (jsonResponse.content) {
-          // If it has a content property, use that
-          html = jsonResponse.content;
-        } else {
-          // Convert JSON to string as fallback
-          html = `<div class="json-response-error">Received JSON response without HTML content.</div>`;
-          console.error("Received JSON without HTML content:", jsonResponse);
-        }
-      } else {
-        // Assume it's HTML or text
-        html = await response.text();
-
-        // Safety check for JSON that wasn't properly declared as JSON
-        if (html.trim().startsWith("{") || html.trim().startsWith("[")) {
-          try {
-            const parsedJson = JSON.parse(html);
-            if (parsedJson.html) {
-              html = parsedJson.html;
-            } else if (parsedJson.content) {
-              html = parsedJson.content;
-            } else if (typeof parsedJson === "string") {
-              html = parsedJson;
-            }
-          } catch (e) {
-            // Not valid JSON after all, keep as is
-            console.warn("Content looked like JSON but couldn't be parsed:", e);
-          }
-        }
-      }
-
-      // Log a preview of the raw response content
-      console.log(
-        "Raw response content preview:",
-        typeof html === "string"
-          ? html.substring(0, 200) + (html.length > 200 ? "..." : "")
-          : typeof html
-      );
-
-      // Validate that we have usable content from the cache/API
-      const isValidHtmlContent =
-        html &&
-        typeof html === "string" &&
-        html.trim().length > 0 &&
-        (html.includes("<div") ||
-          html.includes("<span") ||
-          html.includes("<p"));
-
-      if (!isValidHtmlContent) {
-        console.warn(
-          "Received invalid or unusable content from API/cache, falling back to direct request"
-        );
-
-        // Fall back to direct backend request
-        if (href && this.retryOnError) {
-          console.log("Using fallback method with original URL:", href);
-
-          // Use the core's fetch method with the original URL
-          const response = await this.core.fetchFromProxy(href, "search");
-
-          // Update container with the fallback response
-          container.innerHTML = `
-          <div class="funnelback-search-container">
-            ${response || "No results found."}
-          </div>
-        `;
-
-          console.log("Tab content loaded successfully with fallback method");
-          return true;
-        }
-      }
-
-      // Check if we have valid HTML content
-      if (!html || (typeof html === "string" && html.trim() === "")) {
-        throw new Error("Received empty response from server");
-      }
-
-      if (!html || html.trim() === "") {
-        console.error("Received empty HTML content from API");
-        html = "<p>No results found for this tab.</p>";
+      // Ensure container is still available before updating
+      const container = document.getElementById('results');
+      if (!container) {
+        console.error('Results container disappeared during tab content loading');
+        return;
       }
 
       // Update results container
       container.innerHTML = `
-      <div class="funnelback-search-container">
-        ${html}
-      </div>
-    `;
+        <div class="funnelback-search-container">
+          ${response || "No results found."}
+        </div>
+      `;
 
-      console.log("Tab content loaded successfully with API URL");
-      console.log("HTML content length:", html ? html.length : 0);
-      return true;
+      console.log('Tab content loaded successfully');
     } catch (error) {
-      console.error("Error loading tab content with API URL:", error);
+      console.error('Error loading tab content:', error);
 
-      // If we have the original href, try the fallback method
-      if (href && this.retryOnError) {
-        console.log("Trying fallback method with original URL:", href);
-
-        try {
-          // Use the core's fetch method with the original URL
-          const response = await this.core.fetchFromProxy(href, "search");
-
-          // Update results container
-          container.innerHTML = `
-          <div class="funnelback-search-container">
-            ${response || "No results found."}
-          </div>
-        `;
-
-          console.log("Tab content loaded successfully with fallback method");
-          return true;
-        } catch (fallbackError) {
-          console.error("Fallback method also failed:", fallbackError);
-
-          // Show error in container
-          container.innerHTML = `
+      // Ensure container still exists before showing error
+      const container = document.getElementById('results');
+      if (container) {
+        // Show error in container
+        container.innerHTML = `
           <div class="search-error">
             <h3>Error Loading Tab Content</h3>
-            <p>Unable to load content. Please try again later.</p>
+            <p>${error.message}</p>
           </div>
         `;
-
-          throw fallbackError; // Re-throw to indicate failure
-        }
-      } else {
-        // No href or retry disabled, show error directly
-        container.innerHTML = `
-        <div class="search-error">
-          <h3>Error Loading Tab Content</h3>
-          <p>${error.message || "Unknown error occurred"}</p>
-        </div>
-      `;
-
-        throw error; // Re-throw to indicate failure
       }
-    }
-  }
-
-  /**
-   * Check if content looks like raw JSON
-   * @param {string} content - The content to check
-   * @returns {boolean} Whether it looks like raw JSON
-   */
-  looksLikeRawJson(content) {
-    if (!content || typeof content !== "string") return false;
-
-    // Check for common JSON indicators at the beginning of the string
-    const trimmed = content.trim();
-    return (
-      trimmed.startsWith("{") ||
-      trimmed.startsWith("[") ||
-      trimmed.includes('"data":') ||
-      trimmed.includes("\\n") || // Common escape sequence in raw JSON
-      /^\s*["']/.test(trimmed) // Starts with quotes (possible JSON string)
-    );
-  }
-
-  /**
-   * Extract HTML content from potential JSON string
-   * @param {string} content - The content to process
-   * @returns {string} Extracted or sanitized HTML
-   */
-  extractHtmlFromPossibleJson(content) {
-    if (!content) return "";
-
-    try {
-      // If it's a JSON string, try to parse it
-      if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
-        const parsedJson = JSON.parse(content);
-
-        // Handle common patterns
-        if (parsedJson.html) {
-          return parsedJson.html;
-        }
-        if (parsedJson.data && typeof parsedJson.data === "string") {
-          return parsedJson.data;
-        }
-        if (parsedJson.content && typeof parsedJson.content === "string") {
-          return parsedJson.content;
-        }
-
-        // Convert to string as fallback
-        return `<div class="parsed-json-fallback">Unable to extract HTML from JSON response.</div>`;
+    } finally {
+      // Ensure container still exists before removing loading state
+      const container = document.getElementById('results');
+      if (container) {
+        // Remove loading state
+        container.classList.remove('loading');
       }
-
-      // Handle escape sequences
-      let sanitized = content
-        .replace(/\\n/g, "\n")
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, "\\");
-
-      // If it starts with quotes and ends with quotes, it might be a JSON string
-      if (/^\s*["']/.test(sanitized) && /["']\s*$/.test(sanitized)) {
-        // Remove the quotes
-        sanitized = sanitized.replace(/^\s*["']/, "").replace(/["']\s*$/, "");
-      }
-
-      // Final check: If it now looks like HTML, return it
-      if (sanitized.includes("<") && sanitized.includes(">")) {
-        return sanitized;
-      }
-
-      // Otherwise, wrap it for display
-      return `<div class="sanitized-content">${sanitized}</div>`;
-    } catch (error) {
-      console.error("Error extracting HTML from JSON:", error);
-      // Return a clean version with newlines converted properly
-      return `<div class="error-content">${content.replace(
-        /\\n/g,
-        "<br>"
-      )}</div>`;
-    }
-  }
-
-  /**
-   * Safely update results container with content
-   * @param {HTMLElement} container - The container to update
-   * @param {string} content - The content to insert
-   */
-  updateResultsContainer(container, content) {
-    // Safety check
-    if (!container) return;
-
-    try {
-      // Update container with the content
-      container.innerHTML = `
-        <div class="funnelback-search-container">
-          ${content || "No results found."}
-        </div>
-      `;
-    } catch (error) {
-      console.error("Error updating results container:", error);
-      container.innerHTML = `
-        <div class="search-error">
-          <h3>Error Displaying Results</h3>
-          <p>There was a problem displaying the search results.</p>
-        </div>
-      `;
     }
   }
 
@@ -807,104 +433,52 @@ class TabsManager {
    */
   async enhancedPerformSearch(query, containerId, sessionId) {
     // Determine if this is a tab navigation by examining URL patterns
-    const isTabNavigation =
-      this.isFromTabNavigation ||
-      (typeof query === "string" &&
-        query.includes("form=partial") &&
-        (query.includes("tab=") ||
-          query.includes("Tab=") ||
-          query.includes("profile=")));
+    const isTabNavigation = this.isFromTabNavigation ||
+      (typeof query === 'string' &&
+        query.includes('form=partial') &&
+        (query.includes('tab=') ||
+          query.includes('Tab=') ||
+          query.includes('profile=')));
 
     // Get container reference
-    const container =
-      typeof containerId === "string"
-        ? document.getElementById(containerId)
-        : containerId;
+    const container = typeof containerId === 'string' ?
+      document.getElementById(containerId) : containerId;
 
     if (!container) {
-      console.error("Container not found for search/tab navigation");
+      console.error('Container not found for search/tab navigation');
       return;
     }
 
+    // Session ID is now handled by the core, no need to generate here
+    // Just pass along whatever was provided or let core handle it
+
     if (isTabNavigation) {
-      console.log("Tab navigation detected, using specialized handler");
+      console.log('Tab navigation detected, using specialized handler');
 
       // Set the flag to prevent URL updates
       this.isFromTabNavigation = true;
 
       try {
         // Show loading state
-        container.classList.add("loading");
+        container.classList.add('loading');
 
-        // Use cacheable endpoint for tab content if enabled
-        let tabId = "";
-        let searchQuery = "";
+        // Use our core's fetch method to get the content (it handles session ID properly)
+        console.log('Fetching tab content via core manager');
+        const response = await this.core.fetchFromProxy(query, 'search');
 
-        try {
-          const queryUrl = new URL(query, window.location.origin);
-          const searchParams = queryUrl.searchParams;
+        // Check if container still exists before updating
+        if (container.isConnected) {
+          // Update results container
+          container.innerHTML = `
+            <div class="funnelback-search-container">
+              ${response || "No results found."}
+            </div>
+          `;
 
-          // Extract tab parameter
-          tabId = searchParams.get("tab") || searchParams.get("Tab") || "";
-
-          // Extract search query
-          searchQuery = searchParams.get("query") || "";
-
-          // If we have a tab ID and query, use the cacheable endpoint
-          if (tabId && searchQuery && this.useCacheEndpoint) {
-            // Use the full API URL with the defined API base URL
-            const apiUrl = `${
-              this.apiBaseUrl
-            }/api/search?query=${encodeURIComponent(
-              searchQuery
-            )}&tab=${encodeURIComponent(tabId)}`;
-
-            // Add session ID if available
-            const sessionParam = sessionId
-              ? `&sessionId=${encodeURIComponent(sessionId)}`
-              : "";
-
-            // Fetch tab content with caching
-            const response = await fetch(`${apiUrl}${sessionParam}`);
-
-            if (response.ok) {
-              // Process the response safely
-              let htmlContent = await response.text();
-
-              // Safety check and processing
-              if (this.looksLikeRawJson(htmlContent)) {
-                htmlContent = this.extractHtmlFromPossibleJson(htmlContent);
-              }
-
-              // Update container
-              this.updateResultsContainer(container, htmlContent);
-
-              console.log("Tab content loaded with caching");
-
-              // Reset the tab navigation flag after a short delay
-              setTimeout(() => {
-                this.isFromTabNavigation = false;
-              }, 100);
-
-              return; // Skip the direct proxy method
-            }
-          }
-        } catch (e) {
-          console.warn(
-            "Error parsing tab URL, falling back to direct proxy:",
-            e
-          );
+          console.log('Tab content fetched and displayed');
+        } else {
+          console.error('Container removed from DOM during tab content fetch');
         }
-
-        // Fall back to direct proxy method if cacheable endpoint fails
-        // or if we don't have sufficient parameters
-        console.log("Using direct proxy method for tab content");
-        const response = await this.core.fetchFromProxy(query, "search");
-
-        // Update results container
-        this.updateResultsContainer(container, response);
-
-        console.log("Tab content fetched and displayed");
 
         // Reset the tab navigation flag after a short delay
         // to allow time for other handlers to see it
@@ -914,22 +488,28 @@ class TabsManager {
 
         return; // Skip the original function
       } catch (error) {
-        console.error("Error fetching tab content:", error);
+        console.error('Error fetching tab content:', error);
 
-        // Show error in container
-        container.innerHTML = `
-          <div class="search-error">
-            <h3>Error Loading Tab Content</h3>
-            <p>${error.message}</p>
-          </div>
-        `;
+        // Check if container still exists before showing error
+        if (container.isConnected) {
+          // Show error in container
+          container.innerHTML = `
+            <div class="search-error">
+              <h3>Error Loading Tab Content</h3>
+              <p>${error.message}</p>
+            </div>
+          `;
+        }
       } finally {
-        // Remove loading state
-        container.classList.remove("loading");
+        // Check if container still exists before removing loading state
+        if (container.isConnected) {
+          // Remove loading state
+          container.classList.remove('loading');
+        }
       }
     } else {
       // For regular searches, use the original function, passing along whatever session ID was provided
-      console.log("Regular search detected, using original handler");
+      console.log('Regular search detected, using original handler');
       return this.originalPerformSearch(query, containerId, sessionId);
     }
   }
@@ -941,7 +521,7 @@ class TabsManager {
   enhancedUpdateUrl(query) {
     // Skip URL updates for tab navigation
     if (this.isFromTabNavigation) {
-      console.log("Blocking URL update for tab navigation");
+      console.log('Blocking URL update for tab navigation');
       return;
     }
 
@@ -959,14 +539,14 @@ class TabsManager {
     // Check for new tab containers
     const newTabContainers = [];
 
-    addedNodes.forEach((node) => {
+    addedNodes.forEach(node => {
       if (node.nodeType === Node.ELEMENT_NODE) {
         // Check if this node is a tab container
         const containerSelectors = [
-          ".tab-list__nav",
-          ".tab-container",
+          '.tab-list__nav',
+          '.tab-container',
           '[role="tablist"]',
-          ".tabs",
+          '.tabs'
         ];
 
         for (const selector of containerSelectors) {
@@ -976,7 +556,7 @@ class TabsManager {
 
           // Check children
           const childContainers = node.querySelectorAll(selector);
-          childContainers.forEach((container) => {
+          childContainers.forEach(container => {
             newTabContainers.push(container);
           });
         }
@@ -985,17 +565,15 @@ class TabsManager {
 
     // Add event listeners to new containers
     if (newTabContainers.length > 0) {
-      newTabContainers.forEach((container) => {
+      newTabContainers.forEach(container => {
         // Make sure we haven't already added a listener
         if (!this.tabContainers.includes(container)) {
           this.tabContainers.push(container);
-          container.addEventListener("click", this.handleTabClick.bind(this));
+          container.addEventListener('click', this.handleTabClick.bind(this));
         }
       });
 
-      console.log(
-        `Added event listeners to ${newTabContainers.length} new tab container(s)`
-      );
+      console.log(`Added event listeners to ${newTabContainers.length} new tab container(s)`);
     }
   }
 
@@ -1013,13 +591,13 @@ class TabsManager {
     }
 
     // Remove event listeners
-    this.tabContainers.forEach((container) => {
-      container.removeEventListener("click", this.handleTabClick.bind(this));
+    this.tabContainers.forEach(container => {
+      container.removeEventListener('click', this.handleTabClick.bind(this));
     });
 
-    document.removeEventListener("click", this.handleTabClick.bind(this));
+    document.removeEventListener('click', this.handleTabClick.bind(this));
 
-    console.log("TabsManager destroyed");
+    console.log('TabsManager destroyed');
   }
 }
 
