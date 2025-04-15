@@ -1,13 +1,12 @@
 /**
- * @fileoverview Enhanced Redis caching implementation
+ * @fileoverview Redis caching implementation
  * 
  * This module provides Redis caching functionality for the frontend API,
- * improving performance by caching API responses with timestamp awareness
- * and content-specific TTLs.
+ * improving performance by caching API responses.
  *
  * @author Victor Chimenti
- * @version 2.0.0
- * last updated: 2025-04-15
+ * @version 1.1.0
+ * last updated: 2025-04-02
  */
 
 import Redis from 'ioredis';
@@ -22,39 +21,12 @@ const redisClient = process.env.front_dev_REDIS_URL
 // Fallback in-memory cache for local development
 const memoryCache = new Map();
 
-// Interface for timestamped cache data
-interface TimestampedData<T> {
-  data: T;
-  _timestamp: number;
-}
-
-/**
- * Add timestamp to data being cached
- * @param data - The data to timestamp
- * @returns Data with timestamp
- */
-export function addTimestampToData<T>(data: T): TimestampedData<T> {
-  return {
-    data,
-    _timestamp: Date.now()
-  };
-}
-
-/**
- * Extract actual data from timestamped cache entry
- * @param timestampedData - Data with timestamp
- * @returns Original data
- */
-export function extractDataFromTimestamped<T>(timestampedData: TimestampedData<T>): T {
-  return timestampedData.data;
-}
-
 /**
  * Get data from cache
  * @param key - Cache key
  * @returns Cached data or null if not found
  */
-export async function getCachedData<T>(key: string): Promise<T | null> {
+export async function getCachedData(key: string): Promise<any> {
   try {
     // Try Redis first if available
     if (redisClient) {
@@ -89,11 +61,9 @@ export async function getCachedData<T>(key: string): Promise<T | null> {
  * @param ttlSeconds - Time to live in seconds
  * @returns Whether the operation was successful
  */
-export async function setCachedData<T>(key: string, data: T, ttlSeconds: number = 3600): Promise<boolean> {
+export async function setCachedData(key: string, data: any, ttlSeconds: number = 3600): Promise<boolean> {
   try {
-    // Add timestamp to data for freshness checking
-    const timestampedData = addTimestampToData(data);
-    const serializedData = JSON.stringify(timestampedData);
+    const serializedData = JSON.stringify(data);
     
     // Try Redis first if available
     if (redisClient) {
@@ -103,7 +73,7 @@ export async function setCachedData<T>(key: string, data: T, ttlSeconds: number 
     
     // Fall back to memory cache
     memoryCache.set(key, {
-      data: timestampedData,
+      data,
       expiry: Date.now() + (ttlSeconds * 1000)
     });
     
@@ -154,88 +124,3 @@ export async function clearCachedData(key: string): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * Get the timestamp of cached data
- * @param key - Cache key
- * @returns Timestamp of cached data or null if not found
- */
-export async function getCacheTimestamp(key: string): Promise<number | null> {
-  try {
-    const cachedData = await getCachedData<TimestampedData<any>>(key);
-    if (cachedData && cachedData._timestamp) {
-      return cachedData._timestamp;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting cache timestamp:', error);
-    return null;
-  }
-}
-
-/**
- * Determine TTL based on content type
- * @param contentType - The type of content
- * @param baseId - An identifier for more specific TTL determination
- * @returns Appropriate TTL in seconds
- */
-export function getContentTypeSpecificTTL(contentType: string, baseId?: string): number {
-  switch (contentType) {
-    case 'staff':
-      return 60 * 60 * 4; // 4 hours for staff directory
-    case 'programs':
-      return 60 * 60 * 2; // 2 hours for academic programs
-    case 'events':
-      return 60 * 5; // 5 minutes for events (frequently updated)
-    case 'tabs':
-      return 60 * 30; // 30 minutes for tab content
-    case 'suggestions':
-      return 60 * 15; // 15 minutes for suggestions
-    case 'search':
-    default:
-      return 60 * 10; // 10 minutes default
-  }
-}
-
-/**
- * Generate a standardized cache key
- * @param type - Type of content (search, suggestions, etc.)
- * @param params - Parameters for the key
- * @returns Standardized cache key
- */
-export function generateCacheKey(type: string, params: Record<string, any>): string {
-  // Extract key parameters
-  const { query, collection, profile, tab, sessionId, ...otherParams } = params;
-  
-  // Build key components
-  const keyParts = [
-    type,
-    query || 'no-query',
-    collection || 'default',
-    profile || 'default'
-  ];
-  
-  // Add tab if present
-  if (tab) {
-    keyParts.push(`tab-${tab}`);
-  }
-  
-  // Note: We exclude sessionId from cache keys to enable sharing across sessions
-  
-  // Add other params as a sorted string
-  if (Object.keys(otherParams).length > 0) {
-    const sortedParams = Object.entries(otherParams)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join('&');
-    
-    if (sortedParams) {
-      keyParts.push(sortedParams);
-    }
-  }
-  
-  return keyParts.join(':');
-}
-
-// Export the Redis client for direct access if needed
-export { redisClient };
