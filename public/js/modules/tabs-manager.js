@@ -6,7 +6,7 @@
  * and handles content loading with caching support.
  *
  * @author Victor Chimenti
- * @version 4.1.0
+ * @version 4.2.0
  * @lastModified 2025-04-15
  */
 
@@ -26,6 +26,10 @@ class TabsManager {
     this.lastTrackedTime = 0;
     this.trackingDebounceTime = 300;
     this.useCacheEndpoint = true; // Enable the use of cacheable API endpoint
+
+    // Define the fixed API endpoints
+    this.apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 'https://su-search-dev.vercel.app';
+    this.proxyBaseUrl = window.seattleUConfig?.search?.proxyBaseUrl || 'https://funnelback-proxy-dev.vercel.app/proxy';
 
     // More reliable tab selectors
     this.tabSelectors = [
@@ -447,11 +451,8 @@ class TabsManager {
         throw new Error("No query available");
       }
 
-      // Use the full API URL with the backend base URL
-      const apiBaseUrl =
-        window.seattleUConfig?.search?.apiBaseUrl ||
-        "https://su-search-dev.vercel.app";
-      const apiUrl = `${apiBaseUrl}/api/search?query=${encodeURIComponent(
+      // Use the full API URL with the explicitly defined API base URL
+      const apiUrl = `${this.apiBaseUrl}/api/search?query=${encodeURIComponent(
         query
       )}&tab=${encodeURIComponent(tabId)}`;
 
@@ -490,6 +491,8 @@ class TabsManager {
 
       // Fall back to non-cached method if the API fails
       console.log("Falling back to direct proxy method");
+      
+      // Use the properly defined proxy URL
       const response = await this.core.fetchFromProxy(href, "search");
 
       container.innerHTML = `
@@ -500,12 +503,6 @@ class TabsManager {
     }
   }
 
-  /**
-   * Enhanced performSearch function that handles tab content specially
-   * @param {string} query - The search query or tab URL
-   * @param {HTMLElement|string} containerId - Results container or its ID
-   * @param {string|null} sessionId - Session ID for tracking (now optional)
-   */
   /**
    * Enhanced performSearch function that handles tab content specially
    * @param {string} query - The search query or tab URL
@@ -558,12 +555,9 @@ class TabsManager {
           searchQuery = searchParams.get("query") || "";
 
           // If we have a tab ID and query, use the cacheable endpoint
-          if (tabId && searchQuery) {
-            // Use the full API URL with the backend base URL
-            const apiBaseUrl =
-              window.seattleUConfig?.search?.apiBaseUrl ||
-              "https://su-search-dev.vercel.app";
-            const apiUrl = `${apiBaseUrl}/api/search?query=${encodeURIComponent(
+          if (tabId && searchQuery && this.useCacheEndpoint) {
+            // Use the full API URL with the defined API base URL
+            const apiUrl = `${this.apiBaseUrl}/api/search?query=${encodeURIComponent(
               searchQuery
             )}&tab=${encodeURIComponent(tabId)}`;
 
