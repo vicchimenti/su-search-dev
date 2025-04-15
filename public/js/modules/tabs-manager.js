@@ -6,7 +6,7 @@
  * and handles content loading with caching support.
  *
  * @author Victor Chimenti
- * @version 4.0.1
+ * @version 4.0.2
  * @lastModified 2025-04-15
  */
 
