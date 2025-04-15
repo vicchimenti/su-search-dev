@@ -5,45 +5,35 @@
  * implementing preloading, predictive caching, and tab-specific cache management.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
  * @lastModified 2025-04-15
  */
 
 import { getCachedData, setCachedData, clearCachedData, generateCacheKey } from './cache';
 
+// Define a type for tab TTL keys
+type TabTTLKey = 'DEFAULT' | 'ALL' | 'PROGRAMS' | 'STAFF' | 'NEWS';
+
 // Tab content TTL constants in seconds for different tab types
-const TAB_TTL = {
+const TAB_TTL: Record<TabTTLKey, number> = {
   // Default tab content TTL
   DEFAULT: 60 * 30, // 30 minutes
   
   // Content-specific tab TTLs
   ALL: 60 * 20, // 20 minutes - "All" tab changes more frequently
-  WEB: 60 * 30, // 30 minutes - Website content
-  STAFF: 60 * 60 * 4, // 4 hours - Staff directory tabs
   PROGRAMS: 60 * 60 * 2, // 2 hours - Academic programs tabs
-  NEWS: 60 * 15, // 15 minutes - News tabs change frequently
-  EVENTS: 60 * 5, // 5 minutes - Events tabs change very frequently
-  
-  // Preloaded tab content has shorter TTL
-  PRELOADED: 60 * 15 // 15 minutes
+  STAFF: 60 * 60 * 4, // 4 hours - Staff directory tabs
+  NEWS: 60 * 15 // 15 minutes - News tabs change frequently
 };
 
 /**
  * Maps common tab labels to their type for TTL determination
  */
-const TAB_TYPE_MAP: Record<string, string> = {
+const TAB_TYPE_MAP: Record<string, TabTTLKey> = {
   // Default/general tabs
   'all': 'ALL',
+  'results': 'ALL',
   'everything': 'ALL',
-  'website': 'WEB',
-  'web': 'WEB',
-  'pages': 'WEB',
-  
-  // People tabs
-  'staff': 'STAFF',
-  'faculty': 'STAFF',
-  'people': 'STAFF',
-  'directory': 'STAFF',
   
   // Program tabs
   'programs': 'PROGRAMS',
@@ -53,17 +43,17 @@ const TAB_TYPE_MAP: Record<string, string> = {
   'majors': 'PROGRAMS',
   'minors': 'PROGRAMS',
   
+  // Staff tabs
+  'staff': 'STAFF',
+  'faculty': 'STAFF',
+  'people': 'STAFF',
+  'directory': 'STAFF',
+  
   // News tabs
   'news': 'NEWS',
   'articles': 'NEWS',
   'announcements': 'NEWS',
-  'press': 'NEWS',
-  
-  // Events tabs
-  'events': 'EVENTS',
-  'calendar': 'EVENTS',
-  'upcoming': 'EVENTS',
-  'schedule': 'EVENTS'
+  'press': 'NEWS'
 };
 
 /**
@@ -201,10 +191,10 @@ export function createTabCacheUtils(
         // Fetch tab content
         const content = await fetchTabContentFn(query, tabId, sessionId);
         
-        // Use shorter TTL for preloaded content
-        const ttl = TAB_TTL.PRELOADED;
+        // Use existing TTL logic
+        const ttl = getTtlForTabType(tabId);
         
-        // Cache with preload TTL
+        // Cache the content
         await setCachedData(cacheKey, content, ttl);
         console.log(`Preloaded tab ${tabId} with TTL ${ttl}s`);
       } catch (error) {
@@ -383,7 +373,8 @@ export function predictNextTabs(
   // Find "All" tab
   const allTabIndex = otherTabs.findIndex(id => 
     id.toLowerCase() === 'all' || 
-    id.toLowerCase().includes('all'));
+    id.toLowerCase().includes('all') ||
+    id.toLowerCase() === 'results');
   
   if (allTabIndex >= 0) {
     predictions.push(otherTabs[allTabIndex]);
