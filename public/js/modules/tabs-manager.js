@@ -3,11 +3,11 @@
  * 
  * This module enhances tab navigation without conflicting with
  * existing scripts. It intercepts tab clicks, prevents URL updates,
- * and handles content loading properly.
+ * and handles content loading with caching support.
  * 
  * @author Victor Chimenti
- * @version 3.5.4
- * @lastModified 2025-04-12
+ * @version 4.0.0
+ * @lastModified 2025-04-15
  */
 
 class TabsManager {
@@ -25,6 +25,7 @@ class TabsManager {
     this.lastTrackedTab = null;
     this.lastTrackedTime = 0;
     this.trackingDebounceTime = 300;
+    this.useCacheEndpoint = true; // Enable the use of cacheable API endpoint
 
     // More reliable tab selectors
     this.tabSelectors = [
@@ -365,7 +366,7 @@ class TabsManager {
   }
 
   /**
-   * Load tab content from the specified URL
+   * Load tab content from the specified URL using cacheable endpoint
    * @param {string} href - The tab content URL
    * @param {Element} tabElement - The tab element that was clicked
    */
@@ -383,45 +384,99 @@ class TabsManager {
     resultsContainer.classList.add('loading');
 
     try {
-      // Use the core's fetch method (which handles session ID properly)
-      const response = await this.core.fetchFromProxy(href, 'search');
-
-      // Ensure container is still available before updating
-      const container = document.getElementById('results');
-      if (!container) {
-        console.error('Results container disappeared during tab content loading');
-        return;
+      // Check if we should use the cacheable endpoint
+      if (this.useCacheEndpoint) {
+        await this.loadTabContentWithCaching(href, tabElement, resultsContainer);
+      } else {
+        // Use the core's fetch method (which handles session ID properly)
+        const response = await this.core.fetchFromProxy(href, 'search');
+        
+        // Update results container
+        resultsContainer.innerHTML = `
+          <div class="funnelback-search-container">
+            ${response || "No results found."}
+          </div>
+        `;
       }
-
-      // Update results container
-      container.innerHTML = `
-        <div class="funnelback-search-container">
-          ${response || "No results found."}
-        </div>
-      `;
 
       console.log('Tab content loaded successfully');
     } catch (error) {
       console.error('Error loading tab content:', error);
 
-      // Ensure container still exists before showing error
-      const container = document.getElementById('results');
-      if (container) {
-        // Show error in container
-        container.innerHTML = `
-          <div class="search-error">
-            <h3>Error Loading Tab Content</h3>
-            <p>${error.message}</p>
-          </div>
-        `;
-      }
+      // Show error in container
+      resultsContainer.innerHTML = `
+        <div class="search-error">
+          <h3>Error Loading Tab Content</h3>
+          <p>${error.message}</p>
+        </div>
+      `;
     } finally {
-      // Ensure container still exists before removing loading state
-      const container = document.getElementById('results');
-      if (container) {
-        // Remove loading state
-        container.classList.remove('loading');
+      // Remove loading state
+      resultsContainer.classList.remove('loading');
+    }
+  }
+
+  /**
+   * Load tab content using cacheable endpoint
+   * @param {string} href - The original tab URL
+   * @param {Element} tabElement - The tab element that was clicked
+   * @param {HTMLElement} container - The results container
+   */
+  async loadTabContentWithCaching(href, tabElement, container) {
+    try {
+      // Extract the tab ID
+      const tabId = tabElement.id || tabElement.getAttribute('data-tab-group-control');
+      
+      // Extract query from URL or input field
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get('query') || this.core.originalQuery || '';
+      
+      if (!query) {
+        console.error('No query available for tab content request');
+        throw new Error('No query available');
       }
+      
+      // Build the API URL with tab parameter for caching
+      const apiUrl = `/api/search?query=${encodeURIComponent(query)}&tab=${encodeURIComponent(tabId)}`;
+      
+      // Get session ID if available
+      const sessionId = this.core.getSessionId ? this.core.getSessionId() : null;
+      const sessionParam = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : '';
+      
+      // Complete URL with all parameters
+      const fullApiUrl = `${apiUrl}${sessionParam}`;
+      
+      console.log('Fetching tab content with caching:', fullApiUrl);
+      
+      // Fetch from API
+      const response = await fetch(fullApiUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const html = await response.text();
+      
+      // Update results container
+      container.innerHTML = `
+        <div class="funnelback-search-container">
+          ${html || "No results found."}
+        </div>
+      `;
+      
+      console.log('Tab content loaded with caching');
+    } catch (error) {
+      console.error('Error loading tab content with caching:', error);
+      
+      // Fall back to non-cached method if the API fails
+      console.log('Falling back to direct proxy method');
+      const response = await this.core.fetchFromProxy(href, 'search');
+      
+      container.innerHTML = `
+        <div class="funnelback-search-container">
+          ${response || "No results found."}
+        </div>
+      `;
     }
   }
 
@@ -462,23 +517,70 @@ class TabsManager {
         // Show loading state
         container.classList.add('loading');
 
-        // Use our core's fetch method to get the content (it handles session ID properly)
-        console.log('Fetching tab content via core manager');
+        // Use cacheable endpoint for tab content if enabled
+        if (this.useCacheEndpoint) {
+          // Extract tab information from query URL
+          let tabId = '';
+          let searchQuery = '';
+          
+          try {
+            const queryUrl = new URL(query, window.location.origin);
+            const searchParams = queryUrl.searchParams;
+            
+            // Extract tab parameter
+            tabId = searchParams.get('tab') || searchParams.get('Tab') || '';
+            
+            // Extract search query
+            searchQuery = searchParams.get('query') || '';
+            
+            // If we have a tab ID and query, use the cacheable endpoint
+            if (tabId && searchQuery) {
+              // Build API URL with tab parameter for caching
+              const apiUrl = `/api/search?query=${encodeURIComponent(searchQuery)}&tab=${encodeURIComponent(tabId)}`;
+              
+              // Add session ID if available
+              const sessionParam = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : '';
+              
+              // Fetch tab content with caching
+              const response = await fetch(`${apiUrl}${sessionParam}`);
+              
+              if (response.ok) {
+                const html = await response.text();
+                
+                container.innerHTML = `
+                  <div class="funnelback-search-container">
+                    ${html || "No results found."}
+                  </div>
+                `;
+                
+                console.log('Tab content loaded with caching');
+                
+                // Reset the tab navigation flag after a short delay
+                setTimeout(() => {
+                  this.isFromTabNavigation = false;
+                }, 100);
+                
+                return; // Skip the direct proxy method
+              }
+            }
+          } catch (e) {
+            console.warn('Error parsing tab URL, falling back to direct proxy:', e);
+          }
+        }
+        
+        // Fall back to direct proxy method if cacheable endpoint fails
+        // or if we don't have sufficient parameters
+        console.log('Using direct proxy method for tab content');
         const response = await this.core.fetchFromProxy(query, 'search');
 
-        // Check if container still exists before updating
-        if (container.isConnected) {
-          // Update results container
-          container.innerHTML = `
-            <div class="funnelback-search-container">
-              ${response || "No results found."}
-            </div>
-          `;
+        // Update results container
+        container.innerHTML = `
+          <div class="funnelback-search-container">
+            ${response || "No results found."}
+          </div>
+        `;
 
-          console.log('Tab content fetched and displayed');
-        } else {
-          console.error('Container removed from DOM during tab content fetch');
-        }
+        console.log('Tab content fetched and displayed');
 
         // Reset the tab navigation flag after a short delay
         // to allow time for other handlers to see it
@@ -490,22 +592,16 @@ class TabsManager {
       } catch (error) {
         console.error('Error fetching tab content:', error);
 
-        // Check if container still exists before showing error
-        if (container.isConnected) {
-          // Show error in container
-          container.innerHTML = `
-            <div class="search-error">
-              <h3>Error Loading Tab Content</h3>
-              <p>${error.message}</p>
-            </div>
-          `;
-        }
+        // Show error in container
+        container.innerHTML = `
+          <div class="search-error">
+            <h3>Error Loading Tab Content</h3>
+            <p>${error.message}</p>
+          </div>
+        `;
       } finally {
-        // Check if container still exists before removing loading state
-        if (container.isConnected) {
-          // Remove loading state
-          container.classList.remove('loading');
-        }
+        // Remove loading state
+        container.classList.remove('loading');
       }
     } else {
       // For regular searches, use the original function, passing along whatever session ID was provided
