@@ -395,9 +395,9 @@ export async function prefetchTabs(
 
     // Only send response if priority mode
     if (priority === 'true') {
-      return res.status(500).json({
+      return res.status(500).json({ 
         error: 'Error prefetching tabs',
-        details: error.message
+        details: (error as any)?.message || 'unknown error'
       });
     }
   }
