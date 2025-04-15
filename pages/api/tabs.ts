@@ -335,7 +335,7 @@ export async function prefetchTabs(
   try {
     // Start prefetching each tab
     const tabPromises = tabIds.map(async (tabId) => {
-      const params = {
+      const params: Record<string, string> = {
         query: query as string,
         tab: tabId,
         form: 'partial'
