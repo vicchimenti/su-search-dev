@@ -437,6 +437,12 @@ class TabsManager {
    * @param {Element} tabElement - The tab element that was clicked
    * @param {HTMLElement} container - The results container
    */
+  /**
+   * Load tab content using cacheable endpoint
+   * @param {string} href - The original tab URL
+   * @param {Element} tabElement - The tab element that was clicked
+   * @param {HTMLElement} container - The results container
+   */
   async loadTabContentWithCaching(href, tabElement, container) {
     try {
       // Extract the tab ID
@@ -582,6 +588,7 @@ class TabsManager {
         }
       }
 
+      // Log a preview of the raw response content
       console.log(
         "Raw response content preview:",
         typeof html === "string"
@@ -589,10 +596,44 @@ class TabsManager {
           : typeof html
       );
 
+      // Validate that we have usable content from the cache/API
+      const isValidHtmlContent =
+        html &&
+        typeof html === "string" &&
+        html.trim().length > 0 &&
+        (html.includes("<div") ||
+          html.includes("<span") ||
+          html.includes("<p"));
+
+      if (!isValidHtmlContent) {
+        console.warn(
+          "Received invalid or unusable content from API/cache, falling back to direct request"
+        );
+
+        // Fall back to direct backend request
+        if (href && this.retryOnError) {
+          console.log("Using fallback method with original URL:", href);
+
+          // Use the core's fetch method with the original URL
+          const response = await this.core.fetchFromProxy(href, "search");
+
+          // Update container with the fallback response
+          container.innerHTML = `
+          <div class="funnelback-search-container">
+            ${response || "No results found."}
+          </div>
+        `;
+
+          console.log("Tab content loaded successfully with fallback method");
+          return true;
+        }
+      }
+
       // Check if we have valid HTML content
       if (!html || (typeof html === "string" && html.trim() === "")) {
         throw new Error("Received empty response from server");
       }
+
       if (!html || html.trim() === "") {
         console.error("Received empty HTML content from API");
         html = "<p>No results found for this tab.</p>";
@@ -607,7 +648,6 @@ class TabsManager {
 
       console.log("Tab content loaded successfully with API URL");
       console.log("HTML content length:", html ? html.length : 0);
-
       return true;
     } catch (error) {
       console.error("Error loading tab content with API URL:", error);
