@@ -199,7 +199,7 @@ export default async function handler(
     
     // Return the result
     res.status(200).send(content);
-  } catch (error) {
+  } catch (error : any) {
     console.error('Search API error:', error);
     
     // If debug mode, include error details
