@@ -582,9 +582,20 @@ class TabsManager {
         }
       }
 
+      console.log(
+        "Raw response content preview:",
+        typeof html === "string"
+          ? html.substring(0, 200) + (html.length > 200 ? "..." : "")
+          : typeof html
+      );
+
       // Check if we have valid HTML content
       if (!html || (typeof html === "string" && html.trim() === "")) {
         throw new Error("Received empty response from server");
+      }
+      if (!html || html.trim() === "") {
+        console.error("Received empty HTML content from API");
+        html = "<p>No results found for this tab.</p>";
       }
 
       // Update results container
@@ -595,6 +606,8 @@ class TabsManager {
     `;
 
       console.log("Tab content loaded successfully with API URL");
+      console.log("HTML content length:", html ? html.length : 0);
+
       return true;
     } catch (error) {
       console.error("Error loading tab content with API URL:", error);
