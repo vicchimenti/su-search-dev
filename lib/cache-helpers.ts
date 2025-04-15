@@ -6,7 +6,7 @@
  * helper functions for the Seattle University search application.
  *
  * @author Victor Chimenti
- * @version 1.1.0
+ * @version 1.1.1
  * last updated: 2025-04-15
  */
 
@@ -27,12 +27,14 @@ export interface TimestampedData<T> {
  * @returns Whether the cache needs refreshing
  */
 export async function shouldRefreshCache(cacheKey: string, sourceUrl: string): Promise<boolean> {
+  let currentCachedData = null;
+  
   try {
     // Get current cached data
-    const cachedData = await getCachedData<TimestampedData<any>>(cacheKey);
+    currentCachedData = await getCachedData<TimestampedData<any>>(cacheKey);
     
     // If no cached data, definitely need to fetch
-    if (!cachedData) {
+    if (!currentCachedData) {
       return true;
     }
     
@@ -57,15 +59,15 @@ export async function shouldRefreshCache(cacheKey: string, sourceUrl: string): P
     }
     
     // Compare last-modified with our cache timestamp
-    const cachedTimestamp = cachedData._timestamp || 0;
+    const cachedTimestamp = currentCachedData._timestamp || 0;
     const serverTimestamp = new Date(lastModified).getTime();
     
     // Refresh if server data is newer
     return serverTimestamp > cachedTimestamp;
   } catch (error) {
     console.error('Error checking cache freshness:', error);
-    // On error, use cached data if available
-    return !cachedData; // Fixed: Using the negation of the result from getCachedData
+    // On error, use cached data if available (return false) or fetch new data (return true)
+    return currentCachedData === null;
   }
 }
 
