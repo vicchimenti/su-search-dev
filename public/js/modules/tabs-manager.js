@@ -6,7 +6,7 @@
  * and handles content loading with caching support.
  *
  * @author Victor Chimenti
- * @version 4.2.0
+ * @version 4.3.0
  * @lastModified 2025-04-15
  */
 
@@ -26,6 +26,7 @@ class TabsManager {
     this.lastTrackedTime = 0;
     this.trackingDebounceTime = 300;
     this.useCacheEndpoint = true; // Enable the use of cacheable API endpoint
+    this.retryOnError = true; // Enable retry logic for failed requests
 
     // Define the fixed API endpoints
     this.apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || 'https://su-search-dev.vercel.app';
@@ -406,11 +407,7 @@ class TabsManager {
         const response = await this.core.fetchFromProxy(href, "search");
 
         // Update results container
-        resultsContainer.innerHTML = `
-          <div class="funnelback-search-container">
-            ${response || "No results found."}
-          </div>
-        `;
+        this.updateResultsContainer(resultsContainer, response);
       }
 
       console.log("Tab content loaded successfully");
@@ -476,28 +473,169 @@ class TabsManager {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
 
-      const html = await response.text();
+      // First try parsing as JSON in case the API is returning JSON instead of HTML
+      let htmlContent = "";
+      const contentType = response.headers.get("content-type") || "";
 
-      // Update results container
-      container.innerHTML = `
-        <div class="funnelback-search-container">
-          ${html || "No results found."}
-        </div>
-      `;
+      try {
+        // Check if response is JSON
+        if (contentType.includes("application/json")) {
+          const jsonResponse = await response.json();
+          
+          // Extract HTML content from JSON if available
+          if (jsonResponse.html) {
+            htmlContent = jsonResponse.html;
+          } else if (typeof jsonResponse === "string") {
+            htmlContent = jsonResponse;
+          } else {
+            // Convert JSON to a string representation as a fallback
+            htmlContent = `<div class="json-response">JSON response received instead of HTML. Please contact support.</div>`;
+            console.error("Received JSON without HTML content:", jsonResponse);
+          }
+        } else {
+          // Treat as HTML
+          htmlContent = await response.text();
+        }
+      } catch (parseError) {
+        console.warn("Error parsing response, treating as plain text:", parseError);
+        // Fallback to treating as text
+        htmlContent = await response.text();
+      }
+
+      // Safety check to ensure we're not displaying raw JSON or malformed data
+      if (this.looksLikeRawJson(htmlContent)) {
+        console.warn("Response looks like raw JSON, sanitizing before display");
+        // Try to extract HTML content or sanitize
+        htmlContent = this.extractHtmlFromPossibleJson(htmlContent);
+      }
+
+      // Update results container with the processed content
+      this.updateResultsContainer(container, htmlContent);
 
       console.log("Tab content loaded with caching");
     } catch (error) {
       console.error("Error loading tab content with caching:", error);
 
-      // Fall back to non-cached method if the API fails
-      console.log("Falling back to direct proxy method");
-      
-      // Use the properly defined proxy URL
-      const response = await this.core.fetchFromProxy(href, "search");
+      if (this.retryOnError) {
+        console.log("Falling back to direct proxy method");
+        
+        try {
+          // Use the properly defined proxy URL
+          const response = await this.core.fetchFromProxy(href, "search");
+          
+          // Update container with the fallback response
+          this.updateResultsContainer(container, response);
+          console.log("Tab content loaded using fallback method");
+        } catch (fallbackError) {
+          console.error("Fallback method also failed:", fallbackError);
+          container.innerHTML = `
+            <div class="search-error">
+              <h3>Error Loading Tab Content</h3>
+              <p>Both primary and fallback methods failed. Please try again later.</p>
+            </div>
+          `;
+        }
+      } else {
+        throw error; // Re-throw if retries are disabled
+      }
+    }
+  }
 
+  /**
+   * Check if content looks like raw JSON 
+   * @param {string} content - The content to check
+   * @returns {boolean} Whether it looks like raw JSON
+   */
+  looksLikeRawJson(content) {
+    if (!content || typeof content !== 'string') return false;
+    
+    // Check for common JSON indicators at the beginning of the string
+    const trimmed = content.trim();
+    return (
+      trimmed.startsWith("{") || 
+      trimmed.startsWith("[") || 
+      trimmed.includes('"data":') ||
+      trimmed.includes('\\n') || // Common escape sequence in raw JSON
+      /^\s*["']/.test(trimmed) // Starts with quotes (possible JSON string)
+    );
+  }
+
+  /**
+   * Extract HTML content from potential JSON string
+   * @param {string} content - The content to process
+   * @returns {string} Extracted or sanitized HTML
+   */
+  extractHtmlFromPossibleJson(content) {
+    if (!content) return "";
+    
+    try {
+      // If it's a JSON string, try to parse it
+      if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
+        const parsedJson = JSON.parse(content);
+        
+        // Handle common patterns
+        if (parsedJson.html) {
+          return parsedJson.html;
+        }
+        if (parsedJson.data && typeof parsedJson.data === 'string') {
+          return parsedJson.data;
+        }
+        if (parsedJson.content && typeof parsedJson.content === 'string') {
+          return parsedJson.content;
+        }
+        
+        // Convert to string as fallback
+        return `<div class="parsed-json-fallback">Unable to extract HTML from JSON response.</div>`;
+      }
+      
+      // Handle escape sequences
+      let sanitized = content
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+      
+      // If it starts with quotes and ends with quotes, it might be a JSON string
+      if (/^\s*["']/.test(sanitized) && /["']\s*$/.test(sanitized)) {
+        // Remove the quotes
+        sanitized = sanitized.replace(/^\s*["']/, '').replace(/["']\s*$/, '');
+      }
+      
+      // Final check: If it now looks like HTML, return it
+      if (sanitized.includes('<') && sanitized.includes('>')) {
+        return sanitized;
+      }
+      
+      // Otherwise, wrap it for display
+      return `<div class="sanitized-content">${sanitized}</div>`;
+    } catch (error) {
+      console.error("Error extracting HTML from JSON:", error);
+      // Return a clean version with newlines converted properly
+      return `<div class="error-content">${content.replace(/\\n/g, "<br>")}</div>`;
+    }
+  }
+
+  /**
+   * Safely update results container with content
+   * @param {HTMLElement} container - The container to update
+   * @param {string} content - The content to insert
+   */
+  updateResultsContainer(container, content) {
+    // Safety check
+    if (!container) return;
+    
+    try {
+      // Update container with the content
       container.innerHTML = `
         <div class="funnelback-search-container">
-          ${response || "No results found."}
+          ${content || "No results found."}
+        </div>
+      `;
+    } catch (error) {
+      console.error("Error updating results container:", error);
+      container.innerHTML = `
+        <div class="search-error">
+          <h3>Error Displaying Results</h3>
+          <p>There was a problem displaying the search results.</p>
         </div>
       `;
     }
@@ -570,13 +708,16 @@ class TabsManager {
             const response = await fetch(`${apiUrl}${sessionParam}`);
 
             if (response.ok) {
-              const html = await response.text();
-
-              container.innerHTML = `
-              <div class="funnelback-search-container">
-                ${html || "No results found."}
-              </div>
-            `;
+              // Process the response safely
+              let htmlContent = await response.text();
+              
+              // Safety check and processing
+              if (this.looksLikeRawJson(htmlContent)) {
+                htmlContent = this.extractHtmlFromPossibleJson(htmlContent);
+              }
+              
+              // Update container
+              this.updateResultsContainer(container, htmlContent);
 
               console.log("Tab content loaded with caching");
 
@@ -601,11 +742,7 @@ class TabsManager {
         const response = await this.core.fetchFromProxy(query, "search");
 
         // Update results container
-        container.innerHTML = `
-        <div class="funnelback-search-container">
-          ${response || "No results found."}
-        </div>
-      `;
+        this.updateResultsContainer(container, response);
 
         console.log("Tab content fetched and displayed");
 
@@ -621,11 +758,11 @@ class TabsManager {
 
         // Show error in container
         container.innerHTML = `
-        <div class="search-error">
-          <h3>Error Loading Tab Content</h3>
-          <p>${error.message}</p>
-        </div>
-      `;
+          <div class="search-error">
+            <h3>Error Loading Tab Content</h3>
+            <p>${error.message}</p>
+          </div>
+        `;
       } finally {
         // Remove loading state
         container.classList.remove("loading");
