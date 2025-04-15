@@ -11,10 +11,10 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { backendApiClient } from '../../lib/api-client';
-import { 
-  setCachedData, 
-  getCachedData, 
-  generateCacheKey, 
+import {
+  setCachedData,
+  getCachedData,
+  generateCacheKey,
   ResponseFormat,
   detectFormat,
   validateContent
@@ -24,13 +24,13 @@ import {
 const TAB_TTL = {
   // Default tab content TTL
   DEFAULT: 60 * 30, // 30 minutes
-  
+
   // Content-specific tab TTLs
   ALL: 60 * 20, // 20 minutes - "All" tab changes more frequently
   PROGRAMS: 60 * 60 * 2, // 2 hours - Academic programs tabs
   STAFF: 60 * 60 * 4, // 4 hours - Staff directory tabs
   NEWS: 60 * 15, // 15 minutes - News tabs change frequently
-  
+
   // Special case: minimal TTL for debugging
   DEBUG: 60 // 1 minute for debugging
 };
@@ -43,7 +43,7 @@ const TAB_TYPE_MAP: Record<string, keyof typeof TAB_TTL> = {
   'all': 'ALL',
   'results': 'ALL',
   'everything': 'ALL',
-  
+
   // Program tabs
   'programs': 'PROGRAMS',
   'academics': 'PROGRAMS',
@@ -51,13 +51,13 @@ const TAB_TYPE_MAP: Record<string, keyof typeof TAB_TTL> = {
   'degrees': 'PROGRAMS',
   'majors': 'PROGRAMS',
   'minors': 'PROGRAMS',
-  
+
   // Staff tabs
   'staff': 'STAFF',
   'faculty': 'STAFF',
   'people': 'STAFF',
   'directory': 'STAFF',
-  
+
   // News tabs
   'news': 'NEWS',
   'articles': 'NEWS',
@@ -76,11 +76,11 @@ function getTabTTL(tabId: string, tabName?: string): number {
   if (tabId.toLowerCase().includes('debug')) {
     return TAB_TTL.DEBUG;
   }
-  
+
   // Use tab name if provided for better type matching
   if (tabName) {
     const normalizedName = tabName.toLowerCase().trim();
-    
+
     // Check for exact matches in map
     for (const [key, type] of Object.entries(TAB_TYPE_MAP)) {
       if (normalizedName === key || normalizedName.includes(key)) {
@@ -88,16 +88,16 @@ function getTabTTL(tabId: string, tabName?: string): number {
       }
     }
   }
-  
+
   // No match by name, try to infer from tab ID
   const normalizedId = tabId.toLowerCase().trim();
-  
+
   for (const [key, type] of Object.entries(TAB_TYPE_MAP)) {
     if (normalizedId === key || normalizedId.includes(key)) {
       return TAB_TTL[type];
     }
   }
-  
+
   // Default TTL if no match
   return TAB_TTL.DEFAULT;
 }
@@ -131,8 +131,8 @@ export default async function handler(
 
   // Only allow GET requests
   if (req.method !== 'GET') {
-    res.status(405).json({ 
-      error: 'Method not allowed' 
+    res.status(405).json({
+      error: 'Method not allowed'
     });
     return;
   }
@@ -140,11 +140,11 @@ export default async function handler(
   // Start timing for performance measurement
   const startTime = Date.now();
 
-  const { 
-    query, 
+  const {
+    query,
     tab,
-    collection, 
-    profile, 
+    collection,
+    profile,
     sessionId,
     debug,
     noCache,
@@ -153,15 +153,15 @@ export default async function handler(
 
   // Basic validation
   if (!query) {
-    res.status(400).json({ 
-      error: 'Query parameter is required' 
+    res.status(400).json({
+      error: 'Query parameter is required'
     });
     return;
   }
 
   if (!tab) {
-    res.status(400).json({ 
-      error: 'Tab parameter is required' 
+    res.status(400).json({
+      error: 'Tab parameter is required'
     });
     return;
   }
@@ -184,7 +184,7 @@ export default async function handler(
   try {
     // Check if we should bypass cache
     const bypassCache = noCache === 'true';
-    
+
     // Generate cache key specifically for this tab
     const cacheKey = generateCacheKey('tab', params);
     let cacheHit = false;
@@ -193,20 +193,20 @@ export default async function handler(
     // Try to get from cache first if not bypassing
     if (!bypassCache) {
       // Determine expected format
-      const expectedFormat = (requestedFormat as string)?.toLowerCase() === 'json' ? 
+      const expectedFormat = (requestedFormat as string)?.toLowerCase() === 'json' ?
         ResponseFormat.JSON : ResponseFormat.HTML;
-      
+
       const cachedResult = await getCachedData<string>(cacheKey, expectedFormat);
-      
+
       if (cachedResult) {
         cacheHit = true;
         cacheSource = 'primary';
-        
+
         // Calculate cache age
         const cacheAge = Math.floor((Date.now() - startTime) / 1000);
-        
+
         console.log(`Tab cache hit for ${cacheKey} (age: ${cacheAge}s)`);
-        
+
         // If debug mode, include cache metadata
         if (debugMode) {
           return res.status(200).json({
@@ -219,11 +219,11 @@ export default async function handler(
             }
           });
         }
-        
+
         // Otherwise just send the content
         return res.status(200).send(cachedResult);
       }
-      
+
       console.log(`Tab cache miss for ${cacheKey}`);
     }
 
@@ -234,38 +234,38 @@ export default async function handler(
 
     // Fetch from backend API
     console.log('Fetching tab content from backend:', params);
-    
+
     // Construct backend URL that includes the tab parameter
     const apiPath = '/funnelback/search';
-    
+
     const result = await backendApiClient.get(apiPath, { params });
-    
+
     // Get content
     const content = result.data;
-    
+
     // If we're not bypassing cache, cache the result
     if (!bypassCache) {
       // Determine appropriate TTL for this tab
       const ttl = getTabTTL(params.tab as string);
-      
+
       // Detect content format
       const contentFormat = detectFormat(content, result.headers['content-type']);
-      
+
       // Validate content before caching
       const validatedContent = validateContent(content, contentFormat);
-      
+
       // Cache the result with appropriate TTL
       await setCachedData(
-        cacheKey, 
-        validatedContent, 
-        ttl, 
-        contentFormat, 
+        cacheKey,
+        validatedContent,
+        ttl,
+        contentFormat,
         result.headers as unknown as Headers
       );
-      
+
       console.log(`Cached tab content for ${cacheKey} with TTL ${ttl}s (format: ${contentFormat})`);
     }
-    
+
     // If debug mode, include cache metadata
     if (debugMode) {
       return res.status(200).json({
@@ -277,24 +277,24 @@ export default async function handler(
         }
       });
     }
-    
+
     // Return the result
     res.status(200).send(content);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Tab API error:', error);
-    
+
     // If debug mode, include error details
     if (debugMode) {
-      res.status(500).json({ 
-        error: `Failed to fetch tab content: ${error.message}`,
+      res.status(500).json({
+        error: `Failed to fetch tab content: ${error?.message || 'unknown error'}`,
         cacheInfo: {
           status: 'error'
         }
       });
     } else {
       // User-friendly error for normal mode
-      res.status(500).json({ 
-        error: 'Failed to fetch tab content. Please try again later.' 
+      res.status(500).json({
+        error: 'Failed to fetch tab content. Please try again later.'
       });
     }
   }
@@ -305,9 +305,9 @@ export async function prefetchTabs(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { 
-    query, 
-    tabs, 
+  const {
+    query,
+    tabs,
     sessionId,
     priority
   } = req.query;
@@ -327,8 +327,8 @@ export async function prefetchTabs(
   // Only respond quickly if not priority
   if (priority !== 'true') {
     // Send OK response immediately - we'll prefetch in the background
-    res.status(202).json({ 
-      message: `Prefetching ${tabIds.length} tabs in the background` 
+    res.status(202).json({
+      message: `Prefetching ${tabIds.length} tabs in the background`
     });
   }
 
@@ -345,59 +345,59 @@ export async function prefetchTabs(
       if (sessionId) {
         params['sessionId'] = sessionId as string;
       }
-      
+
       // Generate cache key
       const cacheKey = generateCacheKey('tab', params);
-      
+
       // Check if already cached
       const cachedResult = await getCachedData(cacheKey);
       if (cachedResult) {
         console.log(`Tab ${tabId} already cached, skipping prefetch`);
         return { tabId, status: 'cached' };
       }
-      
+
       // Fetch tab content
       const result = await backendApiClient.get('/funnelback/search', { params });
-      
+
       // Determine TTL
       const ttl = getTabTTL(tabId);
-      
+
       // Cache the content
       const contentFormat = detectFormat(result.data, result.headers['content-type']);
       await setCachedData(
-        cacheKey, 
+        cacheKey,
         result.data,
         ttl,
         contentFormat,
         result.headers as unknown as Headers
       );
-      
+
       console.log(`Prefetched tab ${tabId} with TTL ${ttl}s`);
       return { tabId, status: 'prefetched' };
     });
-    
+
     // If priority, wait for all tabs and return results
     if (priority === 'true') {
       const results = await Promise.all(tabPromises);
-      return res.status(200).json({ 
+      return res.status(200).json({
         results,
-        message: `Successfully prefetched ${tabIds.length} tabs` 
+        message: `Successfully prefetched ${tabIds.length} tabs`
       });
     }
-    
+
     // Otherwise, continue in the background (we already sent the response)
     Promise.all(tabPromises)
       .then(() => console.log(`Background prefetch complete for ${tabIds.length} tabs`))
       .catch(err => console.error('Error in background prefetch:', err));
-      
+
   } catch (error) {
     console.error('Prefetch error:', error);
-    
+
     // Only send response if priority mode
     if (priority === 'true') {
-      return res.status(500).json({ 
-        error: 'Error prefetching tabs', 
-        details: error.message 
+      return res.status(500).json({
+        error: 'Error prefetching tabs',
+        details: error.message
       });
     }
   }
