@@ -2,10 +2,10 @@
  * @fileoverview Server-side API for rendered search results
  * 
  * This API endpoint handles search requests, fetches results from the backend API,
- * and returns server-side rendered search results with enhanced caching.
+ * and returns server-side rendered search results with enhanced tiered caching.
  *
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.1.0
  * @lastModified 2025-04-15
  */
 
@@ -14,14 +14,33 @@ import { backendApiClient } from '../../lib/api-client';
 import { 
   getCachedData, 
   setCachedData, 
-  generateCacheKey, 
-  getContentTypeSpecificTTL
+  generateCacheKey
 } from '../../lib/cache';
 import { 
   shouldRefreshCache, 
   shouldBypassCache, 
   logCachePerformance 
 } from '../../lib/cache-helpers';
+
+// Cache TTL constants in seconds
+const TTL = {
+  // Time-sensitive content with frequent updates
+  REALTIME: 60, // 1 minute
+  EVENTS: 60 * 5, // 5 minutes
+  NEWS: 60 * 10, // 10 minutes
+  
+  // Standard content
+  DEFAULT: 60 * 10, // 10 minutes
+  SUGGESTIONS: 60 * 15, // 15 minutes
+  TABS: 60 * 30, // 30 minutes
+  
+  // Relatively static content
+  COURSES: 60 * 60, // 1 hour
+  PROGRAMS: 60 * 60 * 2, // 2 hours
+  STAFF: 60 * 60 * 4, // 4 hours
+  LOCATIONS: 60 * 60 * 12, // 12 hours
+  STATIC: 60 * 60 * 24 // 24 hours
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -51,7 +70,8 @@ export default async function handler(
     sessionId, 
     tab,
     form,
-    noCache 
+    noCache,
+    ttl: customTtl
   } = req.query;
 
   // Basic validation
@@ -109,34 +129,112 @@ export default async function handler(
     
     // If we're not bypassing cache, cache the result
     if (!bypassCache) {
-      // Determine appropriate TTL based on content
-      let contentType = 'search';
+      // Determine appropriate TTL based on content type
+      let ttl = TTL.DEFAULT; // Default TTL
       
-      if (params.profile && typeof params.profile === 'string') {
-        if (params.profile.includes('staff')) {
-          contentType = 'staff';
-        } else if (params.profile.includes('program')) {
-          contentType = 'programs';
-        } else if (params.profile.includes('event')) {
-          contentType = 'events';
+      // Check for custom TTL parameter
+      if (customTtl && !isNaN(Number(customTtl))) {
+        ttl = Number(customTtl);
+      } else {
+        // Determine TTL based on collection and profile
+        const collectionStr = String(collection || '').toLowerCase();
+        const profileStr = String(profile || '').toLowerCase();
+        
+        // First check if it's a tab request
+        if (tab) {
+          ttl = TTL.TABS;
+        }
+        // Check if it's staff/faculty content
+        else if (
+          profileStr.includes('staff') || 
+          profileStr.includes('faculty') || 
+          profileStr.includes('directory') ||
+          collectionStr.includes('staff') || 
+          collectionStr.includes('faculty') ||
+          collectionStr.includes('directory')
+        ) {
+          ttl = TTL.STAFF;
+        }
+        // Check if it's academic programs
+        else if (
+          profileStr.includes('program') || 
+          profileStr.includes('academic') || 
+          profileStr.includes('degree') ||
+          collectionStr.includes('program') || 
+          collectionStr.includes('academic') ||
+          collectionStr.includes('degree')
+        ) {
+          ttl = TTL.PROGRAMS;
+        }
+        // Check if it's courses
+        else if (
+          profileStr.includes('course') || 
+          profileStr.includes('class') ||
+          collectionStr.includes('course') || 
+          collectionStr.includes('class')
+        ) {
+          ttl = TTL.COURSES;
+        }
+        // Check if it's events
+        else if (
+          profileStr.includes('event') || 
+          profileStr.includes('calendar') ||
+          collectionStr.includes('event') || 
+          collectionStr.includes('calendar')
+        ) {
+          ttl = TTL.EVENTS;
+        }
+        // Check if it's news
+        else if (
+          profileStr.includes('news') || 
+          profileStr.includes('article') ||
+          collectionStr.includes('news') || 
+          collectionStr.includes('article')
+        ) {
+          ttl = TTL.NEWS;
+        }
+        // Check if it's locations/places
+        else if (
+          profileStr.includes('location') || 
+          profileStr.includes('building') || 
+          profileStr.includes('place') ||
+          collectionStr.includes('location') || 
+          collectionStr.includes('building') ||
+          collectionStr.includes('place')
+        ) {
+          ttl = TTL.LOCATIONS;
+        }
+        // Check for static content
+        else if (
+          profileStr.includes('static') || 
+          profileStr.includes('archive') ||
+          collectionStr.includes('static') || 
+          collectionStr.includes('archive')
+        ) {
+          ttl = TTL.STATIC;
+        }
+        
+        // Look for time-sensitivity hints in query
+        const queryStr = String(query || '').toLowerCase();
+        if (
+          queryStr.includes('today') || 
+          queryStr.includes('now') || 
+          queryStr.includes('current') ||
+          queryStr.includes('latest') ||
+          queryStr.includes('update')
+        ) {
+          // Reduce TTL for time-sensitive queries, but don't go below REALTIME
+          ttl = Math.min(ttl, TTL.NEWS);
         }
       }
-      
-      // Add tab type if present
-      if (params.tab) {
-        contentType = 'tabs';
-      }
-      
-      // Get TTL based on content type
-      const ttl = getContentTypeSpecificTTL(contentType, 
-        params.collection as string | undefined);
       
       // Generate cache key (ensures same key generation)
       const cacheKey = generateCacheKey('search', params);
       
-      // Cache the result
+      // Cache the result with appropriate TTL
       await setCachedData(cacheKey, result.data, ttl);
       
+      // Log caching details including TTL
       console.log(`Cached search result for ${cacheKey} with TTL ${ttl}s`);
     }
     
