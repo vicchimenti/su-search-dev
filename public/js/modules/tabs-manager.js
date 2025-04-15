@@ -437,7 +437,7 @@ class TabsManager {
       }
       
       // Build the API URL with tab parameter for caching
-      const apiUrl = `/api/search?query=${encodeURIComponent(query)}&tab=${encodeURIComponent(tabId)}`;
+      const apiUrl = `su-search-dev.vercel.app/api/search?query=${encodeURIComponent(query)}&tab=${encodeURIComponent(tabId)}`;
       
       // Get session ID if available
       const sessionId = this.core.getSessionId ? this.core.getSessionId() : null;
