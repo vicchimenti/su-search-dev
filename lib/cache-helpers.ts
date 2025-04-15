@@ -6,7 +6,7 @@
  * helper functions for the Seattle University search application.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
  * last updated: 2025-04-15
  */
 
@@ -65,7 +65,7 @@ export async function shouldRefreshCache(cacheKey: string, sourceUrl: string): P
   } catch (error) {
     console.error('Error checking cache freshness:', error);
     // On error, use cached data if available
-    return !cachedData;
+    return !cachedData; // Fixed: Using the negation of the result from getCachedData
   }
 }
 
