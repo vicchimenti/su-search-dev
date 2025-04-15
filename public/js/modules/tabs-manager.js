@@ -448,7 +448,7 @@ class TabsManager {
       }
 
       // Build the API URL with tab parameter for caching
-      const apiUrl = `su-search-dev.vercel.app/api/search?query=${encodeURIComponent(
+      const apiUrl = `https://su-search-dev.vercel.app/api/search?query=${encodeURIComponent(
         query
       )}&tab=${encodeURIComponent(tabId)}`;
 
