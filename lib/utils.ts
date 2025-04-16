@@ -4,7 +4,7 @@
  * This module provides utility functions used throughout the application.
  *
  * @author Victor Chimenti
- * @version 2.1.0
+ * @version 2.2.0
  * @lastModified 2025-04-16
  */
 
@@ -19,17 +19,17 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null;
-  
-  return function(...args: Parameters<T>): void {
+
+  return function (...args: Parameters<T>): void {
     const later = () => {
       timeout = null;
       func(...args);
     };
-    
+
     if (timeout) {
       clearTimeout(timeout);
     }
-    
+
     timeout = setTimeout(later, wait);
   };
 }
@@ -50,15 +50,15 @@ export function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') {
     return generateSessionId();
   }
-  
+
   try {
     let sessionId = sessionStorage.getItem('searchSessionId');
-    
+
     if (!sessionId) {
       sessionId = generateSessionId();
       sessionStorage.setItem('searchSessionId', sessionId);
     }
-    
+
     return sessionId;
   } catch (e) {
     // Fallback if sessionStorage is unavailable
@@ -80,7 +80,7 @@ export function extractResultCount(html: string): number {
   } catch (error) {
     console.error('Error extracting result count:', error);
   }
-  
+
   return 0;
 }
 
@@ -94,8 +94,8 @@ export function once<T extends (...args: any[]) => any>(
 ): (...args: Parameters<T>) => ReturnType<T> {
   let result: ReturnType<T>;
   let called = false;
-  
-  return function(...args: Parameters<T>): ReturnType<T> {
+
+  return function (...args: Parameters<T>): ReturnType<T> {
     if (!called) {
       called = true;
       result = func(...args);
@@ -111,73 +111,136 @@ export function once<T extends (...args: any[]) => any>(
  */
 export function isTabRequest(url: string): boolean {
   if (!url) return false;
-  
-  // Check for key patterns in tab request URLs
-  const hasFormPartial = url.includes('form=partial');
-  const hasTabParam = url.includes('tab=') || url.includes('Tab=');
-  const hasProfile = url.includes('profile=') && !url.includes('profile=_default');
-  const hasFacetTab = url.includes('f.Tabs%7C') || url.includes('f.Tabs|');
-  
-  // Check for other tab indicators
-  const isTabResult = hasFormPartial && (hasTabParam || hasProfile || hasFacetTab);
-  
-  // For debugging
-  if (process.env.NODE_ENV === 'development' && isTabResult) {
-    console.log(`[TAB DEBUG] URL identified as tab request: ${url.substring(0, 100)}...`);
+
+  try {
+    // Check for key patterns in tab request URLs
+    const hasFormPartial = url.includes('form=partial');
+
+    // Check for various tab parameter patterns based on actual logs
+    const hasFTabsPattern1 = /f\.Tabs%7C[^&]+/.test(url);  // Match f.Tabs%7C followed by anything 
+    const hasFTabsPattern2 = /f\.Tabs%5C[^&]+/.test(url);  // Alternative encoding
+    const hasFTabsPattern3 = /f\.Tabs\|[^&]+/.test(url);   // Unencoded pipe character
+    const hasFTabsPattern4 = url.includes('&f.Tabs');     // Simple check for f.Tabs parameter
+
+    // Check Faculty_Staff specific patterns
+    const hasFacultyStaffPattern = url.includes('staff=Faculty') || url.includes('Faculty_Staff') || url.includes('Faculty+%26+Staff');
+
+    // Check Programs specific patterns
+    const hasProgramsPattern = url.includes('programs-Programs') || url.includes('Programs');
+
+    // Check News specific patterns
+    const hasNewsPattern = url.includes('News');
+
+    // Check for non-default profile that might indicate a tab
+    const hasNonDefaultProfile = url.includes('profile=') && !url.includes('profile=_default');
+
+    // Combined check
+    const isTabResult = hasFormPartial && (
+      hasFTabsPattern1 || hasFTabsPattern2 || hasFTabsPattern3 || hasFTabsPattern4 ||
+      hasFacultyStaffPattern || hasProgramsPattern || hasNewsPattern ||
+      hasNonDefaultProfile
+    );
+
+    // For debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[TAB DEBUG] URL check:`, {
+        url: url.substring(0, 100),
+        hasFormPartial,
+        hasFTabsPattern1,
+        hasFTabsPattern2,
+        hasFTabsPattern3,
+        hasFTabsPattern4,
+        hasFacultyStaffPattern,
+        hasProgramsPattern,
+        hasNewsPattern,
+        hasNonDefaultProfile,
+        isTabResult
+      });
+    }
+
+    return isTabResult;
+  } catch (error) {
+    console.error('Error in isTabRequest:', error);
+    return false;
   }
-  
-  return isTabResult;
 }
 
 /**
- * Extract tab ID from various URL formats
+ * Extract tab ID from various URL formats based on observed patterns
  * @param url - The URL to parse
  * @returns The extracted tab ID or null if not found
  */
 export function extractTabId(url: string): string | null {
   if (!url) return null;
-  
+
   try {
-    // Extract from facet tab parameter (f.Tabs|collection=TabName)
-    const facetTabRegex = /f\.Tabs(?:%7C|\|).*?=([^&]+)/;
-    const facetMatch = url.match(facetTabRegex);
-    if (facetMatch && facetMatch[1]) {
+    // Try to get the full URL for debugging
+    console.log(`[TAB DEBUG] Extracting tab ID from URL: ${url.substring(0, 200)}...`);
+
+    // Extract from Faculty & Staff pattern
+    if (url.includes('staff=Faculty') || url.includes('Faculty_Staff') || url.includes('Faculty+%26+Staff')) {
+      return 'Faculty_Staff';
+    }
+
+    // Extract from Programs pattern
+    if (url.includes('programs-Programs') || url.includes('Programs')) {
+      return 'Programs';
+    }
+
+    // Extract from News pattern
+    if (url.includes('News')) {
+      return 'News';
+    }
+
+    // Default to Results if form=partial is present but no specific tab is identified
+    if (url.includes('form=partial') && !url.includes('staff=') && !url.includes('programs-')) {
+      return 'Results';
+    }
+
+    // Try more generic extraction patterns if specific ones fail
+
+    // Look for f.Tabs pattern with equals sign
+    const facetTabRegex1 = /f\.Tabs(?:%7C|%5C|\|)[^=]+=([^&]+)/;
+    const match1 = url.match(facetTabRegex1);
+    if (match1 && match1[1]) {
       // Decode URL component if needed
-      return decodeURIComponent(facetMatch[1]);
+      const decoded = decodeURIComponent(match1[1]);
+      console.log(`[TAB DEBUG] Matched f.Tabs pattern with equals: ${decoded}`);
+      return normalizeTabId(decoded);
     }
-    
-    // Extract from regular tab parameter
-    const tabRegex = /[\?&]tab=([^&]+)/i;
-    const tabMatch = url.match(tabRegex);
-    if (tabMatch && tabMatch[1]) {
-      return decodeURIComponent(tabMatch[1]);
+
+    // Look for f.Tabs pattern with dash for Programs
+    const facetTabRegex2 = /f\.Tabs(?:%7C|%5C|\|)[^-]+-([^&]+)/;
+    const match2 = url.match(facetTabRegex2);
+    if (match2 && match2[1]) {
+      const decoded = decodeURIComponent(match2[1]);
+      console.log(`[TAB DEBUG] Matched f.Tabs pattern with dash: ${decoded}`);
+      return normalizeTabId(decoded);
     }
-    
-    // Extract from profile if not default
-    const profileRegex = /[\?&]profile=([^&_][^&]*)/;
-    const profileMatch = url.match(profileRegex);
-    if (profileMatch && profileMatch[1] && profileMatch[1] !== '_default') {
-      return decodeURIComponent(profileMatch[1]);
-    }
-    
-    // Parse from data-tab-group-control in URL fragment
+
+    // Check data-tab-group-control attribute in URL
     const groupControlRegex = /data-tab-group-control=["']([^"']+)["']/;
-    const groupMatch = url.match(groupControlRegex);
-    if (groupMatch && groupMatch[1]) {
-      return groupMatch[1];
+    const match3 = url.match(groupControlRegex);
+    if (match3 && match3[1]) {
+      console.log(`[TAB DEBUG] Matched data-tab-group-control: ${match3[1]}`);
+      return normalizeTabId(match3[1]);
     }
-    
-    // Extract 'Results', 'People', etc. from known patterns
-    const knownTabsRegex = /(Results|Programs|Faculty_Staff|News|People|Events)(?:\d+)?(?=&|$)/;
-    const knownMatch = url.match(knownTabsRegex);
-    if (knownMatch && knownMatch[1]) {
-      return knownMatch[1];
+
+    // Check for tab parameter directly
+    const tabRegex = /[?&]tab=([^&]+)/i;
+    const match4 = url.match(tabRegex);
+    if (match4 && match4[1]) {
+      const decoded = decodeURIComponent(match4[1]);
+      console.log(`[TAB DEBUG] Matched direct tab parameter: ${decoded}`);
+      return normalizeTabId(decoded);
     }
+
+    console.log(`[TAB DEBUG] No tab ID found in URL`);
+    return null;
   } catch (error) {
     console.error('Error extracting tab ID from URL:', error);
+    return null;
   }
-  
-  return null;
 }
 
 /**
@@ -187,10 +250,10 @@ export function extractTabId(url: string): string | null {
  */
 export function normalizeTabId(tabId: string | null): string | null {
   if (!tabId) return null;
-  
+
   // Remove any numeric suffixes (e.g., Results0 -> Results)
   let normalized = tabId.replace(/(\D+)(\d+)$/, '$1');
-  
+
   // Map common variations to standard names
   const tabMappings: Record<string, string> = {
     'Results': 'Results',
@@ -199,9 +262,10 @@ export function normalizeTabId(tabId: string | null): string | null {
     'FacultyStaff': 'Faculty_Staff',
     'Faculty': 'Faculty_Staff',
     'Staff': 'Faculty_Staff',
+    'Faculty & Staff': 'Faculty_Staff',
     'News': 'News'
   };
-  
+
   // Look up in mappings or keep original
   return tabMappings[normalized] || normalized;
 }
@@ -218,7 +282,7 @@ export function generateTabCacheKey(query: string, collection: string, tabId: st
   const normalizedQuery = (query || '').trim().toLowerCase();
   const normalizedCollection = (collection || 'default').trim();
   const normalizedTabId = normalizeTabId(tabId) || 'default';
-  
+
   // Create a standardized key format
   return `tab:${normalizedQuery}:${normalizedCollection}:${normalizedTabId}`;
 }
@@ -248,13 +312,13 @@ export function parseTabRequestUrl(url: string): {
     tabId: string | null;
     isTabRequest: boolean;
   };
-  
+
   if (!url) return result;
-  
+
   try {
     // Determine if this is a tab request
     result.isTabRequest = isTabRequest(url);
-    
+
     // Create URL object for easier parsing (handle both absolute and relative URLs)
     let urlObj: URL;
     try {
@@ -264,22 +328,29 @@ export function parseTabRequestUrl(url: string): {
       // Try as relative URL with a base
       urlObj = new URL(url, '/search-test/');
     }
-    
+
     // Extract search params
     const params = urlObj.searchParams;
-    
+
     // Get common parameters
     result.query = params.get('query');
     result.collection = params.get('collection');
     result.profile = params.get('profile');
-    
+
     // Extract tab ID if this is a tab request
     if (result.isTabRequest) {
       result.tabId = extractTabId(url);
+
+      // If no specific tab ID found but is a tab request, default to Results
+      if (!result.tabId && result.isTabRequest) {
+        result.tabId = 'Results';
+      }
     }
+
+    console.log(`[TAB DEBUG] Parsed URL result:`, result);
   } catch (error) {
     console.error('Error parsing tab request URL:', error);
   }
-  
+
   return result;
 }
