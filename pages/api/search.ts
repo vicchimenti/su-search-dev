@@ -5,7 +5,7 @@
  * and returns server-side rendered search results. Includes tab content caching.
  *
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.1.0
  * @lastModified 2025-04-16
  */
 
@@ -58,6 +58,10 @@ export default async function handler(
 
     // Add cache info to response headers for debugging/monitoring
     res.setHeader('X-Cache-Enabled', 'true');
+
+    console.log(`[DEBUG] Received request: ${req.url}`);
+    console.log(`[DEBUG] Query params:`, req.query);
+    console.log(`[DEBUG] Headers:`, req.headers);
 
     // For tab requests, try to get from tab-specific cache first
     if (isTabRequest && tabId) {
@@ -181,6 +185,8 @@ export default async function handler(
  */
 function isTabContentRequest(req: NextApiRequest): boolean {
   const { form, tab, profile } = req.query;
+
+  console.log(`[TAB DEBUG] Checking if tab request: form=${form}, tab=${tab}, profile=${profile}`);
 
   // Check for explicit tab parameter
   if (tab) {
