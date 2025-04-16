@@ -12,7 +12,7 @@
  * - Tab content caching support
  *
  * @author Victor Chimenti
- * @version 2.6.0
+ * @version 2.6.1
  * @lastModified 2025-04-16
  */
 
@@ -501,14 +501,16 @@ class SearchManager {
         },
       };
 
-      // Add tab request headers if applicable
       if (isTabRequest && tabName) {
-        fetchOptions.headers["X-Tab-Request"] = "true";
-        fetchOptions.headers["X-Tab-Name"] = tabName;
+        if (url.includes('?')) {
+          fullUrl = `${fullUrl}&tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
+        } else {
+          fullUrl = `${fullUrl}?tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
+        }
+        console.log(`Modified URL with tab parameters: ${fullUrl}`);
       }
-
-      // Perform the fetch request
-      const response = await fetch(fullUrl, fetchOptions);
+      
+      const response = await fetch(fullUrl);
 
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
