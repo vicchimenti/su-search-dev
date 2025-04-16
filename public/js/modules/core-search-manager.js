@@ -9,10 +9,11 @@
  * - Centralized event delegation
  * - Optimized performance through targeted updates
  * - Comprehensive analytics tracking
+ * - Tab content caching support
  *
  * @author Victor Chimenti
- * @version 2.5.4
- * @lastModified 2025-04-14
+ * @version 2.6.0
+ * @lastModified 2025-04-16
  */
 
 class SearchManager {
@@ -27,6 +28,7 @@ class SearchManager {
       searchInputSelector: "#autocomplete-concierge-inputField",
       resultsContainerSelector: "#results",
       defaultResultsPerPage: 10,
+      cacheEnabled: true,
     };
 
     // Module registry
@@ -37,6 +39,8 @@ class SearchManager {
     this.originalQuery = null;
     this.isInitialized = false;
     this.recentAnalyticsEvents = [];
+    this.lastTabRequest = null;
+    this.lastTabCache = null;
   }
 
   /**
@@ -191,6 +195,78 @@ class SearchManager {
   }
 
   /**
+   * Determine if a URL is likely a tab request
+   * @param {string} url - The URL to check
+   * @returns {boolean} True if likely a tab request
+   */
+  isTabRequest(url) {
+    if (!url) return false;
+
+    // Check for key patterns in tab request URLs
+    const hasFormPartial = url.includes("form=partial");
+    const hasFTabsPattern = url.includes("f.Tabs");
+    const hasTabNames = [
+      "Results",
+      "Programs",
+      "Faculty",
+      "Staff",
+      "Faculty_Staff",
+      "News",
+    ].some((tabName) => url.includes(tabName));
+
+    // Check if URL contains tab-specific patterns
+    return hasFormPartial && (hasFTabsPattern || hasTabNames);
+  }
+
+  /**
+   * Extract tab name from URL
+   * @param {string} url - The URL to extract from
+   * @returns {string|null} Tab name or null
+   */
+  extractTabNameFromUrl(url) {
+    if (!url) return null;
+
+    try {
+      // Check for known tab patterns
+      if (url.includes("Faculty") || url.includes("Staff")) {
+        return "Faculty_Staff";
+      }
+      if (url.includes("Programs")) {
+        return "Programs";
+      }
+      if (url.includes("News")) {
+        return "News";
+      }
+      if (url.includes("Results")) {
+        return "Results";
+      }
+
+      // Generic extraction attempts
+      const tabPatterns = [
+        /f\.Tabs(?:%7C|%5C|\|)[^=]+=([^&]+)/, // f.Tabs|..=TabName
+        /f\.Tabs(?:%7C|%5C|\|)[^-]+-([^&]+)/, // f.Tabs|..-TabName
+        /data-tab-group-control=["']([^"']+)["']/, // data-tab-group-control attribute
+      ];
+
+      for (const pattern of tabPatterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) {
+          return decodeURIComponent(match[1]);
+        }
+      }
+    } catch (e) {
+      console.error("Error extracting tab name:", e);
+    }
+
+    // Default for form=partial requests with no specific tab
+    if (url.includes("form=partial")) {
+      return "Results";
+    }
+
+    return null;
+  }
+
+  /**
    * Initialize the MutationObserver to watch for DOM changes
    */
   initializeObserver() {
@@ -274,17 +350,31 @@ class SearchManager {
   }
 
   /**
-   * Fetch data from Funnelback API via proxy
+   * Fetch data from Funnelback API via proxy with enhanced tab caching support
    * @param {string} url - The original Funnelback URL
    * @param {string} type - The type of request (search, tools, spelling)
+   * @param {Object} options - Additional options
    * @returns {Promise<string>} The HTML response
    */
-  async fetchFromProxy(url, type = "search") {
+  async fetchFromProxy(url, type = "search", options = {}) {
     const endpoint = `${this.config.proxyBaseUrl}/funnelback/${type}`;
 
     try {
       let queryString;
       let fullUrl;
+      let tabName = null;
+      const isTabRequest = this.isTabRequest(url);
+
+      // Track last tab request for debugging and analytics
+      if (isTabRequest) {
+        tabName = this.extractTabNameFromUrl(url);
+        this.lastTabRequest = {
+          url: url,
+          tabName: tabName,
+          timestamp: Date.now(),
+        };
+        console.log(`Tab request detected: ${tabName}`, url);
+      }
 
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
@@ -324,6 +414,12 @@ class SearchManager {
           // Add our canonical sessionId if available
           if (this.sessionId) {
             searchParams.append("sessionId", this.sessionId);
+          }
+
+          // Add special header for tab requests
+          if (isTabRequest && tabName) {
+            searchParams.append("X-Tab-Request", "true");
+            searchParams.append("X-Tab-Name", tabName);
           }
 
           // Construct the full URL
@@ -395,10 +491,48 @@ class SearchManager {
         `Fetching from ${type} endpoint with sanitized sessionId:`,
         fullUrl
       );
-      const response = await fetch(fullUrl);
+
+      // Set up fetch options
+      const fetchOptions = {
+        method: "GET",
+        headers: {
+          Accept: "text/html, application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      };
+
+      // Add tab request headers if applicable
+      if (isTabRequest && tabName) {
+        fetchOptions.headers["X-Tab-Request"] = "true";
+        fetchOptions.headers["X-Tab-Name"] = tabName;
+      }
+
+      // Perform the fetch request
+      const response = await fetch(fullUrl, fetchOptions);
 
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
+      }
+
+      // Check for cache status in response headers
+      if (isTabRequest && tabName) {
+        const cacheStatus = response.headers.get("X-Cache-Status");
+        const cacheType = response.headers.get("X-Cache-Type");
+        const cacheTabId = response.headers.get("X-Cache-Tab-ID");
+
+        // Store cache information for debugging and analytics
+        this.lastTabCache = {
+          tabName: tabName,
+          status: cacheStatus || "unknown",
+          type: cacheType || "unknown",
+          tabId: cacheTabId || tabName,
+          timestamp: Date.now(),
+        };
+
+        // Log cache status
+        console.log(
+          `Tab cache status for ${tabName}: ${cacheStatus || "unknown"}`
+        );
       }
 
       return await response.text();
@@ -517,6 +651,16 @@ class SearchManager {
       // Add session ID if available
       if (this.sessionId) {
         analyticsData.sessionId = this.sessionId;
+      }
+
+      // Add tab cache information for tab events
+      if (
+        dataType === "tab" &&
+        this.lastTabCache &&
+        this.lastTabCache.tabName === analyticsData.enrichmentData?.tabName
+      ) {
+        analyticsData.enrichmentData.cacheStatus = this.lastTabCache.status;
+        analyticsData.enrichmentData.cacheType = this.lastTabCache.type;
       }
 
       // Format data and determine endpoint based on the event type
@@ -697,6 +841,14 @@ class SearchManager {
 
           if (analyticsData.enrichmentData.timestamp) {
             enrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
+          }
+
+          // Add cache status for tab events if available
+          if (dataType === "tab" && analyticsData.enrichmentData.cacheStatus) {
+            enrichmentData.cacheStatus =
+              analyticsData.enrichmentData.cacheStatus;
+            enrichmentData.cacheType =
+              analyticsData.enrichmentData.cacheType || "tab";
           }
 
           // Add specific fields based on action type
