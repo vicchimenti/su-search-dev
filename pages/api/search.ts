@@ -5,7 +5,7 @@
  * and returns server-side rendered search results. Includes tab content caching.
  *
  * @author Victor Chimenti
- * @version 2.1.0
+ * @version 2.2.0
  * @lastModified 2025-04-16
  */
 
@@ -14,13 +14,29 @@ import { backendApiClient } from '../../lib/api-client';
 import {
   getCachedData,
   setCachedData,
-  generateSearchCacheKey,
   getCachedTabContent,
   setCachedTabContent
 } from '../../lib/cache';
+import {
+  isTabRequest,
+  extractTabId,
+  normalizeTabId,
+  generateTabCacheKey,
+  parseTabRequestUrl
+} from '../../lib/utils';
 
 // List of frequently accessed tabs for extended caching
-const POPULAR_TABS = ['general', 'news', 'programs', 'people', 'events'];
+const POPULAR_TABS = ['Results', 'Programs', 'Faculty_Staff', 'News'];
+
+// Define an interface for the params object
+interface SearchParams {
+  query: string | string[];
+  collection: string | string[];
+  profile: string | string[];
+  form: string | string[];
+  sessionId: string | string[];
+  [key: string]: string | string[] | undefined;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -43,7 +59,12 @@ export default async function handler(
     return;
   }
 
-  const { query, collection, profile, sessionId, form, tab } = req.query;
+  // Get request URL and parameters
+  const requestUrl = req.url || '';
+  console.log(`[DEBUG] Received request: ${requestUrl}`);
+  console.log(`[DEBUG] Query params:`, req.query);
+
+  const { query, collection, profile, form, sessionId } = req.query;
 
   // Basic validation
   if (!query) {
@@ -52,55 +73,57 @@ export default async function handler(
   }
 
   try {
-    // Determine if this is a tab request
-    const isTabRequest = isTabContentRequest(req);
-    const tabId = getTabId(req);
+    // Use our utility function to check if this is a tab request
+    const tabRequestCheck = isTabRequest(requestUrl);
+    console.log(`[TAB DEBUG] Checking if tab request: form=${form}, tab=${req.query.tab}, profile=${profile}`);
+    console.log(`[TAB DEBUG] Tab request detection result: ${tabRequestCheck}`);
+
+    // Extract tab ID using our utility function
+    const extractedTabId = extractTabId(requestUrl);
+    const normalizedTabId = normalizeTabId(extractedTabId);
+    console.log(`[TAB DEBUG] Extracted tab ID: ${extractedTabId}, Normalized: ${normalizedTabId}`);
+
+    // Parse full request URL for comprehensive parameter extraction
+    const parsedRequest = parseTabRequestUrl(requestUrl);
+    console.log(`[TAB DEBUG] Parsed request:`, parsedRequest);
 
     // Add cache info to response headers for debugging/monitoring
     res.setHeader('X-Cache-Enabled', 'true');
 
-    console.log(`[DEBUG] Received request: ${req.url}`);
-    console.log(`[DEBUG] Query params:`, req.query);
-    console.log(`[DEBUG] Headers:`, req.headers);
-
     // For tab requests, try to get from tab-specific cache first
-    if (isTabRequest && tabId) {
+    if (tabRequestCheck && normalizedTabId) {
+      console.log(`[TAB CACHE] Request for tab '${normalizedTabId}' with query '${query}'`);
 
-      console.log(`[TAB CACHE] Request for tab '${tabId}' with query '${query}'`);
-
-      const cachedTabContent = await getCachedTabContent(
+      // Generate cache key for this tab request
+      const tabCacheKey = generateTabCacheKey(
         query as string,
         collection as string || 'seattleu~sp-search',
-        profile as string || '_default',
-        tabId
+        normalizedTabId
       );
+      console.log(`[TAB CACHE] Generated cache key: ${tabCacheKey}`);
+
+      // Try to get from cache
+      const cachedTabContent = await getCachedData(tabCacheKey);
 
       if (cachedTabContent) {
-
-        console.log(`[TAB CACHE] HIT - Serving cached content for tab '${tabId}'`);
-        console.log(`Tab cache hit for query: ${query}, tab: ${tabId}`);
+        console.log(`[TAB CACHE] HIT - Serving cached content for tab '${normalizedTabId}'`);
         res.setHeader('X-Cache-Status', 'HIT');
         res.setHeader('X-Cache-Type', 'tab');
+        res.setHeader('X-Cache-Tab-ID', normalizedTabId);
 
         // Return cached tab content
         return res.status(200).send(cachedTabContent);
       }
 
-      console.log(`[TAB CACHE] MISS - Fetching content for tab '${tabId}' from backend`);
-
+      console.log(`[TAB CACHE] MISS - Fetching content for tab '${normalizedTabId}' from backend`);
       res.setHeader('X-Cache-Status', 'MISS');
-      console.log(`Tab cache miss for query: ${query}, tab: ${tabId}`);
+      res.setHeader('X-Cache-Type', 'tab');
+      res.setHeader('X-Cache-Tab-ID', normalizedTabId);
     } else {
-      // For non-tab requests, use regular search cache
+      // For non-tab requests, use general search cache
+      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
 
-      // Generate cache key
-      const cacheKey = generateSearchCacheKey(
-        query as string,
-        collection as string || 'seattleu~sp-search',
-        profile as string || '_default'
-      );
-
-      // Try to get from cache first
+      // Try to get from cache
       const cachedResult = await getCachedData(cacheKey);
       if (cachedResult) {
         console.log(`Cache hit for ${cacheKey}`);
@@ -111,20 +134,11 @@ export default async function handler(
       }
 
       res.setHeader('X-Cache-Status', 'MISS');
+      res.setHeader('X-Cache-Type', 'search');
       console.log(`Cache miss for ${cacheKey}`);
     }
 
-    // Define an interface for the params object that includes all possible properties
-    interface SearchParams {
-      query: string | string[];
-      collection: string | string[];
-      profile: string | string[];
-      form: string | string[];
-      tab?: string | string[]; // Optional tab parameter
-      sessionId: string | string[];
-    }
-
-    // Then use that interface for your params object
+    // Cache miss - prepare parameters for backend API
     const params: SearchParams = {
       query,
       collection: collection || 'seattleu~sp-search',
@@ -133,40 +147,37 @@ export default async function handler(
       sessionId: sessionId || ''
     };
 
-    // Add tab parameter if it exists
-    if (tab) {
-      params.tab = tab;
-    }
+    // Add any additional parameters from the original request
+    // Including facet parameters like f.Tabs which are critical for tab content
+    Object.keys(req.query).forEach(key => {
+      if (!['query', 'collection', 'profile', 'form', 'sessionId'].includes(key)) {
+        params[key] = req.query[key];
+      }
+    });
 
     // Fetch from backend API
-    console.log(`Fetching from backend for query: ${query}${tabId ? `, tab: ${tabId}` : ''}`);
+    console.log(`Fetching from backend for query: ${query}${normalizedTabId ? `, tab: ${normalizedTabId}` : ''}`);
     const result = await backendApiClient.get('/funnelback/search', { params });
 
-    // Cache the result
-    if (isTabRequest && tabId) {
-      // Cache as tab content
-      const isPopularTab = POPULAR_TABS.includes(tabId) ||
-        POPULAR_TABS.includes(profile as string);
-
-      await setCachedTabContent(
+    // Cache the result based on request type
+    if (tabRequestCheck && normalizedTabId) {
+      // For tab content requests
+      const tabCacheKey = generateTabCacheKey(
         query as string,
         collection as string || 'seattleu~sp-search',
-        profile as string || '_default',
-        tabId,
-        result.data,
-        isPopularTab
+        normalizedTabId
       );
 
-      console.log(`Cached tab content for query: ${query}, tab: ${tabId}, popular: ${isPopularTab}`);
+      // Check if this is a popular tab for longer TTL
+      const isPopularTab = POPULAR_TABS.includes(normalizedTabId);
+
+      // Store in cache
+      await setCachedData(tabCacheKey, result.data, isPopularTab ? 7200 : 1800);
+      console.log(`[TAB CACHE] Stored tab content in cache with key: ${tabCacheKey}, popular: ${isPopularTab}`);
     } else {
-      // Cache as regular search result
-      const cacheKey = generateSearchCacheKey(
-        query as string,
-        collection as string || 'seattleu~sp-search',
-        profile as string || '_default'
-      );
-
-      await setCachedData(cacheKey, result.data, 60 * 10); // 10 minutes TTL
+      // For general search requests
+      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
+      await setCachedData(cacheKey, result.data, 600); // 10 minutes TTL
       console.log(`Cached search result for key: ${cacheKey}`);
     }
 
@@ -176,76 +187,4 @@ export default async function handler(
     console.error('Search API error:', error);
     res.status(500).json({ error: 'Failed to fetch search results' });
   }
-}
-
-/**
- * Determine if request is for tab content
- * @param req - Next API request
- * @returns Whether this is a tab content request
- */
-function isTabContentRequest(req: NextApiRequest): boolean {
-  const { form, tab, profile } = req.query;
-
-  console.log(`[TAB DEBUG] Checking if tab request: form=${form}, tab=${tab}, profile=${profile}`);
-
-  // Check for explicit tab parameter
-  if (tab) {
-    return true;
-  }
-
-  // Check for tab-related profile
-  if (profile && profile !== '_default') {
-    return true;
-  }
-
-  // Check for form=partial which is often used for tabs
-  if (form === 'partial') {
-    return true;
-  }
-
-  // Check URL if available (for direct tab URLs)
-  const referer = req.headers.referer || '';
-  if (typeof referer === 'string' &&
-    (referer.includes('tab=') || referer.includes('profile='))) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Extract tab identifier from request
- * @param req - Next API request
- * @returns Tab identifier or null if not found
- */
-function getTabId(req: NextApiRequest): string | null {
-  const { tab, profile } = req.query;
-
-  // If tab parameter exists, use it
-  if (tab) {
-    return tab as string;
-  }
-
-  // Otherwise use profile if it's not the default
-  if (profile && profile !== '_default') {
-    return profile as string;
-  }
-
-  // Try to extract from referer URL
-  const referer = req.headers.referer || '';
-  if (typeof referer === 'string') {
-    // Try to extract tab parameter from URL
-    const tabMatch = referer.match(/[?&]tab=([^&]+)/);
-    if (tabMatch && tabMatch[1]) {
-      return tabMatch[1];
-    }
-
-    // Try to extract profile parameter from URL
-    const profileMatch = referer.match(/[?&]profile=([^&]+)/);
-    if (profileMatch && profileMatch[1] && profileMatch[1] !== '_default') {
-      return profileMatch[1];
-    }
-  }
-
-  return null;
 }
