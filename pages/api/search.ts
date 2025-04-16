@@ -61,6 +61,9 @@ export default async function handler(
 
     // For tab requests, try to get from tab-specific cache first
     if (isTabRequest && tabId) {
+
+      console.log(`[TAB CACHE] Request for tab '${tabId}' with query '${query}'`);
+
       const cachedTabContent = await getCachedTabContent(
         query as string,
         collection as string || 'seattleu~sp-search',
@@ -69,6 +72,8 @@ export default async function handler(
       );
 
       if (cachedTabContent) {
+
+        console.log(`[TAB CACHE] HIT - Serving cached content for tab '${tabId}'`);
         console.log(`Tab cache hit for query: ${query}, tab: ${tabId}`);
         res.setHeader('X-Cache-Status', 'HIT');
         res.setHeader('X-Cache-Type', 'tab');
@@ -76,6 +81,8 @@ export default async function handler(
         // Return cached tab content
         return res.status(200).send(cachedTabContent);
       }
+
+      console.log(`[TAB CACHE] MISS - Fetching content for tab '${tabId}' from backend`);
 
       res.setHeader('X-Cache-Status', 'MISS');
       console.log(`Tab cache miss for query: ${query}, tab: ${tabId}`);
