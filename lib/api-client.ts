@@ -12,11 +12,11 @@
  * - Detailed logging for request tracing
  * 
  * @author Victor Chimenti
- * @version 2.0.1
+ * @version 2.0.2
  * @lastModified 2025-04-28
  */
 
-import axios from 'axios';
+import axios, { AxiosRequestHeaders } from 'axios';
 import ipService from './ip-service';
 
 // Get backend API URL from environment variables, with fallback
@@ -67,7 +67,7 @@ backendApiClient.interceptors.request.use(async (config) => {
     if (clientIP) {
       // Ensure headers object exists
       if (!config.headers) {
-        config.headers = {};
+        config.headers = {} as AxiosRequestHeaders;
       }
       
       // Add client IP to headers
@@ -161,7 +161,7 @@ export async function makeApiRequest(
     // Add client IP headers
     const clientIP = ipService.getClientIP();
     if (clientIP) {
-      if (!config.headers) config.headers = {};
+      if (!config.headers) config.headers = {} as AxiosRequestHeaders;
       config.headers['X-Real-Client-IP'] = clientIP;
       config.headers['X-Original-Client-IP'] = clientIP;
     }
