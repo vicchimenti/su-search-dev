@@ -1,66 +1,42 @@
 /**
- * @fileoverview Search Manager Architecture with IP Management
- *
- * This architecture provides a modular approach to handling search functionality,
- * now enhanced with IP tracking capabilities to ensure consistent client identification.
+ * @fileoverview Search Manager Architecture
+ * 
+ * This architecture provides a modular approach to handling search functionality.
  * It consists of a core manager that coordinates feature-specific modules.
- *
+ * 
  * Features:
  * - Modular design with dynamic loading
  * - Centralized event delegation
  * - Optimized performance through targeted updates
  * - Comprehensive analytics tracking
- * - Tab content caching support
- * - Client IP tracking and persistence
- *
+ * 
  * @author Victor Chimenti
- * @version 3.0.0
- * @lastModified 2025-04-28
+ * @version 2.4.1
+ * @lastModified 2025-04-10
  */
 
-// Import IPService (dynamically to avoid issues with module loading)
-let ipService;
-try {
-  import('/lib/ip-service.js').then(module => {
-    ipService = module.default;
-    console.log('[SearchManager] IPService module loaded');
-  }).catch(error => {
-    console.error('[SearchManager] Failed to import IPService:', error);
-  });
-} catch (error) {
-  console.warn('[SearchManager] Dynamic import not supported, will try to access IPService globally');
-}
-
 class SearchManager {
+
   constructor() {
     this.config = {
-      proxyBaseUrl: "https://funnelback-proxy-dev.vercel.app/proxy",
-      enabledModules: ["tabs", "facets", "pagination", "spelling", "analytics"],
+      proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
+      enabledModules: ['tabs', 'facets', 'pagination', 'spelling', 'analytics'],
       observerConfig: {
         childList: true,
-        subtree: true,
+        subtree: true
       },
-      searchInputSelector: "#autocomplete-concierge-inputField",
-      resultsContainerSelector: "#results",
-      defaultResultsPerPage: 10,
-      cacheEnabled: true,
+      searchInputSelector: '#autocomplete-concierge-inputField',
+      resultsContainerSelector: '#results',
+      defaultResultsPerPage: 10
     };
 
     // Module registry
     this.modules = {};
 
     // State
-    this.sessionId = null;
-    this.clientIP = null;
+    this.sessionId = null; // No longer initialize here; will get from SessionService
     this.originalQuery = null;
     this.isInitialized = false;
-    this.recentAnalyticsEvents = [];
-    this.lastTabRequest = null;
-    this.lastTabCache = null;
-    this.ipInitialized = false;
-
-    // Early IP service initialization
-    this.initializeIPService();
   }
 
   /**
@@ -70,18 +46,18 @@ class SearchManager {
   init(options = {}) {
     // Prevent multiple initializations
     if (this.isInitialized) {
-      console.warn("[SearchManager] Already initialized");
+      console.warn('Search Manager already initialized');
       return this;
     }
 
     // Merge configuration
     this.config = {
       ...this.config,
-      ...options,
+      ...options
     };
 
     // Initialize if on search page
-    if (window.location.pathname.includes("search-test")) {
+    if (window.location.pathname.includes('search-test')) {
       this.initialize();
       this.isInitialized = true;
     }
@@ -96,15 +72,8 @@ class SearchManager {
     // Get session ID from SessionService - the single source of truth
     this.initializeSessionId();
 
-    // Ensure IP service is initialized
-    await this.ensureIPServiceInitialized();
-
     // Extract query from URL or input
     this.extractOriginalQuery();
-    console.log(
-      "[SearchManager] Initialization extracted query:",
-      this.originalQuery
-    );
 
     // Set up observer for dynamic content
     this.initializeObserver();
@@ -112,92 +81,10 @@ class SearchManager {
     // Initialize modules
     await this.loadModules();
 
-    // Re-check query in case it wasn't available at first extraction
-    if (!this.originalQuery) {
-      console.log(
-        "[SearchManager] Re-extracting missing query after modules loaded"
-      );
-      this.extractOriginalQuery();
-      console.log("[SearchManager] Re-extracted query:", this.originalQuery);
-    }
-
     // Start observing for DOM changes
     this.startObserving();
 
-    console.log(
-      "[SearchManager] Initialized with modules:",
-      Object.keys(this.modules)
-    );
-  }
-
-  /**
-   * Initialize IP service for consistent client identification
-   */
-  async initializeIPService() {
-    console.log("[SearchManager] Starting IP service initialization");
-
-    try {
-      // First try to access directly if already loaded
-      if (ipService) {
-        console.log("[SearchManager] Using imported IPService module");
-      } 
-      // Fallback to global access
-      else if (window.ipService) {
-        console.log("[SearchManager] Using global IPService");
-        ipService = window.ipService;
-      }
-      // Try dynamic import as last resort
-      else {
-        console.log("[SearchManager] Attempting dynamic import of IPService");
-        try {
-          const module = await import('/lib/ip-service.js');
-          ipService = module.default;
-        } catch (importError) {
-          console.error("[SearchManager] Dynamic import failed:", importError);
-        }
-      }
-
-      // Initialize IP service if available
-      if (ipService) {
-        console.log("[SearchManager] Initializing IPService");
-        const clientIP = await ipService.init();
-        this.clientIP = clientIP;
-        this.ipInitialized = true;
-        console.log("[SearchManager] IPService initialized with IP:", clientIP);
-      } else {
-        console.warn("[SearchManager] IPService not available");
-      }
-    } catch (error) {
-      console.error("[SearchManager] Error initializing IPService:", error);
-    }
-  }
-
-  /**
-   * Ensure IP Service is initialized before proceeding
-   * @returns {Promise<void>}
-   */
-  async ensureIPServiceInitialized() {
-    if (this.ipInitialized) {
-      console.log("[SearchManager] IPService already initialized");
-      return;
-    }
-
-    try {
-      // Wait for IPService initialization
-      if (ipService) {
-        console.log("[SearchManager] Waiting for IPService initialization");
-        const clientIP = await ipService.init();
-        this.clientIP = clientIP;
-        this.ipInitialized = true;
-        console.log("[SearchManager] IPService initialized with IP:", clientIP);
-      } else {
-        // Try one more time to get IPService
-        console.log("[SearchManager] Attempting to re-acquire IPService");
-        await this.initializeIPService();
-      }
-    } catch (error) {
-      console.error("[SearchManager] Error ensuring IPService initialized:", error);
-    }
+    console.log('Search Manager initialized with modules:', Object.keys(this.modules));
   }
 
   /**
@@ -207,15 +94,13 @@ class SearchManager {
     try {
       if (window.SessionService) {
         this.sessionId = window.SessionService.getSessionId();
-        console.log("[SearchManager] Using SessionService for session ID:", this.sessionId);
+        console.log('Using SessionService for session ID:', this.sessionId);
       } else {
-        console.warn(
-          "[SearchManager] SessionService not found - analytics tracking will be limited"
-        );
+        console.warn('SessionService not found - analytics tracking will be limited');
         this.sessionId = null;
       }
     } catch (error) {
-      console.error("[SearchManager] Error accessing SessionService:", error);
+      console.error('Error accessing SessionService:', error);
       this.sessionId = null;
     }
   }
@@ -224,21 +109,19 @@ class SearchManager {
    * Load all enabled modules dynamically
    */
   async loadModules() {
-    const modulePromises = this.config.enabledModules.map(
-      async (moduleName) => {
-        try {
-          // Dynamic import the module
-          const module = await import(`./${moduleName}-manager.js`);
-          const ModuleClass = module.default;
+    const modulePromises = this.config.enabledModules.map(async (moduleName) => {
+      try {
+        // Dynamic import the module
+        const module = await import(`./${moduleName}-manager.js`);
+        const ModuleClass = module.default;
 
-          // Initialize the module
-          this.modules[moduleName] = new ModuleClass(this);
-          console.log(`[SearchManager] Loaded module: ${moduleName}`);
-        } catch (error) {
-          console.error(`[SearchManager] Failed to load module: ${moduleName}`, error);
-        }
+        // Initialize the module
+        this.modules[moduleName] = new ModuleClass(this);
+        console.log(`Loaded module: ${moduleName}`);
+      } catch (error) {
+        console.error(`Failed to load module: ${moduleName}`, error);
       }
-    );
+    });
 
     // Wait for all modules to load
     await Promise.all(modulePromises);
@@ -248,29 +131,20 @@ class SearchManager {
    * Extract the original search query from URL or search input
    */
   extractOriginalQuery() {
-    // First, try to get query from URL parameters
+    // Try to get query from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const urlQuery = urlParams.get("query");
+    const urlQuery = urlParams.get('query');
 
     if (urlQuery) {
-      console.log("[SearchManager] Setting originalQuery from URL:", urlQuery);
       this.originalQuery = urlQuery;
       return;
     }
 
-    // If not in URL, try to get from search input field
+    // Try to get query from search input field
     const searchInput = document.querySelector(this.config.searchInputSelector);
     if (searchInput && searchInput.value) {
-      console.log(
-        "[SearchManager] Setting originalQuery from input:",
-        searchInput.value
-      );
       this.originalQuery = searchInput.value;
-      return;
     }
-
-    console.log("[SearchManager] No query found in URL or input");
-    // Don't set to empty string or null - keep previous value if it exists
   }
 
   /**
@@ -288,105 +162,15 @@ class SearchManager {
   }
 
   /**
-   * Get client IP address
-   * @returns {string|null} Client IP or null if unavailable
-   */
-  getClientIP() {
-    // If IPService is available, use it
-    if (ipService && ipService.isInitialized()) {
-      const ip = ipService.getClientIP();
-      if (ip) {
-        this.clientIP = ip; // Cache it
-        return ip;
-      }
-    }
-
-    // Return cached value if available
-    return this.clientIP;
-  }
-
-  /**
-   * Determine if a URL is likely a tab request
-   * @param {string} url - The URL to check
-   * @returns {boolean} True if likely a tab request
-   */
-  isTabRequest(url) {
-    if (!url) return false;
-
-    // Check for key patterns in tab request URLs
-    const hasFormPartial = url.includes("form=partial");
-    const hasFTabsPattern = url.includes("f.Tabs");
-    const hasTabNames = [
-      "Results",
-      "Programs",
-      "Faculty",
-      "Staff",
-      "Faculty_Staff",
-      "News",
-    ].some((tabName) => url.includes(tabName));
-
-    // Check if URL contains tab-specific patterns
-    return hasFormPartial && (hasFTabsPattern || hasTabNames);
-  }
-
-  /**
-   * Extract tab name from URL
-   * @param {string} url - The URL to extract from
-   * @returns {string|null} Tab name or null
-   */
-  extractTabNameFromUrl(url) {
-    if (!url) return null;
-
-    try {
-      // Check for known tab patterns
-      if (url.includes("Faculty") || url.includes("Staff")) {
-        return "Faculty_Staff";
-      }
-      if (url.includes("Programs")) {
-        return "Programs";
-      }
-      if (url.includes("News")) {
-        return "News";
-      }
-      if (url.includes("Results")) {
-        return "Results";
-      }
-
-      // Generic extraction attempts
-      const tabPatterns = [
-        /f\.Tabs(?:%7C|%5C|\|)[^=]+=([^&]+)/, // f.Tabs|..=TabName
-        /f\.Tabs(?:%7C|%5C|\|)[^-]+-([^&]+)/, // f.Tabs|..-TabName
-        /data-tab-group-control=["']([^"']+)["']/, // data-tab-group-control attribute
-      ];
-
-      for (const pattern of tabPatterns) {
-        const match = url.match(pattern);
-        if (match && match[1]) {
-          return decodeURIComponent(match[1]);
-        }
-      }
-    } catch (e) {
-      console.error("[SearchManager] Error extracting tab name:", e);
-    }
-
-    // Default for form=partial requests with no specific tab
-    if (url.includes("form=partial")) {
-      return "Results";
-    }
-
-    return null;
-  }
-
-  /**
    * Initialize the MutationObserver to watch for DOM changes
    */
   initializeObserver() {
     this.observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        if (mutation.type === "childList") {
+        if (mutation.type === 'childList') {
           // Notify all modules about DOM changes
-          Object.values(this.modules).forEach((module) => {
-            if (typeof module.handleDomChanges === "function") {
+          Object.values(this.modules).forEach(module => {
+            if (typeof module.handleDomChanges === 'function') {
               module.handleDomChanges(mutation.addedNodes);
             }
           });
@@ -399,14 +183,12 @@ class SearchManager {
    * Start observing the results container for changes
    */
   startObserving() {
-    const resultsContainer = document.querySelector(
-      this.config.resultsContainerSelector
-    );
+    const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
     if (resultsContainer) {
       this.observer.observe(resultsContainer, this.config.observerConfig);
-      console.log("[SearchManager] Observer started watching results container");
+      console.log('Observer started watching results container');
     } else {
-      console.warn("[SearchManager] Results container not found, waiting for it to appear");
+      console.warn('Results container not found, waiting for it to appear');
       this.waitForResultsContainer();
     }
   }
@@ -416,19 +198,17 @@ class SearchManager {
    */
   waitForResultsContainer() {
     const bodyObserver = new MutationObserver((mutations, obs) => {
-      const resultsContainer = document.querySelector(
-        this.config.resultsContainerSelector
-      );
+      const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
       if (resultsContainer) {
         obs.disconnect();
         this.observer.observe(resultsContainer, this.config.observerConfig);
-        console.log("[SearchManager] Results container found and observer started");
+        console.log('Results container found and observer started');
       }
     });
 
     bodyObserver.observe(document.body, {
       childList: true,
-      subtree: true,
+      subtree: true
     });
   }
 
@@ -439,176 +219,103 @@ class SearchManager {
    * @returns {string} Sanitized value
    */
   sanitizeValue(value) {
-    if (typeof value !== "string") {
+    if (typeof value !== 'string') {
       return value;
     }
-
+    
     // Replace line breaks, tabs, and control characters with spaces
-    let sanitized = value
-      .replace(/[\r\n\t\f\v]+/g, " ")
-      .replace(/\s+/g, " ") // Normalize spaces
-      .trim(); // Remove leading/trailing whitespace
-
+    let sanitized = value.replace(/[\r\n\t\f\v]+/g, ' ')
+                        .replace(/\s+/g, ' ')  // Normalize spaces
+                        .trim();  // Remove leading/trailing whitespace
+    
     // Remove common counter patterns that might be in the text
-    sanitized = sanitized.replace(/\s*\(\d+\)$/g, ""); // Remove " (26)" at the end
-    sanitized = sanitized.replace(/\s*\[\d+\]$/g, ""); // Remove " [26]" at the end
-    sanitized = sanitized.replace(/\s*\(\d+\)/g, ""); // Remove "(26)" anywhere
-
-    // Remove HTML tags
-    sanitized = sanitized.replace(/<[^>]*>/g, "");
-
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, ''); // Remove " (26)" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, ''); // Remove "(26)" anywhere
+    
     return sanitized;
   }
 
   /**
-   * Fetch data from Funnelback API via proxy with enhanced tab caching support
-   * and client IP tracking
+   * Fetch data from Funnelback API via proxy
    * @param {string} url - The original Funnelback URL
    * @param {string} type - The type of request (search, tools, spelling)
-   * @param {Object} options - Additional options
    * @returns {Promise<string>} The HTML response
    */
-  async fetchFromProxy(url, type = "search", options = {}) {
+  async fetchFromProxy(url, type = 'search') {
     const endpoint = `${this.config.proxyBaseUrl}/funnelback/${type}`;
 
     try {
       let queryString;
       let fullUrl;
-      let tabName = null;
-      const isTabRequest = this.isTabRequest(url);
-
-      // Track last tab request for debugging and analytics
-      if (isTabRequest) {
-        tabName = this.extractTabNameFromUrl(url);
-        this.lastTabRequest = {
-          url: url,
-          tabName: tabName,
-          timestamp: Date.now(),
-        };
-        console.log(`[SearchManager] Tab request detected: ${tabName}`, url);
-      }
 
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
 
-      // Ensure we have client IP if possible
-      await this.ensureIPServiceInitialized();
-
       // Process based on request type
       switch (type) {
-        case "search":
+        case 'search':
           // Extract query string
-          queryString = url.includes("?") ? url.split("?")[1] : "";
+          queryString = url.includes('?') ? url.split('?')[1] : '';
 
           // Parse and sanitize query parameters
           const searchParams = new URLSearchParams(queryString);
 
-          // Extract and update originalQuery if present in the URL
-          const queryParam = searchParams.get("query");
-          if (queryParam) {
-            console.log(
-              "[SearchManager] Updating originalQuery from search URL:",
-              queryParam
-            );
-            this.originalQuery = queryParam;
-          }
-
           // Remove any existing sessionId parameters
-          if (searchParams.has("sessionId")) {
-            const existingValues = searchParams.getAll("sessionId");
+          if (searchParams.has('sessionId')) {
+            const existingValues = searchParams.getAll('sessionId');
             if (existingValues.length > 1) {
-              console.warn(
-                `[SearchManager] Found multiple sessionId parameters: ${existingValues.join(
-                  ", "
-                )}. Sanitizing.`
-              );
+              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
             }
-            searchParams.delete("sessionId");
+            searchParams.delete('sessionId');
           }
 
           // Add our canonical sessionId if available
           if (this.sessionId) {
-            searchParams.append("sessionId", this.sessionId);
-          }
-
-          // Add special header for tab requests
-          if (isTabRequest && tabName) {
-            searchParams.append("X-Tab-Request", "true");
-            searchParams.append("X-Tab-Name", tabName);
-          }
-
-          // Add client IP if available
-          const clientIP = this.getClientIP();
-          if (clientIP) {
-            searchParams.append("X-Real-Client-IP", clientIP);
-            console.log(`[SearchManager] Added client IP to request: ${clientIP}`);
+            searchParams.append('sessionId', this.sessionId);
           }
 
           // Construct the full URL
           fullUrl = `${endpoint}?${searchParams.toString()}`;
           break;
 
-        case "tools":
+        case 'tools':
           // Get path from URL
-          const path = url.split("/s/")[1];
+          const path = url.split('/s/')[1];
 
           // Create parameters object
           const toolsParams = new URLSearchParams({
-            path,
+            path
           });
 
           // Add canonical sessionId if available
           if (this.sessionId) {
-            toolsParams.append("sessionId", this.sessionId);
-          }
-
-          // Add client IP if available
-          if (this.getClientIP()) {
-            toolsParams.append("X-Real-Client-IP", this.getClientIP());
+            toolsParams.append('sessionId', this.sessionId);
           }
 
           // Construct the full URL
           fullUrl = `${endpoint}?${toolsParams.toString()}`;
           break;
 
-        case "spelling":
+        case 'spelling':
           // Extract query string
-          queryString = url.includes("?") ? url.split("?")[1] : "";
+          queryString = url.includes('?') ? url.split('?')[1] : '';
 
           // Parse parameters
           const spellingParams = new URLSearchParams(queryString);
 
-          // Extract and update originalQuery if present
-          const spellingQueryParam = spellingParams.get("query");
-          if (spellingQueryParam) {
-            console.log(
-              "[SearchManager] Updating originalQuery from spelling URL:",
-              spellingQueryParam
-            );
-            this.originalQuery = spellingQueryParam;
-          }
-
           // Remove any existing sessionId parameters
-          if (spellingParams.has("sessionId")) {
-            const existingValues = spellingParams.getAll("sessionId");
+          if (spellingParams.has('sessionId')) {
+            const existingValues = spellingParams.getAll('sessionId');
             if (existingValues.length > 1) {
-              console.warn(
-                `[SearchManager] Found multiple sessionId parameters: ${existingValues.join(
-                  ", "
-                )}. Sanitizing.`
-              );
+              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
             }
-            spellingParams.delete("sessionId");
+            spellingParams.delete('sessionId');
           }
 
           // Add canonical sessionId if available
           if (this.sessionId) {
-            spellingParams.append("sessionId", this.sessionId);
-          }
-
-          // Add client IP if available
-          if (this.getClientIP()) {
-            spellingParams.append("X-Real-Client-IP", this.getClientIP());
+            spellingParams.append('sessionId', this.sessionId);
           }
 
           // Construct the full URL
@@ -619,65 +326,16 @@ class SearchManager {
           throw new Error(`Unknown request type: ${type}`);
       }
 
-      console.log(
-        `[SearchManager] Fetching from ${type} endpoint with sanitized sessionId:`,
-        fullUrl
-      );
-
-      // Set up fetch options
-      const fetchOptions = {
-        method: "GET",
-        headers: {
-          Accept: "text/html, application/json",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      };
-
-      // Add client IP headers
-      if (this.getClientIP()) {
-        fetchOptions.headers["X-Real-Client-IP"] = this.getClientIP();
-        fetchOptions.headers["X-Original-Client-IP"] = this.getClientIP();
-      }
-
-      if (isTabRequest && tabName) {
-        if (url.includes('?')) {
-          fullUrl = `${fullUrl}&tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
-        } else {
-          fullUrl = `${fullUrl}?tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
-        }
-        console.log(`[SearchManager] Modified URL with tab parameters: ${fullUrl}`);
-      }
-      
-      const response = await fetch(fullUrl, fetchOptions);
+      console.log(`Fetching from ${type} endpoint with sanitized sessionId:`, fullUrl);
+      const response = await fetch(fullUrl);
 
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
       }
 
-      // Check for cache status in response headers
-      if (isTabRequest && tabName) {
-        const cacheStatus = response.headers.get("X-Cache-Status");
-        const cacheType = response.headers.get("X-Cache-Type");
-        const cacheTabId = response.headers.get("X-Cache-Tab-ID");
-
-        // Store cache information for debugging and analytics
-        this.lastTabCache = {
-          tabName: tabName,
-          status: cacheStatus || "unknown",
-          type: cacheType || "unknown",
-          tabId: cacheTabId || tabName,
-          timestamp: Date.now(),
-        };
-
-        // Log cache status
-        console.log(
-          `[SearchManager] Tab cache status for ${tabName}: ${cacheStatus || "unknown"}`
-        );
-      }
-
       return await response.text();
     } catch (error) {
-      console.error(`[SearchManager] Error with ${type} request:`, error);
+      console.error(`Error with ${type} request:`, error);
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
   }
@@ -687,9 +345,7 @@ class SearchManager {
    * @param {string} html - The HTML content to display
    */
   updateResults(html) {
-    const resultsContainer = document.querySelector(
-      this.config.resultsContainerSelector
-    );
+    const resultsContainer = document.querySelector(this.config.resultsContainerSelector);
     if (resultsContainer) {
       resultsContainer.innerHTML = `
         <div class="funnelback-search-container">
@@ -700,12 +356,12 @@ class SearchManager {
       // Scroll to results if not in viewport and page is not already at the top
       if (!this.isElementInViewport(resultsContainer) && window.scrollY > 0) {
         resultsContainer.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
+          behavior: 'smooth',
+          block: 'start'
         });
       }
     } else {
-      console.error("[SearchManager] Results container not found when updating results");
+      console.error('Results container not found when updating results');
     }
   }
 
@@ -719,41 +375,9 @@ class SearchManager {
     return (
       rect.top >= 0 &&
       rect.left >= 0 &&
-      rect.bottom <=
-        (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
-  }
-
-  /**
-   * Check if an event should be considered a duplicate
-   * @param {string} eventType - The type of event
-   * @param {Object} data - The event data
-   * @returns {boolean} True if event is a duplicate
-   */
-  isDuplicateEvent(eventType, data) {
-    const now = Date.now();
-    const fingerprint = `${eventType}-${JSON.stringify(data)}`;
-
-    // Check for recent duplicates (within last 300ms)
-    const isDuplicate = this.recentAnalyticsEvents.some((event) => {
-      return event.fingerprint === fingerprint && now - event.timestamp < 300;
-    });
-
-    if (!isDuplicate) {
-      // Add to recent events list
-      this.recentAnalyticsEvents.push({
-        fingerprint,
-        timestamp: now,
-      });
-
-      // Trim old events (keep only last 1 second)
-      this.recentAnalyticsEvents = this.recentAnalyticsEvents.filter(
-        (event) => now - event.timestamp < 1000
-      );
-    }
-
-    return isDuplicate;
   }
 
   /**
@@ -765,307 +389,198 @@ class SearchManager {
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
 
-      // Extract the type from data before modifying
-      const dataType = data.type;
-
-      // Check for duplicate events
-      if (this.isDuplicateEvent(dataType, data)) {
-        console.log(
-          `[SearchManager] Duplicate analytics event detected, ignoring: ${dataType}`
-        );
-        return;
-      }
-
-      // Debug logs for deep copy
-      console.log("[SearchManager] Original data before deep copy:", data);
-
-      // Create a deep copy to avoid modifying the original data
+      // Create a deep copy of the data to modify
       const analyticsData = JSON.parse(JSON.stringify(data));
 
-      console.log("[SearchManager] Deep copied data:", analyticsData);
-
-      // Add session ID if available
+      // Only include sessionId if available
       if (this.sessionId) {
         analyticsData.sessionId = this.sessionId;
       }
 
-      // Add client IP if available from IPService
-      const clientIP = this.getClientIP();
-      if (clientIP) {
-        analyticsData.clientIP = clientIP;
-        console.log(`[SearchManager] Added client IP to analytics data: ${clientIP}`);
+      // Add timestamp if missing
+      if (!analyticsData.timestamp) {
+        analyticsData.timestamp = new Date().toISOString();
       }
 
-      // Add tab cache information for tab events
-      if (
-        dataType === "tab" &&
-        this.lastTabCache &&
-        this.lastTabCache.tabName === analyticsData.enrichmentData?.tabName
-      ) {
-        analyticsData.enrichmentData.cacheStatus = this.lastTabCache.status;
-        analyticsData.enrichmentData.cacheType = this.lastTabCache.type;
-      }
-
-      // Format data and determine endpoint based on the event type
+      // Determine endpoint and prepare data format based on data type
       let endpoint;
       let formattedData;
-
-      // IMPORTANT: remove the type field since it's only used for routing
-      // and is not expected by the backend endpoints
+      
+      // Extract the type from analyticsData and store it
+      const dataType = analyticsData.type;
+      
+      // IMPORTANT: Remove the type field from analyticsData as this is only used
+      // for routing and is not expected by the backend endpoints
       delete analyticsData.type;
 
-      // Format data for click tracking
-      if (dataType === "click") {
+      // Format data according to endpoint requirements
+      if (dataType === 'click') {
+        // Format data for click endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
 
-        // Make sure we have a valid query - try to recover if missing
-        if (!analyticsData.originalQuery && !this.originalQuery) {
-          // Try to recover from URL or input
-          const urlParams = new URLSearchParams(window.location.search);
-          const urlQuery = urlParams.get("query");
-
-          if (urlQuery) {
-            console.log(
-              "[SearchManager] Recovering missing originalQuery from URL:",
-              urlQuery
-            );
-            this.originalQuery = urlQuery;
-            analyticsData.originalQuery = urlQuery;
-          } else {
-            const searchInput = document.querySelector(
-              this.config.searchInputSelector
-            );
-            if (searchInput && searchInput.value) {
-              console.log(
-                "[SearchManager] Recovering missing originalQuery from input:",
-                searchInput.value
-              );
-              this.originalQuery = searchInput.value;
-              analyticsData.originalQuery = searchInput.value;
-            }
-          }
+        // Convert from originalQuery to query if needed
+        if (analyticsData.originalQuery && !analyticsData.query) {
+          analyticsData.query = analyticsData.originalQuery;
+          delete analyticsData.originalQuery;
         }
 
-        // Required fields for click endpoint - ensure backend field names are used
+        // Ensure required fields for click endpoint in a flat structure
         formattedData = {
-          originalQuery:
-            analyticsData.originalQuery || this.originalQuery || "",
-          clickedUrl: analyticsData.clickedUrl || analyticsData.url || "",
-          clickedTitle: this.sanitizeValue(
-            analyticsData.clickedTitle || analyticsData.title || ""
-          ),
-          clickPosition:
-            analyticsData.clickPosition || analyticsData.position || 0,
+          originalQuery: analyticsData.originalQuery || analyticsData.query || this.originalQuery || '',
+          clickedUrl: analyticsData.clickedUrl || analyticsData.url || '',
+          clickedTitle: analyticsData.clickedTitle || analyticsData.title || '',
+          clickPosition: analyticsData.clickPosition || analyticsData.position || -1,
           sessionId: analyticsData.sessionId || undefined,
-          clickType: this.sanitizeValue(
-            analyticsData.clickType || analyticsData.type || "search"
-          ),
-          clientIP: analyticsData.clientIP || this.getClientIP() || undefined
+          timestamp: analyticsData.timestamp,
+          clickType: analyticsData.clickType || 'search'
         };
 
-        console.log("[SearchManager] Formatted click data:", {
-          originalQuery: formattedData.originalQuery,
-          clickedUrl: formattedData.clickedUrl,
-          clickedTitle: formattedData.clickedTitle,
-          clickPosition: formattedData.clickPosition,
-          sessionId: formattedData.sessionId,
-          clickType: formattedData.clickType,
-          clientIP: formattedData.clientIP
-        });
-
-        // Validate source objects for debugging
-        console.log("[SearchManager] Source objects for formatting:", {
-          analyticsData_clickedUrl: analyticsData.clickedUrl,
-          analyticsData_url: analyticsData.url,
-          analyticsData_clickedTitle: analyticsData.clickedTitle,
-          analyticsData_title: analyticsData.title,
-          analyticsData_clickPosition: analyticsData.clickPosition,
-          analyticsData_position: analyticsData.position,
-          analyticsData_clickType: analyticsData.clickType,
-          analyticsData_type: analyticsData.type,
-        });
-
-        // Field validation before sending (match backend requirements)
-        if (!formattedData.originalQuery) {
-          console.error(
-            "[SearchManager] Missing required field: originalQuery, cannot send click data"
-          );
-          return;
-        }
-
-        if (!formattedData.clickedUrl) {
-          console.error(
-            "[SearchManager] Missing required field: clickedUrl, cannot send click data"
-          );
-          return;
-        }
+        // Sanitize all string values
+        formattedData.originalQuery = this.sanitizeValue(formattedData.originalQuery);
+        formattedData.clickedUrl = this.sanitizeValue(formattedData.clickedUrl);
+        formattedData.clickedTitle = this.sanitizeValue(formattedData.clickedTitle);
+        formattedData.clickType = this.sanitizeValue(formattedData.clickType);
 
         // Log what we're sending to click endpoint
-        console.log("[SearchManager] Sending click data:", {
-          endpoint,
-          sessionId: formattedData.sessionId,
-          originalQuery: formattedData.originalQuery,
-          clickedUrl: formattedData.clickedUrl,
-          clickPosition: formattedData.clickPosition,
-          clientIP: formattedData.clientIP
+        console.log('Sending click data:', {
+          endpoint: endpoint,
+          query: formattedData.originalQuery,
+          url: formattedData.clickedUrl,
+          position: formattedData.clickPosition,
+          clickType: formattedData.clickType,
+          sessionId: formattedData.sessionId || '(none)'
         });
       }
-      // Format data for batch click tracking
-      else if (dataType === "batch") {
+      else if (dataType === 'batch') {
+        // Format data for batch clicks endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
 
-        // Format batch clicks data - ensure backend field names are used
+        // Format batch data for clicks-batch endpoint
         formattedData = {
-          clicks: (analyticsData.clicks || [])
-            .map((click) => {
-              // Make sure we have a valid query for each click
-              const query =
-                click.originalQuery || click.query || this.originalQuery || "";
+          clicks: (analyticsData.clicks || []).map(click => {
+            const formattedClick = {
+              originalQuery: click.originalQuery || click.query || this.originalQuery || '',
+              clickedUrl: click.clickedUrl || click.url || '',
+              clickedTitle: click.clickedTitle || click.title || '',
+              clickPosition: click.clickPosition || click.position || -1,
+              sessionId: this.sessionId || undefined,
+              timestamp: click.timestamp || analyticsData.timestamp,
+              clickType: click.clickType || 'search'
+            };
 
-              return {
-                originalQuery: query,
-                clickedUrl: click.clickedUrl || click.url || "",
-                clickedTitle: this.sanitizeValue(
-                  click.clickedTitle || click.title || ""
-                ),
-                clickPosition: click.clickPosition || click.position || 0,
-                sessionId: analyticsData.sessionId || undefined,
-                clickType: this.sanitizeValue(
-                  click.clickType || click.type || "search"
-                ),
-                clientIP: analyticsData.clientIP || this.getClientIP() || undefined
-              };
-            })
-            .filter((click) => click.originalQuery && click.clickedUrl), // Filter out invalid clicks
+            // Sanitize all string values
+            formattedClick.originalQuery = this.sanitizeValue(formattedClick.originalQuery);
+            formattedClick.clickedUrl = this.sanitizeValue(formattedClick.clickedUrl);
+            formattedClick.clickedTitle = this.sanitizeValue(formattedClick.clickedTitle);
+            formattedClick.clickType = this.sanitizeValue(formattedClick.clickType);
+
+            return formattedClick;
+          })
         };
 
-        // Validate clicks array
-        if (!formattedData.clicks || formattedData.clicks.length === 0) {
-          console.error("[SearchManager] No valid clicks to send in batch");
-          return;
-        }
-
-        console.log("[SearchManager] Sending batch clicks:", {
-          endpoint,
+        // Log what we're sending to batch endpoint
+        console.log('Sending batch click data:', {
+          endpoint: endpoint,
           clickCount: formattedData.clicks.length,
+          sessionId: this.sessionId || '(none)'
         });
       }
-      // Format data for all other events (facet, tab, pagination, spelling)
       else {
+        // For all other types (facet, pagination, tab, spelling), use supplement endpoint
         endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
 
-        // If query is missing, try to get it from core
-        if (!analyticsData.query && this.originalQuery) {
-          analyticsData.query = this.originalQuery;
+        // For supplement endpoint, make sure we're using query (not originalQuery)
+        // and include enrichmentData as expected by the backend
+        if (analyticsData.originalQuery && !analyticsData.query) {
+          analyticsData.query = analyticsData.originalQuery;
+          delete analyticsData.originalQuery;
         }
 
-        // Format supplement data - use 'query' not 'originalQuery' for supplement endpoint
+        // Ensure we have a valid query
+        if (!analyticsData.query) {
+          analyticsData.query = this.originalQuery || '';
+        }
+
+        // Sanitize query
+        analyticsData.query = this.sanitizeValue(analyticsData.query);
+
+        // Create a properly formatted object for supplement endpoint
         formattedData = {
-          query: this.sanitizeValue(
-            analyticsData.query || this.originalQuery || ""
-          ),
-          sessionId: analyticsData.sessionId,
-          clientIP: analyticsData.clientIP || this.getClientIP() || undefined
+          query: analyticsData.query,
+          sessionId: analyticsData.sessionId
         };
 
-        // Validate query
-        if (!formattedData.query) {
-          console.error(
-            "[SearchManager] Missing required field: query, cannot send supplement data"
-          );
-          return;
+        // Add resultCount if provided
+        if (analyticsData.resultCount !== undefined) {
+          formattedData.resultCount = analyticsData.resultCount;
         }
 
-        // Add enrichment data based on event type
+        // Process enrichmentData if provided
         if (analyticsData.enrichmentData) {
-          const enrichmentData = {};
-
-          // Add common fields
+          // Create a clean enrichmentData object
+          const cleanEnrichmentData = {};
+          
+          // Copy actionType
           if (analyticsData.enrichmentData.actionType) {
-            enrichmentData.actionType = this.sanitizeValue(
-              analyticsData.enrichmentData.actionType
-            );
+            cleanEnrichmentData.actionType = this.sanitizeValue(analyticsData.enrichmentData.actionType);
           }
-
+          
+          // For tab changes, only include tabName (not tabId)
+          if (cleanEnrichmentData.actionType === 'tab' && analyticsData.enrichmentData.tabName) {
+            cleanEnrichmentData.tabName = this.sanitizeValue(analyticsData.enrichmentData.tabName);
+          }
+          
+          // For facet selections
+          if (cleanEnrichmentData.actionType === 'facet') {
+            if (analyticsData.enrichmentData.facetName) {
+              cleanEnrichmentData.facetName = this.sanitizeValue(analyticsData.enrichmentData.facetName);
+            }
+            if (analyticsData.enrichmentData.facetValue) {
+              cleanEnrichmentData.facetValue = this.sanitizeValue(analyticsData.enrichmentData.facetValue);
+            }
+            if (analyticsData.enrichmentData.action) {
+              cleanEnrichmentData.action = this.sanitizeValue(analyticsData.enrichmentData.action);
+            }
+          }
+          
+          // For pagination
+          if (cleanEnrichmentData.actionType === 'pagination' && analyticsData.enrichmentData.pageNumber !== undefined) {
+            cleanEnrichmentData.pageNumber = analyticsData.enrichmentData.pageNumber;
+          }
+          
+          // For spelling suggestions
+          if (cleanEnrichmentData.actionType === 'spelling' && analyticsData.enrichmentData.suggestedQuery) {
+            cleanEnrichmentData.suggestedQuery = this.sanitizeValue(analyticsData.enrichmentData.suggestedQuery);
+          }
+          
+          // Include timestamp if provided
           if (analyticsData.enrichmentData.timestamp) {
-            enrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
+            cleanEnrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
           }
-
-          // Add cache status for tab events if available
-          if (dataType === "tab" && analyticsData.enrichmentData.cacheStatus) {
-            enrichmentData.cacheStatus =
-              analyticsData.enrichmentData.cacheStatus;
-            enrichmentData.cacheType =
-              analyticsData.enrichmentData.cacheType || "tab";
-          }
-
-          // Add specific fields based on action type
-          switch (dataType) {
-            case "tab":
-              if (analyticsData.enrichmentData.tabName) {
-                enrichmentData.tabName = this.sanitizeValue(
-                  analyticsData.enrichmentData.tabName
-                );
-              }
-              break;
-
-            case "facet":
-              if (analyticsData.enrichmentData.facetName) {
-                enrichmentData.facetName = this.sanitizeValue(
-                  analyticsData.enrichmentData.facetName
-                );
-              }
-              if (analyticsData.enrichmentData.facetValue) {
-                enrichmentData.facetValue = this.sanitizeValue(
-                  analyticsData.enrichmentData.facetValue
-                );
-              }
-              if (analyticsData.enrichmentData.action) {
-                enrichmentData.action = this.sanitizeValue(
-                  analyticsData.enrichmentData.action
-                );
-              }
-              break;
-
-            case "pagination":
-              if (analyticsData.enrichmentData.pageNumber !== undefined) {
-                enrichmentData.pageNumber =
-                  analyticsData.enrichmentData.pageNumber;
-              }
-              break;
-
-            case "spelling":
-              if (analyticsData.enrichmentData.suggestedQuery) {
-                enrichmentData.suggestedQuery = this.sanitizeValue(
-                  analyticsData.enrichmentData.suggestedQuery
-                );
-              }
-              break;
-          }
-
-          // Add enrichment data to formatted data
-          formattedData.enrichmentData = enrichmentData;
+          
+          // Add the cleaned enrichmentData to formattedData
+          formattedData.enrichmentData = cleanEnrichmentData;
         }
 
         // Log what we're sending to supplement endpoint
-        console.log("[SearchManager] Sending supplement data:", {
-          endpoint,
+        console.log('Sending supplement data:', {
+          endpoint: endpoint,
           query: formattedData.query,
-          type: dataType,
+          type: dataType, // Log the type for debugging, but don't include in payload
           details: formattedData.enrichmentData,
-          clientIP: formattedData.clientIP
+          sessionId: formattedData.sessionId || '(none)'
         });
       }
 
       // Send the data using sendBeacon if available (works during page unload)
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(formattedData)], {
-          type: "application/json",
+          type: 'application/json'
         });
 
         const success = navigator.sendBeacon(endpoint, blob);
         if (!success) {
-          console.warn("[SearchManager] sendBeacon failed, falling back to fetch");
+          console.warn('sendBeacon failed, falling back to fetch');
           this.sendAnalyticsWithFetch(endpoint, formattedData);
         }
         return;
@@ -1074,51 +589,46 @@ class SearchManager {
       // Fallback to fetch with keepalive
       this.sendAnalyticsWithFetch(endpoint, formattedData);
     } catch (error) {
-      console.error("[SearchManager] Failed to send analytics data:", error);
+      console.error('Failed to send analytics data:', error);
     }
   }
 
   /**
-   * Send analytics data using fetch API (fallback)
+   * Send analytics data using fetch API (fallback) with detailed error handling
    * @param {string} endpoint - The API endpoint
    * @param {Object} data - The formatted data to send
    */
   sendAnalyticsWithFetch(endpoint, data) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    // Log exactly what we're sending
+    console.log(`Sending analytics to ${endpoint} using fetch:`, data);
 
     fetch(endpoint, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        Origin: window.location.origin,
-        "X-Real-Client-IP": this.getClientIP() || "",
-        "X-Original-Client-IP": this.getClientIP() || ""
+        'Content-Type': 'application/json',
+        'Origin': window.location.origin
       },
       body: JSON.stringify(data),
-      credentials: "include",
-      keepalive: true,
-      signal: controller.signal,
+      credentials: 'include',
+      keepalive: true
     })
-      .then((response) => {
-        clearTimeout(timeoutId);
+      .then(response => {
         if (!response.ok) {
-          return response.text().then((text) => {
-            console.error(
-              `[SearchManager] Analytics request failed: ${response.status} ${response.statusText}`,
-              text
-            );
+          return response.text().then(text => {
+            console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
+              endpoint,
+              sentData: data,
+              responseText: text
+            });
           });
         }
-        console.log(`[SearchManager] Analytics request successful: ${endpoint}`);
+        console.log(`Analytics request successful: ${endpoint}`);
       })
-      .catch((error) => {
-        clearTimeout(timeoutId);
-        if (error.name === "AbortError") {
-          console.error("[SearchManager] Analytics request timed out after 5 seconds");
-        } else {
-          console.error("[SearchManager] Error sending analytics data via fetch:", error);
-        }
+      .catch(error => {
+        console.error('Error sending analytics data via fetch:', error, {
+          endpoint,
+          sentData: data
+        });
       });
   }
 
@@ -1132,13 +642,11 @@ class SearchManager {
     }
 
     // Destroy all modules
-    Object.values(this.modules).forEach((module) => {
-      if (typeof module.destroy === "function") {
+    Object.values(this.modules).forEach(module => {
+      if (typeof module.destroy === 'function') {
         module.destroy();
       }
     });
-
-    console.log("[SearchManager] Resources cleaned up");
   }
 }
 
