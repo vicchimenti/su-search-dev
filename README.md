@@ -20,9 +20,9 @@ This application serves as the centralized search API for Seattle University's w
 
 The application follows a client-server architecture with Next.js providing both frontend and API capabilities:
 
-```
+```text
 ┌─────────────────────────────────────────────┐
-│                  Client Side                 │
+│                  Client Side                │
 │  ┌───────────┐    ┌───────────────────────┐ │
 │  │ React UI  │◄───┤ Client-side JS Modules│ │
 │  └───────────┘    └───────────────────────┘ │
@@ -31,7 +31,7 @@ The application follows a client-server architecture with Next.js providing both
                │                 │
                ▼                 ▼
 ┌─────────────────────────────────────────────┐
-│                Next.js Server                │
+│                Next.js Server               │
 │  ┌───────────┐    ┌───────────────────────┐ │
 │  │API Routes │◄───┤Utility & Service Layer│ │
 │  └───────────┘    └───────────────────────┘ │
@@ -40,7 +40,7 @@ The application follows a client-server architecture with Next.js providing both
                │                 │
                ▼                 ▼
 ┌─────────────────────────────────────────────┐
-│                External Services             │
+│                External Services            │
 │  ┌───────────┐    ┌───────────────────────┐ │
 │  │ Funnelback│    │         Redis         │ │
 │  └───────────┘    └───────────────────────┘ │
@@ -58,12 +58,14 @@ The application follows a client-server architecture with Next.js providing both
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/seattleu/search-api.git
    cd search-api
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    # or
@@ -71,7 +73,8 @@ The application follows a client-server architecture with Next.js providing both
    ```
 
 3. Create a `.env.local` file with the following variables:
-   ```
+
+   ```javascript
    # Required
    BACKEND_API_URL=https://funnelback-proxy-dev.vercel.app/proxy
    
@@ -80,6 +83,7 @@ The application follows a client-server architecture with Next.js providing both
    ```
 
 4. Start the development server:
+
    ```bash
    npm run dev
    # or
@@ -103,11 +107,12 @@ The application provides the following API endpoints:
 
 ### Search
 
-```
+```bash
 GET /api/search
 ```
 
 Parameters:
+
 - `query` (required) - Search query
 - `collection` - Collection name (default: 'seattleu~sp-search')
 - `profile` - Profile name (default: '_default')
@@ -117,11 +122,12 @@ Returns: HTML search results
 
 ### Suggestions
 
-```
+```bash
 GET /api/suggestions
 ```
 
 Parameters:
+
 - `query` (required) - Search query
 - `type` - Suggestion type ('general', 'staff', 'programs', or all if omitted)
 - `sessionId` - Session ID for analytics tracking
@@ -130,7 +136,7 @@ Returns: JSON array of suggestions
 
 ### Client Info
 
-```
+```bash
 GET /api/client-info
 ```
 
@@ -156,6 +162,7 @@ The application implements a tiered caching strategy:
 - **Browser Cache**: Appropriate cache headers for static assets
 
 Different content types have optimized cache TTL values:
+
 - Search results: 10 minutes
 - Tab content: 30 minutes
 - Popular tab content: 2 hours
@@ -165,7 +172,7 @@ Different content types have optimized cache TTL values:
 
 The application can be configured through environment variables:
 
-```
+```javascript
 # Backend API
 BACKEND_API_URL=https://funnelback-proxy-dev.vercel.app/proxy
 
@@ -182,7 +189,7 @@ Client-side configuration can be adjusted in `public/js/search-bundle.js` or thr
 
 ### Project Structure
 
-```
+```text
 ├── components/         # React components
 ├── lib/                # Utility libraries and services
 ├── pages/              # Next.js pages and API routes
@@ -222,5 +229,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contact
 
 For questions or support, please contact:
-- **Web Team**: webteam@seattleu.edu
-- **Search Support**: searchsupport@seattleu.edu
+
+- **Web Team**: <web@seattleu.edu>
