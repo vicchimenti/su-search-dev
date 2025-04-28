@@ -12,7 +12,7 @@
  * - Detailed logging for request tracing
  * 
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.0.1
  * @lastModified 2025-04-28
  */
 
