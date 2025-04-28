@@ -47,6 +47,33 @@ The application follows a client-server architecture with Next.js providing both
 └─────────────────────────────────────────────┘
 ```
 
+## Deployment Information
+
+### Current Production Version
+
+- **Latest Production Tag**: `snapshot-prod-20250428`
+- **Production Deployment**: [https://su-search-su-web-ops.vercel.app](https://su-search-su-web-ops.vercel.app)
+- **Deployment Date**: April 28, 2025
+
+To access a specific deployment version:
+
+- Latest production: [https://su-search-su-web-ops.vercel.app](https://su-search-su-web-ops.vercel.app)
+- Specific tag deployment: [https://su-search-dev-4mxvb3mlyxkdz7mopdu2h0s5ke.vercel.app](https://su-search-dev-4mxvb3mlyxkdz7mopdu2h0s5ke.vercel.app)
+
+### Environment Structure
+
+This application uses an A/B environment structure:
+
+- **Development Environment**:
+  - Frontend: `su-search-dev`
+  - Backend Proxy: `funnelback-proxy-dev`
+
+- **Production Environment**:
+  - Frontend: `su-search`
+  - Backend Proxy: `funnelback-proxy`
+
+This structure allows for clear separation between development and production environments while maintaining the ability to swap between them as needed.
+
 ## Getting Started
 
 ### Prerequisites
@@ -60,8 +87,8 @@ The application follows a client-server architecture with Next.js providing both
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/seattleu/search-api.git
-   cd search-api
+   git clone https://github.com/seattleu/su-search-dev.git
+   cd su-search-dev
    ```
 
 2. Install dependencies:
@@ -74,7 +101,7 @@ The application follows a client-server architecture with Next.js providing both
 
 3. Create a `.env.local` file with the following variables:
 
-   ```javascript
+   ```bash
    # Required
    BACKEND_API_URL=https://funnelback-proxy-dev.vercel.app/proxy
    
@@ -99,6 +126,20 @@ For production deployment, we recommend using Vercel:
 ```bash
 npm install -g vercel
 vercel
+```
+
+To create a tag before deployment:
+
+```bash
+# Create a tag
+git tag snapshot-prod-YYYYMMDD
+
+# Push the tag
+git push origin snapshot-prod-YYYYMMDD
+
+# Deploy from the tag
+git checkout snapshot-prod-YYYYMMDD
+vercel --prod
 ```
 
 ## API Endpoints
@@ -172,7 +213,7 @@ Different content types have optimized cache TTL values:
 
 The application can be configured through environment variables:
 
-```javascript
+```bash
 # Backend API
 BACKEND_API_URL=https://funnelback-proxy-dev.vercel.app/proxy
 
@@ -201,6 +242,24 @@ Client-side configuration can be adjusted in `public/js/search-bundle.js` or thr
 └── next.config.js      # Next.js configuration
 ```
 
+### Snapshot Tags
+
+We use git tags to create snapshots of the codebase before environment swaps:
+
+```bash
+# Create a new snapshot
+git tag snapshot-prod-YYYYMMDD
+git push origin snapshot-prod-YYYYMMDD
+
+# List all snapshots
+git tag -l "snapshot-*"
+
+# Check out a specific snapshot
+git checkout snapshot-prod-YYYYMMDD
+```
+
+These snapshots serve as recovery points if issues arise after environment swaps.
+
 ### Available Scripts
 
 - `npm run dev` - Start development server
@@ -215,6 +274,29 @@ Client-side configuration can be adjusted in `public/js/search-bundle.js` or thr
 3. Commit your changes: `git commit -m 'Add some amazing feature'`
 4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
+
+## Future Development
+
+Future development priorities include:
+
+1. **Security Enhancements**:
+   - Improved session management
+   - Enhanced input validation
+   - Additional security headers
+
+2. **Code Quality Improvements**:
+   - Reducing code duplication
+   - Creating unified utility services
+   - Standardizing error handling
+
+3. **Performance Optimizations**:
+   - Bundle size reduction
+   - Code splitting implementation
+   - Loading time improvements
+
+4. **Caching Strategy Enhancements**:
+   - More sophisticated cache invalidation
+   - Cache performance monitoring
 
 ## License
 
