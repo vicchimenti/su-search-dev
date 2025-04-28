@@ -9,10 +9,11 @@
  * - Centralized event delegation
  * - Optimized performance through targeted updates
  * - Comprehensive analytics tracking
+ * - IP resolution for accurate client tracking
  * 
  * @author Victor Chimenti
- * @version 2.4.1
- * @lastModified 2025-04-10
+ * @version 3.0.0
+ * @lastModified 2025-04-28
  */
 
 class SearchManager {
@@ -27,16 +28,27 @@ class SearchManager {
       },
       searchInputSelector: '#autocomplete-concierge-inputField',
       resultsContainerSelector: '#results',
-      defaultResultsPerPage: 10
+      defaultResultsPerPage: 10,
+      // IP resolution configuration
+      enableIpTracking: true,
+      ipMismatchThreshold: 3, // Max number of IP changes before forced session refresh
+      analyticsEndpoints: {
+        click: '/analytics/click',
+        batch: '/analytics/clicks-batch',
+        supplement: '/analytics/supplement',
+        session: '/analytics/session'
+      }
     };
 
     // Module registry
     this.modules = {};
 
     // State
-    this.sessionId = null; // No longer initialize here; will get from SessionService
+    this.sessionId = null;
+    this.clientIp = null;
     this.originalQuery = null;
     this.isInitialized = false;
+    this.lastIpCheckTime = 0;
   }
 
   /**
@@ -69,8 +81,8 @@ class SearchManager {
    * Initialize the search manager and all enabled modules
    */
   async initialize() {
-    // Get session ID from SessionService - the single source of truth
-    this.initializeSessionId();
+    // Initialize session and IP information
+    await this.initializeSessionAndIp();
 
     // Extract query from URL or input
     this.extractOriginalQuery();
@@ -84,24 +96,165 @@ class SearchManager {
     // Start observing for DOM changes
     this.startObserving();
 
-    console.log('Search Manager initialized with modules:', Object.keys(this.modules));
+    // Log initialization
+    console.log('Search Manager initialized with IP tracking. Modules:', Object.keys(this.modules));
+    console.log('Current session info:', {
+      sessionId: this.sessionId,
+      clientIp: this.clientIp ? this.maskIp(this.clientIp) : null
+    });
   }
 
   /**
-   * Initialize session ID using SessionService
+   * Initialize session ID and client IP using SessionService
    */
-  initializeSessionId() {
+  async initializeSessionAndIp() {
     try {
+      // Check if SessionService is available
       if (window.SessionService) {
+        // Get session ID from SessionService - the single source of truth
         this.sessionId = window.SessionService.getSessionId();
         console.log('Using SessionService for session ID:', this.sessionId);
+
+        // Get IP information if enabled
+        if (this.config.enableIpTracking) {
+          // Try to get from SessionService first
+          this.clientIp = window.SessionService.getSessionIp();
+
+          if (!this.clientIp) {
+            // If not available from SessionService, trigger a verification which will fetch it
+            try {
+              // Refresh the session to ensure we have IP information
+              await this.refreshSessionIpInfo();
+              this.clientIp = window.SessionService.getSessionIp();
+            } catch (ipError) {
+              console.warn('Could not retrieve IP information:', ipError);
+            }
+          }
+
+          if (this.clientIp) {
+            // Log masked IP for privacy in console logs
+            console.log('Retrieved client IP from SessionService:', this.maskIp(this.clientIp));
+          } else {
+            console.warn('IP tracking enabled but no IP available yet');
+          }
+        }
       } else {
-        console.warn('SessionService not found - analytics tracking will be limited');
-        this.sessionId = null;
+        console.warn('SessionService not found - using basic session tracking');
+        // Fallback if SessionService is not available
+        this.sessionId = this.generateSessionId();
+
+        if (this.config.enableIpTracking) {
+          // Try to fetch IP directly if SessionService not available
+          try {
+            const clientInfo = await this.fetchClientIp();
+            if (clientInfo && clientInfo.ip) {
+              this.clientIp = clientInfo.ip;
+              console.log('Retrieved client IP directly:', this.maskIp(this.clientIp));
+            }
+          } catch (ipError) {
+            console.warn('Could not retrieve IP information directly:', ipError);
+          }
+        }
+      }
+
+      // Update last IP check time
+      this.lastIpCheckTime = Date.now();
+    } catch (error) {
+      console.error('Error initializing session and IP:', error);
+      // Fallback to basic session ID for graceful degradation
+      this.sessionId = this.generateSessionId();
+    }
+  }
+
+  /**
+   * Refresh session IP information - called when needed
+   * @returns {Promise<void>}
+   */
+  async refreshSessionIpInfo() {
+    try {
+      // Update last check time
+      this.lastIpCheckTime = Date.now();
+
+      if (window.SessionService) {
+        // Use SessionService to refresh session with IP info
+        await window.SessionService.initialize();
+        this.sessionId = window.SessionService.getSessionId();
+        this.clientIp = window.SessionService.getSessionIp();
+
+        if (this.clientIp) {
+          console.log('Refreshed client IP via SessionService:', this.maskIp(this.clientIp));
+        }
+      } else {
+        // Direct fallback if SessionService not available
+        try {
+          const clientInfo = await this.fetchClientIp();
+          if (clientInfo && clientInfo.ip) {
+            this.clientIp = clientInfo.ip;
+            console.log('Refreshed client IP directly:', this.maskIp(this.clientIp));
+          }
+        } catch (ipError) {
+          console.warn('Could not refresh IP information directly:', ipError);
+        }
       }
     } catch (error) {
-      console.error('Error accessing SessionService:', error);
-      this.sessionId = null;
+      console.error('Error refreshing IP information:', error);
+    }
+  }
+
+  /**
+   * Generate a new session ID (fallback if SessionService unavailable)
+   * @returns {string} New session ID
+   */
+  generateSessionId() {
+    return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+  }
+
+  /**
+   * Fetch client IP directly from client-info API
+   * @returns {Promise<Object>} Client IP information
+   */
+  async fetchClientIp() {
+    try {
+      const response = await fetch('/api/client-info');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch client IP: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching client IP:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mask IP address for logging (privacy)
+   * @param {string} ip - IP address to mask
+   * @returns {string} Masked IP address
+   */
+  maskIp(ip) {
+    if (!ip) return null;
+
+    try {
+      // IPv4 address
+      if (ip.includes('.')) {
+        const parts = ip.split('.');
+        if (parts.length === 4) {
+          return `${parts[0]}.${parts[1]}.*.*`;
+        }
+      }
+      // IPv6 address
+      else if (ip.includes(':')) {
+        const parts = ip.split(':');
+        if (parts.length > 2) {
+          return `${parts[0]}:${parts[1]}:****:****`;
+        }
+      }
+
+      // Unknown format, return first 4 chars followed by asterisks
+      return ip.substring(0, 4) + '*'.repeat(Math.max(0, ip.length - 4));
+    } catch (error) {
+      console.error('Error masking IP:', error);
+      return '***.***.***';
     }
   }
 
@@ -153,12 +306,42 @@ class SearchManager {
    * @returns {string|null} Session ID or null if unavailable
    */
   getSessionId() {
-    // If it's not set yet, try again from SessionService
-    if (this.sessionId === null) {
-      this.initializeSessionId();
+    // If SessionService is available, always use that as source of truth
+    if (window.SessionService) {
+      const sessionId = window.SessionService.getSessionId();
+      // Update our cached value
+      if (sessionId) {
+        this.sessionId = sessionId;
+      }
+      return sessionId;
     }
 
+    // Fallback to our cached value
     return this.sessionId;
+  }
+
+  /**
+   * Get client IP - should be called by modules rather than accessing this.clientIp directly
+   * @returns {string|null} Client IP or null if unavailable
+   */
+  getClientIp() {
+    // If not enabled, return null
+    if (!this.config.enableIpTracking) {
+      return null;
+    }
+
+    // If SessionService is available, always use that as source of truth
+    if (window.SessionService) {
+      const clientIp = window.SessionService.getSessionIp();
+      // Update our cached value
+      if (clientIp) {
+        this.clientIp = clientIp;
+      }
+      return clientIp;
+    }
+
+    // Fallback to our cached value
+    return this.clientIp;
   }
 
   /**
@@ -222,17 +405,17 @@ class SearchManager {
     if (typeof value !== 'string') {
       return value;
     }
-    
+
     // Replace line breaks, tabs, and control characters with spaces
     let sanitized = value.replace(/[\r\n\t\f\v]+/g, ' ')
-                        .replace(/\s+/g, ' ')  // Normalize spaces
-                        .trim();  // Remove leading/trailing whitespace
-    
+      .replace(/\s+/g, ' ')  // Normalize spaces
+      .trim();  // Remove leading/trailing whitespace
+
     // Remove common counter patterns that might be in the text
     sanitized = sanitized.replace(/\s*\(\d+\)$/g, ''); // Remove " (26)" at the end
     sanitized = sanitized.replace(/\s*\[\d+\]$/g, ''); // Remove " [26]" at the end
     sanitized = sanitized.replace(/\s*\(\d+\)/g, ''); // Remove "(26)" anywhere
-    
+
     return sanitized;
   }
 
@@ -249,8 +432,8 @@ class SearchManager {
       let queryString;
       let fullUrl;
 
-      // Always refresh session ID to ensure we have the latest
-      this.initializeSessionId();
+      // Ensure we have the latest session ID and client IP
+      await this.checkAndRefreshIdentifiers();
 
       // Process based on request type
       switch (type) {
@@ -261,18 +444,20 @@ class SearchManager {
           // Parse and sanitize query parameters
           const searchParams = new URLSearchParams(queryString);
 
-          // Remove any existing sessionId parameters
-          if (searchParams.has('sessionId')) {
-            const existingValues = searchParams.getAll('sessionId');
-            if (existingValues.length > 1) {
-              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
-            }
-            searchParams.delete('sessionId');
+          // Remove any existing sessionId and clientIp parameters
+          searchParams.delete('sessionId');
+          searchParams.delete('clientIp');
+
+          // Add our canonical sessionId
+          const sessionId = this.getSessionId();
+          if (sessionId) {
+            searchParams.append('sessionId', sessionId);
           }
 
-          // Add our canonical sessionId if available
-          if (this.sessionId) {
-            searchParams.append('sessionId', this.sessionId);
+          // Add client IP if available and enabled
+          const clientIp = this.getClientIp();
+          if (this.config.enableIpTracking && clientIp) {
+            searchParams.append('clientIp', clientIp);
           }
 
           // Construct the full URL
@@ -288,9 +473,16 @@ class SearchManager {
             path
           });
 
-          // Add canonical sessionId if available
-          if (this.sessionId) {
-            toolsParams.append('sessionId', this.sessionId);
+          // Add session ID if available
+          const toolsSessionId = this.getSessionId();
+          if (toolsSessionId) {
+            toolsParams.append('sessionId', toolsSessionId);
+          }
+
+          // Add client IP if available and enabled
+          const toolsClientIp = this.getClientIp();
+          if (this.config.enableIpTracking && toolsClientIp) {
+            toolsParams.append('clientIp', toolsClientIp);
           }
 
           // Construct the full URL
@@ -304,18 +496,20 @@ class SearchManager {
           // Parse parameters
           const spellingParams = new URLSearchParams(queryString);
 
-          // Remove any existing sessionId parameters
-          if (spellingParams.has('sessionId')) {
-            const existingValues = spellingParams.getAll('sessionId');
-            if (existingValues.length > 1) {
-              console.warn(`Found multiple sessionId parameters: ${existingValues.join(', ')}. Sanitizing.`);
-            }
-            spellingParams.delete('sessionId');
+          // Remove any existing sessionId and clientIp parameters
+          spellingParams.delete('sessionId');
+          spellingParams.delete('clientIp');
+
+          // Add our canonical sessionId
+          const spellingSessionId = this.getSessionId();
+          if (spellingSessionId) {
+            spellingParams.append('sessionId', spellingSessionId);
           }
 
-          // Add canonical sessionId if available
-          if (this.sessionId) {
-            spellingParams.append('sessionId', this.sessionId);
+          // Add client IP if available and enabled
+          const spellingClientIp = this.getClientIp();
+          if (this.config.enableIpTracking && spellingClientIp) {
+            spellingParams.append('clientIp', spellingClientIp);
           }
 
           // Construct the full URL
@@ -326,7 +520,12 @@ class SearchManager {
           throw new Error(`Unknown request type: ${type}`);
       }
 
-      console.log(`Fetching from ${type} endpoint with sanitized sessionId:`, fullUrl);
+      console.log(`Fetching from ${type} endpoint:`, {
+        url: fullUrl,
+        sessionId: this.maskString(this.getSessionId()),
+        hasIp: !!this.getClientIp()
+      });
+
       const response = await fetch(fullUrl);
 
       if (!response.ok) {
@@ -338,6 +537,32 @@ class SearchManager {
       console.error(`Error with ${type} request:`, error);
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
+  }
+
+  /**
+   * Check and refresh session ID and client IP if necessary
+   * @returns {Promise<void>}
+   */
+  async checkAndRefreshIdentifiers() {
+    // Check if we need to refresh IP information (once per hour)
+    const now = Date.now();
+    const timeSinceLastCheck = now - this.lastIpCheckTime;
+
+    if (this.config.enableIpTracking && timeSinceLastCheck > 60 * 60 * 1000) {
+      await this.refreshSessionIpInfo();
+    }
+  }
+
+  /**
+   * Mask a string for logging (for privacy)
+   * @param {string} str - String to mask
+   * @returns {string} Masked string
+   */
+  maskString(str) {
+    if (!str) return 'null';
+    if (str.length <= 8) return str;
+
+    return str.substring(0, 4) + '*'.repeat(str.length - 8) + str.substring(str.length - 4);
   }
 
   /**
@@ -386,15 +611,25 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
-      // Always refresh session ID to ensure we have the latest
-      this.initializeSessionId();
+      // Ensure we have the latest session ID and client IP
+      // No await here as we don't want to block analytics
+      this.checkAndRefreshIdentifiers().catch(error => {
+        console.warn('Error refreshing identifiers for analytics:', error);
+      });
 
       // Create a deep copy of the data to modify
       const analyticsData = JSON.parse(JSON.stringify(data));
 
       // Only include sessionId if available
-      if (this.sessionId) {
-        analyticsData.sessionId = this.sessionId;
+      const sessionId = this.getSessionId();
+      if (sessionId) {
+        analyticsData.sessionId = sessionId;
+      }
+
+      // Add client IP if available and enabled
+      const clientIp = this.getClientIp();
+      if (this.config.enableIpTracking && clientIp) {
+        analyticsData.clientIp = clientIp;
       }
 
       // Add timestamp if missing
@@ -405,10 +640,10 @@ class SearchManager {
       // Determine endpoint and prepare data format based on data type
       let endpoint;
       let formattedData;
-      
+
       // Extract the type from analyticsData and store it
       const dataType = analyticsData.type;
-      
+
       // IMPORTANT: Remove the type field from analyticsData as this is only used
       // for routing and is not expected by the backend endpoints
       delete analyticsData.type;
@@ -416,7 +651,7 @@ class SearchManager {
       // Format data according to endpoint requirements
       if (dataType === 'click') {
         // Format data for click endpoint
-        endpoint = `${this.config.proxyBaseUrl}/analytics/click`;
+        endpoint = `${this.config.proxyBaseUrl}${this.config.analyticsEndpoints.click}`;
 
         // Convert from originalQuery to query if needed
         if (analyticsData.originalQuery && !analyticsData.query) {
@@ -432,7 +667,9 @@ class SearchManager {
           clickPosition: analyticsData.clickPosition || analyticsData.position || -1,
           sessionId: analyticsData.sessionId || undefined,
           timestamp: analyticsData.timestamp,
-          clickType: analyticsData.clickType || 'search'
+          clickType: analyticsData.clickType || 'search',
+          // Add client IP if available
+          ...(analyticsData.clientIp ? { clientIp: analyticsData.clientIp } : {})
         };
 
         // Sanitize all string values
@@ -448,12 +685,13 @@ class SearchManager {
           url: formattedData.clickedUrl,
           position: formattedData.clickPosition,
           clickType: formattedData.clickType,
-          sessionId: formattedData.sessionId || '(none)'
+          sessionId: this.maskString(formattedData.sessionId),
+          hasIp: !!analyticsData.clientIp
         });
       }
       else if (dataType === 'batch') {
         // Format data for batch clicks endpoint
-        endpoint = `${this.config.proxyBaseUrl}/analytics/clicks-batch`;
+        endpoint = `${this.config.proxyBaseUrl}${this.config.analyticsEndpoints.batch}`;
 
         // Format batch data for clicks-batch endpoint
         formattedData = {
@@ -463,9 +701,11 @@ class SearchManager {
               clickedUrl: click.clickedUrl || click.url || '',
               clickedTitle: click.clickedTitle || click.title || '',
               clickPosition: click.clickPosition || click.position || -1,
-              sessionId: this.sessionId || undefined,
+              sessionId: sessionId || undefined,
               timestamp: click.timestamp || analyticsData.timestamp,
-              clickType: click.clickType || 'search'
+              clickType: click.clickType || 'search',
+              // Add client IP if available
+              ...(clientIp ? { clientIp: clientIp } : {})
             };
 
             // Sanitize all string values
@@ -482,12 +722,13 @@ class SearchManager {
         console.log('Sending batch click data:', {
           endpoint: endpoint,
           clickCount: formattedData.clicks.length,
-          sessionId: this.sessionId || '(none)'
+          sessionId: this.maskString(sessionId),
+          hasIp: !!clientIp
         });
       }
       else {
         // For all other types (facet, pagination, tab, spelling), use supplement endpoint
-        endpoint = `${this.config.proxyBaseUrl}/analytics/supplement`;
+        endpoint = `${this.config.proxyBaseUrl}${this.config.analyticsEndpoints.supplement}`;
 
         // For supplement endpoint, make sure we're using query (not originalQuery)
         // and include enrichmentData as expected by the backend
@@ -507,7 +748,9 @@ class SearchManager {
         // Create a properly formatted object for supplement endpoint
         formattedData = {
           query: analyticsData.query,
-          sessionId: analyticsData.sessionId
+          sessionId: analyticsData.sessionId,
+          // Add client IP if available
+          ...(analyticsData.clientIp ? { clientIp: analyticsData.clientIp } : {})
         };
 
         // Add resultCount if provided
@@ -519,17 +762,17 @@ class SearchManager {
         if (analyticsData.enrichmentData) {
           // Create a clean enrichmentData object
           const cleanEnrichmentData = {};
-          
+
           // Copy actionType
           if (analyticsData.enrichmentData.actionType) {
             cleanEnrichmentData.actionType = this.sanitizeValue(analyticsData.enrichmentData.actionType);
           }
-          
+
           // For tab changes, only include tabName (not tabId)
           if (cleanEnrichmentData.actionType === 'tab' && analyticsData.enrichmentData.tabName) {
             cleanEnrichmentData.tabName = this.sanitizeValue(analyticsData.enrichmentData.tabName);
           }
-          
+
           // For facet selections
           if (cleanEnrichmentData.actionType === 'facet') {
             if (analyticsData.enrichmentData.facetName) {
@@ -542,22 +785,22 @@ class SearchManager {
               cleanEnrichmentData.action = this.sanitizeValue(analyticsData.enrichmentData.action);
             }
           }
-          
+
           // For pagination
           if (cleanEnrichmentData.actionType === 'pagination' && analyticsData.enrichmentData.pageNumber !== undefined) {
             cleanEnrichmentData.pageNumber = analyticsData.enrichmentData.pageNumber;
           }
-          
+
           // For spelling suggestions
           if (cleanEnrichmentData.actionType === 'spelling' && analyticsData.enrichmentData.suggestedQuery) {
             cleanEnrichmentData.suggestedQuery = this.sanitizeValue(analyticsData.enrichmentData.suggestedQuery);
           }
-          
+
           // Include timestamp if provided
           if (analyticsData.enrichmentData.timestamp) {
             cleanEnrichmentData.timestamp = analyticsData.enrichmentData.timestamp;
           }
-          
+
           // Add the cleaned enrichmentData to formattedData
           formattedData.enrichmentData = cleanEnrichmentData;
         }
@@ -568,7 +811,8 @@ class SearchManager {
           query: formattedData.query,
           type: dataType, // Log the type for debugging, but don't include in payload
           details: formattedData.enrichmentData,
-          sessionId: formattedData.sessionId || '(none)'
+          sessionId: this.maskString(formattedData.sessionId),
+          hasIp: !!analyticsData.clientIp
         });
       }
 
@@ -600,7 +844,11 @@ class SearchManager {
    */
   sendAnalyticsWithFetch(endpoint, data) {
     // Log exactly what we're sending
-    console.log(`Sending analytics to ${endpoint} using fetch:`, data);
+    console.log(`Sending analytics to ${endpoint} using fetch:`, {
+      dataSize: JSON.stringify(data).length,
+      sessionId: this.maskString(data.sessionId),
+      hasIp: !!data.clientIp
+    });
 
     fetch(endpoint, {
       method: 'POST',
@@ -617,7 +865,6 @@ class SearchManager {
           return response.text().then(text => {
             console.error(`Analytics request failed: ${response.status} ${response.statusText}`, {
               endpoint,
-              sentData: data,
               responseText: text
             });
           });
@@ -626,8 +873,7 @@ class SearchManager {
       })
       .catch(error => {
         console.error('Error sending analytics data via fetch:', error, {
-          endpoint,
-          sentData: data
+          endpoint
         });
       });
   }
