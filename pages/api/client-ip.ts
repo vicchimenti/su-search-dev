@@ -1,202 +1,231 @@
 /**
- * @fileoverview Client for backend API
+ * @fileoverview Client IP API endpoint
  * 
- * This module provides a configured Axios client for communicating
- * with the backend search API. Enhanced with IP tracking capabilities
- * to ensure consistent client IP identification across requests.
+ * This API endpoint provides a reliable way to determine the client's real IP address
+ * from the server-side, extracting it from various request headers. It also returns
+ * additional geolocation metadata if available from provider headers.
  *
  * Features:
- * - Configured Axios instance with proper timeouts and headers
- * - Client IP tracking via IPService integration
- * - Request interceptors for adding IP headers to all requests
- * - Detailed logging for request tracing
- * 
+ * - Intelligent IP extraction from multiple header sources
+ * - Prioritizes most reliable sources of client IP
+ * - Returns additional geolocation metadata when available
+ * - Detailed logging for tracing and debugging
+ * - CORS configuration for secure access
+ *
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.1.0
  * @lastModified 2025-04-28
  */
 
-import axios, { AxiosRequestHeaders } from 'axios';
-import ipService from './ip-service';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import ipService from '../../../lib/ip-service';
 
-// Get backend API URL from environment variables, with fallback
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy';
+// Response type for client IP data
+interface ClientIPResponse {
+  ip: string;
+  metadata?: {
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    timezone?: string | null;
+    latitude?: string | null;
+    longitude?: string | null;
+  };
+  source?: string;
+}
 
-// Initialize IPService as early as possible, but don't block
-console.log('[api-client] Initializing IPService');
-ipService.init().catch((error: any) => 
-  console.error('[api-client] Failed to initialize IPService:', error)
-);
+// Error response type
+interface ErrorResponse {
+  error: string;
+}
 
 /**
- * Create a configured Axios instance for backend API requests
+ * Handler for client-ip API endpoint
+ * @param req - Next.js API request
+ * @param res - Next.js API response
  */
-export const backendApiClient = axios.create({
-  baseURL: BACKEND_API_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ClientIPResponse | ErrorResponse>
+) {
+  console.log('[client-ip API] Received request');
+
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('[client-ip API] Responding to OPTIONS request');
+    res.status(200).end();
+    return;
   }
-});
 
-/**
- * Add request interceptor to include client IP in all requests
- * This ensures the real client IP is passed to the backend API
- */
-backendApiClient.interceptors.request.use(async (config) => {
-  console.log('[api-client] Preparing request to:', config.url);
-  
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    console.error(`[client-ip API] Method not allowed: ${req.method}`);
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
   try {
-    // Check if IPService is initialized
-    if (!ipService.isInitialized()) {
-      console.log('[api-client] IPService not yet initialized, waiting...');
-      
-      // Try to wait for initialization to complete
-      try {
-        await ipService.init();
-        console.log('[api-client] IPService initialization completed');
-      } catch (initError) {
-        console.warn('[api-client] Could not initialize IPService:', initError);
-      }
+    // Log all headers for debugging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[client-ip API] Request headers:', req.headers);
     }
-    
-    // Get client IP
-    const clientIP = ipService.getClientIP();
-    
-    if (clientIP) {
-      // Ensure headers object exists
-      if (!config.headers) {
-        config.headers = {} as AxiosRequestHeaders;
-      }
-      
-      // Add client IP to headers
-      config.headers['X-Real-Client-IP'] = clientIP;
-      config.headers['X-Original-Client-IP'] = clientIP;
-      
-      console.log(`[api-client] Added client IP headers: ${clientIP}`);
-      
-      // Add IP metadata if available
-      const metadata = ipService.getIPMetadata();
-      if (metadata) {
-        if (metadata.city) config.headers['X-Client-City'] = metadata.city;
-        if (metadata.region) config.headers['X-Client-Region'] = metadata.region;
-        if (metadata.country) config.headers['X-Client-Country'] = metadata.country;
-        
-        console.log('[api-client] Added IP metadata headers');
-      }
-    } else {
-      console.warn('[api-client] No client IP available to add to request');
-    }
-  } catch (error) {
-    console.error('[api-client] Error adding IP headers to request:', error);
-    // Continue with request despite error
-  }
 
-  // Add request logging in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[api-client] Request details:', {
-      method: config.method,
-      url: config.url,
-      params: config.params,
-      hasClientIP: !!ipService.getClientIP()
+    // Extract client IP using intelligent algorithm
+    const { ip, source } = extractClientIP(req);
+    console.log(`[client-ip API] Extracted client IP: ${ip} (Source: ${source})`);
+
+    // Extract geolocation metadata if available
+    const metadata = extractGeolocationMetadata(req);
+
+    // Log the full response in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[client-ip API] Full response:', { ip, metadata, source });
+    }
+
+    // Return the client IP and metadata
+    res.status(200).json({
+      ip,
+      metadata,
+      source
     });
-  }
-
-  return config;
-});
-
-/**
- * Add response interceptor for logging and error handling
- */
-backendApiClient.interceptors.response.use(
-  // Success handler
-  (response) => {
-    console.log(`[api-client] Request succeeded: ${response.config.url}`);
-    return response;
-  },
-  // Error handler
-  (error) => {
-    console.error('[api-client] Request failed:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.message
-    });
-    return Promise.reject(error);
-  }
-);
-
-/**
- * Helper function to make API requests with enhanced IP headers
- * @param url - The API endpoint URL
- * @param method - HTTP method (GET, POST, etc.)
- * @param data - Request data (for POST, PUT, etc.)
- * @param params - URL parameters
- * @returns Promise resolving to the API response
- */
-export async function makeApiRequest(
-  url: string,
-  method: string = 'GET',
-  data: any = null,
-  params: any = null
-): Promise<any> {
-  try {
-    // Ensure IPService is initialized
-    if (!ipService.isInitialized()) {
-      await ipService.init();
-    }
-    
-    // Create request configuration
-    const config: any = {
-      url,
-      method,
-      params
-    };
-    
-    // Add data for non-GET requests
-    if (method !== 'GET' && data) {
-      config.data = data;
-    }
-    
-    // Add client IP headers
-    const clientIP = ipService.getClientIP();
-    if (clientIP) {
-      if (!config.headers) config.headers = {} as AxiosRequestHeaders;
-      config.headers['X-Real-Client-IP'] = clientIP;
-      config.headers['X-Original-Client-IP'] = clientIP;
-    }
-    
-    // Make request
-    const response = await backendApiClient(config);
-    return response.data;
   } catch (error) {
-    console.error('[api-client] Error in makeApiRequest:', error);
-    throw error;
+    console.error('[client-ip API] Error extracting client IP:', error);
+    res.status(500).json({ error: 'Failed to determine client IP' });
   }
 }
 
 /**
- * Helper function to extract client IP from the API
- * Useful when IPService needs a reliable way to get the IP
- * @returns Promise resolving to the client IP
+ * Extract the client IP address from request headers
+ * Uses an intelligent algorithm to prioritize the most reliable sources
+ * @param req - Next.js API request
+ * @returns The client IP and its source
  */
-export async function fetchClientIP(): Promise<string | null> {
-  try {
-    console.log('[api-client] Fetching client IP from API');
-    const response = await backendApiClient.get('/api/client-ip');
-    
-    if (response.data && response.data.ip) {
-      console.log('[api-client] Successfully fetched client IP:', response.data.ip);
-      return response.data.ip;
-    }
-    
-    console.warn('[api-client] API did not return valid IP:', response.data);
-    return null;
-  } catch (error) {
-    console.error('[api-client] Error fetching client IP:', error);
-    return null;
+function extractClientIP(req: NextApiRequest): { ip: string; source: string } {
+  // Check for Vercel-specific headers first (most reliable in Vercel environment)
+  const vercelIP = req.headers['x-vercel-ip'];
+  if (vercelIP) {
+    const ip = Array.isArray(vercelIP) ? vercelIP[0] : vercelIP;
+    return { ip, source: 'x-vercel-ip' };
   }
+
+  // Check for existing Real-Client-IP header (may be set by client)
+  const realClientIP = req.headers['x-real-client-ip'];
+  if (realClientIP) {
+    const ip = Array.isArray(realClientIP) ? realClientIP[0] : realClientIP;
+    return { ip, source: 'x-real-client-ip' };
+  }
+
+  // Check for Cloudflare headers
+  const cfConnectingIP = req.headers['cf-connecting-ip'];
+  if (cfConnectingIP) {
+    const ip = Array.isArray(cfConnectingIP) ? cfConnectingIP[0] : cfConnectingIP;
+    return { ip, source: 'cf-connecting-ip' };
+  }
+
+  // Check for x-forwarded-for (common but less reliable)
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (forwardedFor) {
+    // Get the first IP in the list which is typically the original client
+    const ips = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor.split(',')[0].trim();
+    return { ip: ips, source: 'x-forwarded-for' };
+  }
+
+  // Check for other common headers
+  const trueClientIP = req.headers['x-client-ip'];
+  if (trueClientIP) {
+    const ip = Array.isArray(trueClientIP) ? trueClientIP[0] : trueClientIP;
+    return { ip, source: 'x-client-ip' };
+  }
+
+  const realIP = req.headers['x-real-ip'];
+  if (realIP) {
+    const ip = Array.isArray(realIP) ? realIP[0] : realIP;
+    return { ip, source: 'x-real-ip' };
+  }
+
+  // Use socket address as last resort
+  const remoteAddress = req.socket.remoteAddress;
+  if (remoteAddress) {
+    return { ip: remoteAddress, source: 'socket' };
+  }
+
+  // If all else fails, return a placeholder
+  console.warn('[client-ip API] Could not determine client IP from any source');
+  return { ip: '0.0.0.0', source: 'unknown' };
 }
 
-// Export default client
-export default backendApiClient;
+/**
+ * Extract geolocation metadata from request headers
+ * @param req - Next.js API request
+ * @returns Geolocation metadata object
+ */
+function extractGeolocationMetadata(req: NextApiRequest): ClientIPResponse['metadata'] {
+  const metadata: ClientIPResponse['metadata'] = {};
+
+  // Extract location data from Vercel headers
+  try {
+    // City
+    if (req.headers['x-vercel-ip-city']) {
+      metadata.city = Array.isArray(req.headers['x-vercel-ip-city'])
+        ? req.headers['x-vercel-ip-city'][0]
+        : req.headers['x-vercel-ip-city'];
+    }
+
+    // Region
+    if (req.headers['x-vercel-ip-region']) {
+      metadata.region = Array.isArray(req.headers['x-vercel-ip-region'])
+        ? req.headers['x-vercel-ip-region'][0]
+        : req.headers['x-vercel-ip-region'];
+    }
+
+    // Country
+    if (req.headers['x-vercel-ip-country']) {
+      metadata.country = Array.isArray(req.headers['x-vercel-ip-country'])
+        ? req.headers['x-vercel-ip-country'][0]
+        : req.headers['x-vercel-ip-country'];
+    }
+
+    // Timezone
+    if (req.headers['x-vercel-ip-timezone']) {
+      metadata.timezone = Array.isArray(req.headers['x-vercel-ip-timezone'])
+        ? req.headers['x-vercel-ip-timezone'][0]
+        : req.headers['x-vercel-ip-timezone'];
+    }
+
+    // Latitude
+    if (req.headers['x-vercel-ip-latitude']) {
+      metadata.latitude = Array.isArray(req.headers['x-vercel-ip-latitude'])
+        ? req.headers['x-vercel-ip-latitude'][0]
+        : req.headers['x-vercel-ip-latitude'];
+    }
+
+    // Longitude
+    if (req.headers['x-vercel-ip-longitude']) {
+      metadata.longitude = Array.isArray(req.headers['x-vercel-ip-longitude'])
+        ? req.headers['x-vercel-ip-longitude'][0]
+        : req.headers['x-vercel-ip-longitude'];
+    }
+  } catch (error) {
+    console.warn('[client-ip API] Error extracting geolocation metadata:', error);
+  }
+
+  // Check for Cloudflare headers as fallback
+  try {
+    if (!metadata.country && req.headers['cf-ipcountry']) {
+      metadata.country = Array.isArray(req.headers['cf-ipcountry'])
+        ? req.headers['cf-ipcountry'][0]
+        : req.headers['cf-ipcountry'];
+    }
+  } catch (error) {
+    console.warn('[client-ip API] Error extracting Cloudflare country:', error);
+  }
+
+  return metadata;
+}

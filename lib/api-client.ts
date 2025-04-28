@@ -12,7 +12,7 @@
  * - Detailed logging for request tracing
  * 
  * @author Victor Chimenti
- * @version 2.0.2
+ * @version 2.1.0
  * @lastModified 2025-04-28
  */
 
@@ -24,7 +24,7 @@ const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy
 
 // Initialize IPService as early as possible, but don't block
 console.log('[api-client] Initializing IPService');
-ipService.init().catch(error => 
+ipService.init().catch(error =>
   console.error('[api-client] Failed to initialize IPService:', error)
 );
 
@@ -46,12 +46,12 @@ export const backendApiClient = axios.create({
  */
 backendApiClient.interceptors.request.use(async (config) => {
   console.log('[api-client] Preparing request to:', config.url);
-  
+
   try {
     // Check if IPService is initialized
     if (!ipService.isInitialized()) {
       console.log('[api-client] IPService not yet initialized, waiting...');
-      
+
       // Try to wait for initialization to complete
       try {
         await ipService.init();
@@ -60,29 +60,29 @@ backendApiClient.interceptors.request.use(async (config) => {
         console.warn('[api-client] Could not initialize IPService:', initError);
       }
     }
-    
+
     // Get client IP
     const clientIP = ipService.getClientIP();
-    
+
     if (clientIP) {
       // Ensure headers object exists
       if (!config.headers) {
         config.headers = {} as AxiosRequestHeaders;
       }
-      
+
       // Add client IP to headers
       config.headers['X-Real-Client-IP'] = clientIP;
       config.headers['X-Original-Client-IP'] = clientIP;
-      
+
       console.log(`[api-client] Added client IP headers: ${clientIP}`);
-      
+
       // Add IP metadata if available
       const metadata = ipService.getIPMetadata();
       if (metadata) {
         if (metadata.city) config.headers['X-Client-City'] = metadata.city;
         if (metadata.region) config.headers['X-Client-Region'] = metadata.region;
         if (metadata.country) config.headers['X-Client-Country'] = metadata.country;
-        
+
         console.log('[api-client] Added IP metadata headers');
       }
     } else {
@@ -145,19 +145,19 @@ export async function makeApiRequest(
     if (!ipService.isInitialized()) {
       await ipService.init();
     }
-    
+
     // Create request configuration
     const config: any = {
       url,
       method,
       params
     };
-    
+
     // Add data for non-GET requests
     if (method !== 'GET' && data) {
       config.data = data;
     }
-    
+
     // Add client IP headers
     const clientIP = ipService.getClientIP();
     if (clientIP) {
@@ -165,7 +165,7 @@ export async function makeApiRequest(
       config.headers['X-Real-Client-IP'] = clientIP;
       config.headers['X-Original-Client-IP'] = clientIP;
     }
-    
+
     // Make request
     const response = await backendApiClient(config);
     return response.data;
@@ -184,12 +184,12 @@ export async function fetchClientIP(): Promise<string | null> {
   try {
     console.log('[api-client] Fetching client IP from API');
     const response = await backendApiClient.get('/api/client-ip');
-    
+
     if (response.data && response.data.ip) {
       console.log('[api-client] Successfully fetched client IP:', response.data.ip);
       return response.data.ip;
     }
-    
+
     console.warn('[api-client] API did not return valid IP:', response.data);
     return null;
   } catch (error) {
