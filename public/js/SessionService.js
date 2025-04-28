@@ -6,7 +6,7 @@
  * Now includes IP tracking capabilities to improve analytics and user tracking.
  *
  * @author Victor Chimenti
- * @version 2.0.0
+ * @version 2.0.1
  * @lastModified 2025-04-28
  */
 
@@ -365,7 +365,7 @@ const SessionService = {
    */
   _fetchClientIp: async function () {
     try {
-      const response = await fetch('/api/client-info');
+      const response = await fetch('https://su-search-dev.vercel.app/api/client-info');
       if (!response.ok) {
         throw new Error(`Error fetching client IP: ${response.status} ${response.statusText}`);
       }
