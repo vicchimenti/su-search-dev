@@ -1,7 +1,8 @@
 /**
- * @fileoverview Search Manager Architecture
+ * @fileoverview Search Manager Architecture with IP Management
  *
- * This architecture provides a modular approach to handling search functionality.
+ * This architecture provides a modular approach to handling search functionality,
+ * now enhanced with IP tracking capabilities to ensure consistent client identification.
  * It consists of a core manager that coordinates feature-specific modules.
  *
  * Features:
@@ -10,11 +11,25 @@
  * - Optimized performance through targeted updates
  * - Comprehensive analytics tracking
  * - Tab content caching support
+ * - Client IP tracking and persistence
  *
  * @author Victor Chimenti
- * @version 2.6.1
- * @lastModified 2025-04-16
+ * @version 3.0.0
+ * @lastModified 2025-04-28
  */
+
+// Import IPService (dynamically to avoid issues with module loading)
+let ipService;
+try {
+  import('/lib/ip-service.js').then(module => {
+    ipService = module.default;
+    console.log('[SearchManager] IPService module loaded');
+  }).catch(error => {
+    console.error('[SearchManager] Failed to import IPService:', error);
+  });
+} catch (error) {
+  console.warn('[SearchManager] Dynamic import not supported, will try to access IPService globally');
+}
 
 class SearchManager {
   constructor() {
@@ -36,11 +51,16 @@ class SearchManager {
 
     // State
     this.sessionId = null;
+    this.clientIP = null;
     this.originalQuery = null;
     this.isInitialized = false;
     this.recentAnalyticsEvents = [];
     this.lastTabRequest = null;
     this.lastTabCache = null;
+    this.ipInitialized = false;
+
+    // Early IP service initialization
+    this.initializeIPService();
   }
 
   /**
@@ -50,7 +70,7 @@ class SearchManager {
   init(options = {}) {
     // Prevent multiple initializations
     if (this.isInitialized) {
-      console.warn("Search Manager already initialized");
+      console.warn("[SearchManager] Already initialized");
       return this;
     }
 
@@ -76,10 +96,13 @@ class SearchManager {
     // Get session ID from SessionService - the single source of truth
     this.initializeSessionId();
 
+    // Ensure IP service is initialized
+    await this.ensureIPServiceInitialized();
+
     // Extract query from URL or input
     this.extractOriginalQuery();
-    console.debug(
-      "Core manager: Initialization extracted query:",
+    console.log(
+      "[SearchManager] Initialization extracted query:",
       this.originalQuery
     );
 
@@ -91,20 +114,90 @@ class SearchManager {
 
     // Re-check query in case it wasn't available at first extraction
     if (!this.originalQuery) {
-      console.debug(
-        "Core manager: Re-extracting missing query after modules loaded"
+      console.log(
+        "[SearchManager] Re-extracting missing query after modules loaded"
       );
       this.extractOriginalQuery();
-      console.debug("Core manager: Re-extracted query:", this.originalQuery);
+      console.log("[SearchManager] Re-extracted query:", this.originalQuery);
     }
 
     // Start observing for DOM changes
     this.startObserving();
 
     console.log(
-      "Search Manager initialized with modules:",
+      "[SearchManager] Initialized with modules:",
       Object.keys(this.modules)
     );
+  }
+
+  /**
+   * Initialize IP service for consistent client identification
+   */
+  async initializeIPService() {
+    console.log("[SearchManager] Starting IP service initialization");
+
+    try {
+      // First try to access directly if already loaded
+      if (ipService) {
+        console.log("[SearchManager] Using imported IPService module");
+      } 
+      // Fallback to global access
+      else if (window.ipService) {
+        console.log("[SearchManager] Using global IPService");
+        ipService = window.ipService;
+      }
+      // Try dynamic import as last resort
+      else {
+        console.log("[SearchManager] Attempting dynamic import of IPService");
+        try {
+          const module = await import('/lib/ip-service.js');
+          ipService = module.default;
+        } catch (importError) {
+          console.error("[SearchManager] Dynamic import failed:", importError);
+        }
+      }
+
+      // Initialize IP service if available
+      if (ipService) {
+        console.log("[SearchManager] Initializing IPService");
+        const clientIP = await ipService.init();
+        this.clientIP = clientIP;
+        this.ipInitialized = true;
+        console.log("[SearchManager] IPService initialized with IP:", clientIP);
+      } else {
+        console.warn("[SearchManager] IPService not available");
+      }
+    } catch (error) {
+      console.error("[SearchManager] Error initializing IPService:", error);
+    }
+  }
+
+  /**
+   * Ensure IP Service is initialized before proceeding
+   * @returns {Promise<void>}
+   */
+  async ensureIPServiceInitialized() {
+    if (this.ipInitialized) {
+      console.log("[SearchManager] IPService already initialized");
+      return;
+    }
+
+    try {
+      // Wait for IPService initialization
+      if (ipService) {
+        console.log("[SearchManager] Waiting for IPService initialization");
+        const clientIP = await ipService.init();
+        this.clientIP = clientIP;
+        this.ipInitialized = true;
+        console.log("[SearchManager] IPService initialized with IP:", clientIP);
+      } else {
+        // Try one more time to get IPService
+        console.log("[SearchManager] Attempting to re-acquire IPService");
+        await this.initializeIPService();
+      }
+    } catch (error) {
+      console.error("[SearchManager] Error ensuring IPService initialized:", error);
+    }
   }
 
   /**
@@ -114,15 +207,15 @@ class SearchManager {
     try {
       if (window.SessionService) {
         this.sessionId = window.SessionService.getSessionId();
-        console.log("Using SessionService for session ID:", this.sessionId);
+        console.log("[SearchManager] Using SessionService for session ID:", this.sessionId);
       } else {
         console.warn(
-          "SessionService not found - analytics tracking will be limited"
+          "[SearchManager] SessionService not found - analytics tracking will be limited"
         );
         this.sessionId = null;
       }
     } catch (error) {
-      console.error("Error accessing SessionService:", error);
+      console.error("[SearchManager] Error accessing SessionService:", error);
       this.sessionId = null;
     }
   }
@@ -140,9 +233,9 @@ class SearchManager {
 
           // Initialize the module
           this.modules[moduleName] = new ModuleClass(this);
-          console.log(`Loaded module: ${moduleName}`);
+          console.log(`[SearchManager] Loaded module: ${moduleName}`);
         } catch (error) {
-          console.error(`Failed to load module: ${moduleName}`, error);
+          console.error(`[SearchManager] Failed to load module: ${moduleName}`, error);
         }
       }
     );
@@ -160,7 +253,7 @@ class SearchManager {
     const urlQuery = urlParams.get("query");
 
     if (urlQuery) {
-      console.debug("Core manager: Setting originalQuery from URL:", urlQuery);
+      console.log("[SearchManager] Setting originalQuery from URL:", urlQuery);
       this.originalQuery = urlQuery;
       return;
     }
@@ -168,15 +261,15 @@ class SearchManager {
     // If not in URL, try to get from search input field
     const searchInput = document.querySelector(this.config.searchInputSelector);
     if (searchInput && searchInput.value) {
-      console.debug(
-        "Core manager: Setting originalQuery from input:",
+      console.log(
+        "[SearchManager] Setting originalQuery from input:",
         searchInput.value
       );
       this.originalQuery = searchInput.value;
       return;
     }
 
-    console.debug("Core manager: No query found in URL or input");
+    console.log("[SearchManager] No query found in URL or input");
     // Don't set to empty string or null - keep previous value if it exists
   }
 
@@ -192,6 +285,24 @@ class SearchManager {
     }
 
     return this.sessionId;
+  }
+
+  /**
+   * Get client IP address
+   * @returns {string|null} Client IP or null if unavailable
+   */
+  getClientIP() {
+    // If IPService is available, use it
+    if (ipService && ipService.isInitialized()) {
+      const ip = ipService.getClientIP();
+      if (ip) {
+        this.clientIP = ip; // Cache it
+        return ip;
+      }
+    }
+
+    // Return cached value if available
+    return this.clientIP;
   }
 
   /**
@@ -255,7 +366,7 @@ class SearchManager {
         }
       }
     } catch (e) {
-      console.error("Error extracting tab name:", e);
+      console.error("[SearchManager] Error extracting tab name:", e);
     }
 
     // Default for form=partial requests with no specific tab
@@ -293,9 +404,9 @@ class SearchManager {
     );
     if (resultsContainer) {
       this.observer.observe(resultsContainer, this.config.observerConfig);
-      console.log("Observer started watching results container");
+      console.log("[SearchManager] Observer started watching results container");
     } else {
-      console.warn("Results container not found, waiting for it to appear");
+      console.warn("[SearchManager] Results container not found, waiting for it to appear");
       this.waitForResultsContainer();
     }
   }
@@ -311,7 +422,7 @@ class SearchManager {
       if (resultsContainer) {
         obs.disconnect();
         this.observer.observe(resultsContainer, this.config.observerConfig);
-        console.log("Results container found and observer started");
+        console.log("[SearchManager] Results container found and observer started");
       }
     });
 
@@ -351,6 +462,7 @@ class SearchManager {
 
   /**
    * Fetch data from Funnelback API via proxy with enhanced tab caching support
+   * and client IP tracking
    * @param {string} url - The original Funnelback URL
    * @param {string} type - The type of request (search, tools, spelling)
    * @param {Object} options - Additional options
@@ -373,11 +485,14 @@ class SearchManager {
           tabName: tabName,
           timestamp: Date.now(),
         };
-        console.log(`Tab request detected: ${tabName}`, url);
+        console.log(`[SearchManager] Tab request detected: ${tabName}`, url);
       }
 
       // Always refresh session ID to ensure we have the latest
       this.initializeSessionId();
+
+      // Ensure we have client IP if possible
+      await this.ensureIPServiceInitialized();
 
       // Process based on request type
       switch (type) {
@@ -391,8 +506,8 @@ class SearchManager {
           // Extract and update originalQuery if present in the URL
           const queryParam = searchParams.get("query");
           if (queryParam) {
-            console.debug(
-              "Core manager: Updating originalQuery from search URL:",
+            console.log(
+              "[SearchManager] Updating originalQuery from search URL:",
               queryParam
             );
             this.originalQuery = queryParam;
@@ -403,7 +518,7 @@ class SearchManager {
             const existingValues = searchParams.getAll("sessionId");
             if (existingValues.length > 1) {
               console.warn(
-                `Found multiple sessionId parameters: ${existingValues.join(
+                `[SearchManager] Found multiple sessionId parameters: ${existingValues.join(
                   ", "
                 )}. Sanitizing.`
               );
@@ -420,6 +535,13 @@ class SearchManager {
           if (isTabRequest && tabName) {
             searchParams.append("X-Tab-Request", "true");
             searchParams.append("X-Tab-Name", tabName);
+          }
+
+          // Add client IP if available
+          const clientIP = this.getClientIP();
+          if (clientIP) {
+            searchParams.append("X-Real-Client-IP", clientIP);
+            console.log(`[SearchManager] Added client IP to request: ${clientIP}`);
           }
 
           // Construct the full URL
@@ -440,6 +562,11 @@ class SearchManager {
             toolsParams.append("sessionId", this.sessionId);
           }
 
+          // Add client IP if available
+          if (this.getClientIP()) {
+            toolsParams.append("X-Real-Client-IP", this.getClientIP());
+          }
+
           // Construct the full URL
           fullUrl = `${endpoint}?${toolsParams.toString()}`;
           break;
@@ -454,8 +581,8 @@ class SearchManager {
           // Extract and update originalQuery if present
           const spellingQueryParam = spellingParams.get("query");
           if (spellingQueryParam) {
-            console.debug(
-              "Core manager: Updating originalQuery from spelling URL:",
+            console.log(
+              "[SearchManager] Updating originalQuery from spelling URL:",
               spellingQueryParam
             );
             this.originalQuery = spellingQueryParam;
@@ -466,7 +593,7 @@ class SearchManager {
             const existingValues = spellingParams.getAll("sessionId");
             if (existingValues.length > 1) {
               console.warn(
-                `Found multiple sessionId parameters: ${existingValues.join(
+                `[SearchManager] Found multiple sessionId parameters: ${existingValues.join(
                   ", "
                 )}. Sanitizing.`
               );
@@ -479,6 +606,11 @@ class SearchManager {
             spellingParams.append("sessionId", this.sessionId);
           }
 
+          // Add client IP if available
+          if (this.getClientIP()) {
+            spellingParams.append("X-Real-Client-IP", this.getClientIP());
+          }
+
           // Construct the full URL
           fullUrl = `${endpoint}?${spellingParams.toString()}`;
           break;
@@ -488,7 +620,7 @@ class SearchManager {
       }
 
       console.log(
-        `Fetching from ${type} endpoint with sanitized sessionId:`,
+        `[SearchManager] Fetching from ${type} endpoint with sanitized sessionId:`,
         fullUrl
       );
 
@@ -501,16 +633,22 @@ class SearchManager {
         },
       };
 
+      // Add client IP headers
+      if (this.getClientIP()) {
+        fetchOptions.headers["X-Real-Client-IP"] = this.getClientIP();
+        fetchOptions.headers["X-Original-Client-IP"] = this.getClientIP();
+      }
+
       if (isTabRequest && tabName) {
         if (url.includes('?')) {
           fullUrl = `${fullUrl}&tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
         } else {
           fullUrl = `${fullUrl}?tabRequest=true&tabName=${encodeURIComponent(tabName)}`;
         }
-        console.log(`Modified URL with tab parameters: ${fullUrl}`);
+        console.log(`[SearchManager] Modified URL with tab parameters: ${fullUrl}`);
       }
       
-      const response = await fetch(fullUrl);
+      const response = await fetch(fullUrl, fetchOptions);
 
       if (!response.ok) {
         throw new Error(`Error: ${response.status}`);
@@ -533,13 +671,13 @@ class SearchManager {
 
         // Log cache status
         console.log(
-          `Tab cache status for ${tabName}: ${cacheStatus || "unknown"}`
+          `[SearchManager] Tab cache status for ${tabName}: ${cacheStatus || "unknown"}`
         );
       }
 
       return await response.text();
     } catch (error) {
-      console.error(`Error with ${type} request:`, error);
+      console.error(`[SearchManager] Error with ${type} request:`, error);
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
   }
@@ -567,7 +705,7 @@ class SearchManager {
         });
       }
     } else {
-      console.error("Results container not found when updating results");
+      console.error("[SearchManager] Results container not found when updating results");
     }
   }
 
@@ -632,27 +770,30 @@ class SearchManager {
 
       // Check for duplicate events
       if (this.isDuplicateEvent(dataType, data)) {
-        console.debug(
-          `Duplicate analytics event detected, ignoring: ${dataType}`
+        console.log(
+          `[SearchManager] Duplicate analytics event detected, ignoring: ${dataType}`
         );
         return;
       }
 
       // Debug logs for deep copy
-      console.debug("Original data before deep copy:", data);
+      console.log("[SearchManager] Original data before deep copy:", data);
 
       // Create a deep copy to avoid modifying the original data
       const analyticsData = JSON.parse(JSON.stringify(data));
 
-      console.debug("Deep copied data:", analyticsData);
-      console.debug(
-        "Is deep copy different from original:",
-        data !== analyticsData
-      );
+      console.log("[SearchManager] Deep copied data:", analyticsData);
 
       // Add session ID if available
       if (this.sessionId) {
         analyticsData.sessionId = this.sessionId;
+      }
+
+      // Add client IP if available from IPService
+      const clientIP = this.getClientIP();
+      if (clientIP) {
+        analyticsData.clientIP = clientIP;
+        console.log(`[SearchManager] Added client IP to analytics data: ${clientIP}`);
       }
 
       // Add tab cache information for tab events
@@ -684,8 +825,8 @@ class SearchManager {
           const urlQuery = urlParams.get("query");
 
           if (urlQuery) {
-            console.debug(
-              "Core manager: Recovering missing originalQuery from URL:",
+            console.log(
+              "[SearchManager] Recovering missing originalQuery from URL:",
               urlQuery
             );
             this.originalQuery = urlQuery;
@@ -695,8 +836,8 @@ class SearchManager {
               this.config.searchInputSelector
             );
             if (searchInput && searchInput.value) {
-              console.debug(
-                "Core manager: Recovering missing originalQuery from input:",
+              console.log(
+                "[SearchManager] Recovering missing originalQuery from input:",
                 searchInput.value
               );
               this.originalQuery = searchInput.value;
@@ -719,19 +860,21 @@ class SearchManager {
           clickType: this.sanitizeValue(
             analyticsData.clickType || analyticsData.type || "search"
           ),
+          clientIP: analyticsData.clientIP || this.getClientIP() || undefined
         };
 
-        console.debug("Formatted click data:", {
+        console.log("[SearchManager] Formatted click data:", {
           originalQuery: formattedData.originalQuery,
           clickedUrl: formattedData.clickedUrl,
           clickedTitle: formattedData.clickedTitle,
           clickPosition: formattedData.clickPosition,
           sessionId: formattedData.sessionId,
           clickType: formattedData.clickType,
+          clientIP: formattedData.clientIP
         });
 
         // Validate source objects for debugging
-        console.debug("Source objects for formatting:", {
+        console.log("[SearchManager] Source objects for formatting:", {
           analyticsData_clickedUrl: analyticsData.clickedUrl,
           analyticsData_url: analyticsData.url,
           analyticsData_clickedTitle: analyticsData.clickedTitle,
@@ -745,25 +888,26 @@ class SearchManager {
         // Field validation before sending (match backend requirements)
         if (!formattedData.originalQuery) {
           console.error(
-            "Missing required field: originalQuery, cannot send click data"
+            "[SearchManager] Missing required field: originalQuery, cannot send click data"
           );
           return;
         }
 
         if (!formattedData.clickedUrl) {
           console.error(
-            "Missing required field: clickedUrl, cannot send click data"
+            "[SearchManager] Missing required field: clickedUrl, cannot send click data"
           );
           return;
         }
 
         // Log what we're sending to click endpoint
-        console.log("Sending click data:", {
+        console.log("[SearchManager] Sending click data:", {
           endpoint,
           sessionId: formattedData.sessionId,
           originalQuery: formattedData.originalQuery,
           clickedUrl: formattedData.clickedUrl,
           clickPosition: formattedData.clickPosition,
+          clientIP: formattedData.clientIP
         });
       }
       // Format data for batch click tracking
@@ -789,6 +933,7 @@ class SearchManager {
                 clickType: this.sanitizeValue(
                   click.clickType || click.type || "search"
                 ),
+                clientIP: analyticsData.clientIP || this.getClientIP() || undefined
               };
             })
             .filter((click) => click.originalQuery && click.clickedUrl), // Filter out invalid clicks
@@ -796,11 +941,11 @@ class SearchManager {
 
         // Validate clicks array
         if (!formattedData.clicks || formattedData.clicks.length === 0) {
-          console.error("No valid clicks to send in batch");
+          console.error("[SearchManager] No valid clicks to send in batch");
           return;
         }
 
-        console.log("Sending batch clicks:", {
+        console.log("[SearchManager] Sending batch clicks:", {
           endpoint,
           clickCount: formattedData.clicks.length,
         });
@@ -820,12 +965,13 @@ class SearchManager {
             analyticsData.query || this.originalQuery || ""
           ),
           sessionId: analyticsData.sessionId,
+          clientIP: analyticsData.clientIP || this.getClientIP() || undefined
         };
 
         // Validate query
         if (!formattedData.query) {
           console.error(
-            "Missing required field: query, cannot send supplement data"
+            "[SearchManager] Missing required field: query, cannot send supplement data"
           );
           return;
         }
@@ -902,11 +1048,12 @@ class SearchManager {
         }
 
         // Log what we're sending to supplement endpoint
-        console.log("Sending supplement data:", {
+        console.log("[SearchManager] Sending supplement data:", {
           endpoint,
           query: formattedData.query,
           type: dataType,
           details: formattedData.enrichmentData,
+          clientIP: formattedData.clientIP
         });
       }
 
@@ -918,7 +1065,7 @@ class SearchManager {
 
         const success = navigator.sendBeacon(endpoint, blob);
         if (!success) {
-          console.warn("sendBeacon failed, falling back to fetch");
+          console.warn("[SearchManager] sendBeacon failed, falling back to fetch");
           this.sendAnalyticsWithFetch(endpoint, formattedData);
         }
         return;
@@ -927,7 +1074,7 @@ class SearchManager {
       // Fallback to fetch with keepalive
       this.sendAnalyticsWithFetch(endpoint, formattedData);
     } catch (error) {
-      console.error("Failed to send analytics data:", error);
+      console.error("[SearchManager] Failed to send analytics data:", error);
     }
   }
 
@@ -945,6 +1092,8 @@ class SearchManager {
       headers: {
         "Content-Type": "application/json",
         Origin: window.location.origin,
+        "X-Real-Client-IP": this.getClientIP() || "",
+        "X-Original-Client-IP": this.getClientIP() || ""
       },
       body: JSON.stringify(data),
       credentials: "include",
@@ -956,19 +1105,19 @@ class SearchManager {
         if (!response.ok) {
           return response.text().then((text) => {
             console.error(
-              `Analytics request failed: ${response.status} ${response.statusText}`,
+              `[SearchManager] Analytics request failed: ${response.status} ${response.statusText}`,
               text
             );
           });
         }
-        console.log(`Analytics request successful: ${endpoint}`);
+        console.log(`[SearchManager] Analytics request successful: ${endpoint}`);
       })
       .catch((error) => {
         clearTimeout(timeoutId);
         if (error.name === "AbortError") {
-          console.error("Analytics request timed out after 5 seconds");
+          console.error("[SearchManager] Analytics request timed out after 5 seconds");
         } else {
-          console.error("Error sending analytics data via fetch:", error);
+          console.error("[SearchManager] Error sending analytics data via fetch:", error);
         }
       });
   }
@@ -988,6 +1137,8 @@ class SearchManager {
         module.destroy();
       }
     });
+
+    console.log("[SearchManager] Resources cleaned up");
   }
 }
 
