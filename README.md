@@ -2,8 +2,6 @@
 
 A Next.js-based search API service that provides enhanced search functionality for the Seattle University website.
 
-![Seattle University Logo](https://www.seattleu.edu/media/homepage/images/seattle-university-logo.svg)
-
 ## Overview
 
 This application serves as the centralized search API for Seattle University's website, providing fast and relevant search results, autocomplete suggestions, and analytics tracking. Built with Next.js, TypeScript, and React, the application integrates with Funnelback backend services while adding enhanced functionality, caching, and a modern user interface.
