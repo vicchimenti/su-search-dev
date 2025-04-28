@@ -13,14 +13,13 @@
  * - CORS configuration for secure access
  *
  * @author Victor Chimenti
- * @version 2.1.0
+ * @version 2.1.1
  * @lastModified 2025-04-28
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import ipService from '../../../lib/ip-service';
+import ipService from '@/lib/ip-service';
 
-// Response type for client IP data
 interface ClientIPResponse {
   ip: string;
   metadata?: {
