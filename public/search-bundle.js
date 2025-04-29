@@ -4,9 +4,10 @@
  * This file provides the client-side functionality for integrating
  * the search system into the Seattle University CMS.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.0.0
- * @lastModified 2025-04-10
+ * @version 2.0.1
+ * @lastModified 2025-04-29
  */
 
 (function () {
@@ -94,7 +95,7 @@
         if (!query) return;
 
         // Navigate to search page with query
-        window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
+        window.location.href = `/search/?query=${encodeURIComponent(query)}`;
       });
     }
 
@@ -250,7 +251,7 @@
         trackSuggestionClick(text, 'general', '', text, sessionId);
 
         // Redirect to search page
-        window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
+        window.location.href = `/search/?query=${encodeURIComponent(text)}`;
       });
     });
   }
@@ -582,17 +583,17 @@
   }
 
   // Make track functions available globally for other components
-  window.trackSuggestionClick = function(text, type, url, title) {
+  window.trackSuggestionClick = function (text, type, url, title) {
     const sessionId = getSessionId();
     trackSuggestionClick(text, type, url, title, sessionId);
   };
 
-  window.trackResultClick = function(query, url, title, position) {
+  window.trackResultClick = function (query, url, title, position) {
     const sessionId = getSessionId();
     trackResultClick(query, url, title, position, sessionId);
   };
 
-  window.trackTabChange = function(query, tabName, tabId) {
+  window.trackTabChange = function (query, tabName, tabId) {
     const sessionId = getSessionId();
     trackTabChange(query, tabName, tabId, sessionId);
   };

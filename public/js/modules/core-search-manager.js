@@ -12,9 +12,9 @@
  * - IP resolution for accurate client tracking
  *
  * @author Victor Chimenti
- * @version 3.1.0
+ * @version 3.1.1
  * @license MIT
- * @lastModified 2025-04-28
+ * @lastModified 2025-04-29
  */
 
 class SearchManager {
@@ -68,7 +68,7 @@ class SearchManager {
     };
 
     // Initialize if on search page
-    if (window.location.pathname.includes("search-test")) {
+    if (window.location.pathname.includes("search")) {
       this.initialize();
       this.isInitialized = true;
     }
@@ -582,7 +582,7 @@ class SearchManager {
       rect.top >= 0 &&
       rect.left >= 0 &&
       rect.bottom <=
-        (window.innerHeight || document.documentElement.clientHeight) &&
+      (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   }

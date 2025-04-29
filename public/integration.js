@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-04-28
+ * @version 2.1.1
+ * @lastModified 2025-04-29
  */
 
 (function () {
@@ -32,7 +32,7 @@
   // Initialize on DOM ready
   document.addEventListener("DOMContentLoaded", function () {
     // Detect environment
-    const isResultsPage = window.location.pathname.includes("search-test");
+    const isResultsPage = window.location.pathname.includes("search");
 
     // Find search components
     const searchComponents = findSearchComponents();
@@ -130,7 +130,7 @@
       if (!query) return;
 
       // Navigate to search page with query
-      window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
+      window.location.href = `/search/?query=${encodeURIComponent(query)}`;
     });
 
     // Set up suggestions
@@ -248,7 +248,7 @@
         trackSuggestionClick(text, "general", "", text);
 
         // Redirect to search page
-        window.location.href = `/search-test/?query=${encodeURIComponent(
+        window.location.href = `/search/?query=${encodeURIComponent(
           text
         )}`;
       });
@@ -586,7 +586,7 @@
       rect.top >= 0 &&
       rect.left >= 0 &&
       rect.bottom <=
-        (window.innerHeight || document.documentElement.clientHeight) &&
+      (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
     return isVisible;
   }

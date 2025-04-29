@@ -3,9 +3,10 @@
  * 
  * This module provides utility functions used throughout the application.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.2.0
- * @lastModified 2025-04-16
+ * @version 2.2.1
+ * @lastModified 2025-04-29
  */
 
 /**
@@ -326,7 +327,7 @@ export function parseTabRequestUrl(url: string): {
       urlObj = new URL(url);
     } catch (e) {
       // Try as relative URL with a base
-      urlObj = new URL(url, '/search-test/');
+      urlObj = new URL(url, '/search/');
     }
 
     // Extract search params
