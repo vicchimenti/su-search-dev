@@ -11,9 +11,10 @@
  * - Monitors spelling suggestions
  * - Uses non-blocking sendBeacon for analytics data
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.2.3
- * @lastModified 2025-04-12
+ * @version 2.3.0
+ * @lastModified 2025-04-28
  */
 
 class AnalyticsManager {
@@ -39,7 +40,6 @@ class AnalyticsManager {
    */
   initialize() {
     if (!this.resultsContainer) {
-      console.warn("Analytics Manager: Results container not found");
       return;
     }
 
@@ -79,8 +79,6 @@ class AnalyticsManager {
 
       // NOTE: Tab tracking is now handled by TabsManager exclusively
     });
-
-    console.log("Analytics Manager: Initialized");
   }
 
   /**
@@ -100,15 +98,6 @@ class AnalyticsManager {
         document.querySelector(this.core.config.searchInputSelector)?.value ||
         "";
 
-      // Debug all possible sources
-      console.debug("Analytics debug - Tracking click with query context:", {
-        coreOriginalQuery: this.core.originalQuery,
-        coreOriginalQueryType: typeof this.core.originalQuery,
-        urlQueryParam: urlQuery,
-        searchInputValue: searchInputValue,
-        resultsContainerExists: !!this.resultsContainer,
-      });
-
       // IMPORTANT: Determine best query to use, with clear priority order
       let effectiveQuery = "";
       // 1. Try core's originalQuery if it exists and isn't null
@@ -120,20 +109,12 @@ class AnalyticsManager {
         effectiveQuery = urlQuery;
         // Update the core's query for future use
         this.core.originalQuery = urlQuery;
-        console.debug(
-          "Analytics debug - Updated core query from URL:",
-          urlQuery
-        );
       }
       // 3. Finally try the search input if it has a value
       else if (searchInputValue) {
         effectiveQuery = searchInputValue;
         // Update the core's query for future use
         this.core.originalQuery = searchInputValue;
-        console.debug(
-          "Analytics debug - Updated core query from input:",
-          searchInputValue
-        );
       }
 
       // Prioritize data-live-url over href for accurate destination tracking
@@ -171,36 +152,15 @@ class AnalyticsManager {
         timestamp: Date.now(),
       };
 
-      // Log the constructed data for debugging
-      console.debug("Analytics debug - Constructed click data:", {
-        dataOriginalQuery: data.originalQuery,
-        dataOriginalQueryExists: !!data.originalQuery,
-        dataComplete: !!(data.originalQuery && data.clickedUrl),
-      });
-
       // Validate before sending
-      if (!data.originalQuery) {
-        console.error(
-          "Analytics debug - Missing originalQuery, cannot track click"
-        );
-        return;
-      }
-
-      if (!data.clickedUrl) {
-        console.error(
-          "Analytics debug - Missing clickedUrl, cannot track click"
-        );
+      if (!data.originalQuery || !data.clickedUrl) {
         return;
       }
 
       // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
-
-      console.log(
-        `Analytics: Tracked result click "${title}" (position ${position})`
-      );
     } catch (error) {
-      console.error("Analytics: Error tracking result click", error);
+      // Silent error handling
     }
   }
 
@@ -238,12 +198,8 @@ class AnalyticsManager {
 
       // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
-
-      console.log(
-        `Analytics: Tracked facet ${action} "${facetName}:${facetValue}"`
-      );
     } catch (error) {
-      console.error("Analytics: Error tracking facet selection", error);
+      // Silent error handling
     }
   }
 
@@ -280,10 +236,8 @@ class AnalyticsManager {
 
       // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
-
-      console.log(`Analytics: Tracked pagination to page ${pageNumber}`);
     } catch (error) {
-      console.error("Analytics: Error tracking pagination event", error);
+      // Silent error handling
     }
   }
 
@@ -312,10 +266,8 @@ class AnalyticsManager {
 
       // Send analytics data through core manager
       this.core.sendAnalyticsData(data);
-
-      console.log(`Analytics: Tracked spelling suggestion "${suggestedTerm}"`);
     } catch (error) {
-      console.error("Analytics: Error tracking spelling suggestion", error);
+      // Silent error handling
     }
   }
 
