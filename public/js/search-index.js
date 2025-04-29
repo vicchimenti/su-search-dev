@@ -4,9 +4,10 @@
  * This file serves as the entry point for the modular search functionality.
  * It initializes the core search manager and loads the required modules.
  * 
+ * @license MIT
  * @author Victor Chimenti
- * @version 1.0.0
- * @lastUpdated 2025-04-04
+ * @version 1.0.1
+ * @lastUpdated 2025-04-28
  */
 
 // Import core manager
@@ -33,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize the search manager with configuration
   searchManager.init(config);
 
-  console.log('Search functionality initialized');
 });
 
 // Export for global access if needed
