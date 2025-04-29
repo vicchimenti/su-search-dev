@@ -1,19 +1,20 @@
 /**
  * @fileoverview Spelling Manager for Search UI
- * 
+ *
  * This module handles spelling suggestion functionality for search.
  * It processes "Did you mean" suggestions and allows query blending.
- * 
+ *
  * Features:
  * - Handles "Did you mean" spelling suggestions
  * - Supports query blending for enhanced results
  * - Integrates with search API via proxy
  * - Updates URL parameters when suggestions are applied
  * - Integrates with SessionService via core manager
- * 
+ *
+ * @license MIT
  * @author Victor Chimenti
- * @version 1.1.0
- * @lastModified 2025-04-07
+ * @version 1.2.0
+ * @lastModified 2025-04-28
  */
 
 class SpellingManager {
@@ -23,11 +24,14 @@ class SpellingManager {
    */
   constructor(core) {
     this.core = core;
-    this.resultsContainer = document.getElementById('results');
-    this.searchInput = document.getElementById('autocomplete-concierge-inputField');
+    this.resultsContainer = document.getElementById("results");
+    this.searchInput = document.getElementById(
+      "autocomplete-concierge-inputField"
+    );
 
     // Bind methods to maintain context
-    this.handleSpellingSuggestionClick = this.handleSpellingSuggestionClick.bind(this);
+    this.handleSpellingSuggestionClick =
+      this.handleSpellingSuggestionClick.bind(this);
     this.updateSearchInput = this.updateSearchInput.bind(this);
     this.updateUrlWithoutRefresh = this.updateUrlWithoutRefresh.bind(this);
 
@@ -39,20 +43,21 @@ class SpellingManager {
    */
   initialize() {
     if (!this.resultsContainer) {
-      console.warn('Spelling Manager: Results container not found');
       return;
     }
 
     // Set up event delegation for spelling suggestions
-    this.resultsContainer.addEventListener('click', (e) => {
+    this.resultsContainer.addEventListener("click", (e) => {
       // Handle spelling suggestions
-      if (e.target.closest('.search-spelling-suggestions__link, .query-blending__highlight')) {
+      if (
+        e.target.closest(
+          ".search-spelling-suggestions__link, .query-blending__highlight"
+        )
+      ) {
         e.preventDefault();
         this.handleSpellingSuggestionClick(e);
       }
     });
-
-    console.log('Spelling Manager: Initialized');
   }
 
   /**
@@ -62,7 +67,7 @@ class SpellingManager {
   async handleSpellingSuggestionClick(e) {
     e.preventDefault();
 
-    const link = e.target.closest('a');
+    const link = e.target.closest("a");
     if (!link) return;
 
     try {
@@ -74,12 +79,12 @@ class SpellingManager {
       this.updateSearchInput(suggestedQuery);
 
       // Get original link href and adjust for proxy
-      const href = link.getAttribute('href');
+      const href = link.getAttribute("href");
       if (!href) return;
 
       // Fetch results using the spelling endpoint via core manager
       // This automatically handles session ID through the core manager
-      const response = await this.core.fetchFromProxy(href, 'spelling');
+      const response = await this.core.fetchFromProxy(href, "spelling");
 
       // Update results container
       this.core.updateResults(response);
@@ -89,10 +94,8 @@ class SpellingManager {
 
       // Update original query for analytics
       this.core.originalQuery = suggestedQuery;
-
-      console.log(`Spelling Manager: Applied suggestion "${suggestedQuery}"`);
     } catch (error) {
-      console.error('Spelling Manager: Error handling spelling suggestion', error);
+      // Silent error handling
     }
   }
 
@@ -114,8 +117,8 @@ class SpellingManager {
     if (!window.history || !window.history.pushState) return;
 
     const url = new URL(window.location);
-    url.searchParams.set('query', query);
-    window.history.pushState({}, '', url);
+    url.searchParams.set("query", query);
+    window.history.pushState({}, "", url);
   }
 
   /**
@@ -131,7 +134,7 @@ class SpellingManager {
    */
   destroy() {
     if (this.resultsContainer) {
-      this.resultsContainer.removeEventListener('click', this.handleClick);
+      this.resultsContainer.removeEventListener("click", this.handleClick);
     }
   }
 }
