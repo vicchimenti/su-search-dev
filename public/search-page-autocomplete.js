@@ -1,13 +1,14 @@
 /**
  * @fileoverview Enhanced search page autocomplete functionality
- * 
+ *
  * This implementation provides a three-column layout for search suggestions
  * on the search results page, with support for general suggestions,
  * staff/faculty profiles, and academic programs.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.0.0
- * @lastModified 2025-04-10
+ * @version 2.1.0
+ * @lastModified 2025-04-28
  */
 
 // Create a module-level session handler that serves as the single source of truth within this file
@@ -25,13 +26,10 @@ const SessionManager = {
     try {
       if (window.SessionService) {
         this._sessionId = window.SessionService.getSessionId();
-        console.log('Initialized session ID from SessionService:', this._sessionId);
       } else {
-        console.warn('SessionService not available - analytics tracking will be limited');
         this._sessionId = null;
       }
     } catch (error) {
-      console.error('Error accessing SessionService:', error);
       this._sessionId = null;
     }
 
@@ -51,30 +49,32 @@ const SessionManager = {
         this._sessionId = window.SessionService.getSessionId();
       }
     } catch (error) {
-      console.error('Error refreshing session ID from SessionService:', error);
       // Keep the existing session ID if there's an error
     }
 
     return this._sessionId;
-  }
+  },
 };
 
 // Function to render the results page suggestions (3-column layout)
 function renderResultsPageSuggestions(data, container, query) {
-  console.log('Rendering results page suggestions:', data);
-
   // Extract and process data
   const general = data.general || [];
   const staff = data.staff || [];
   const programs = data.programs || {};
 
   // Handle different formats for program data
-  const programResults = Array.isArray(programs) ? programs :
-    (programs.programs || []);
+  const programResults = Array.isArray(programs)
+    ? programs
+    : programs.programs || [];
 
   // Check if we have any suggestions to display
-  if (general.length === 0 && staff.length === 0 && programResults.length === 0) {
-    container.innerHTML = '';
+  if (
+    general.length === 0 &&
+    staff.length === 0 &&
+    programResults.length === 0
+  ) {
+    container.innerHTML = "";
     container.hidden = true;
     return;
   }
@@ -83,62 +83,122 @@ function renderResultsPageSuggestions(data, container, query) {
   let html = `
     <div class="suggestions-list">
       <div class="suggestions-columns">
-        ${general.length > 0 ? `
+        ${
+          general.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Suggestions</div>
-            ${general.map((suggestion, index) => {
-    const display = suggestion.display || suggestion;
-    return `
+            ${general
+              .map((suggestion, index) => {
+                const display = suggestion.display || suggestion;
+                return `
                 <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
                   <span class="suggestion-text">${display}</span>
                 </div>
               `;
-  }).join('')}
+              })
+              .join("")}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${staff.length > 0 ? `
+        ${
+          staff.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Faculty & Staff</div>
-            ${staff.map((person, index) => `
-              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${person.url || '#'}">
-                <a href="${person.url || '#'}" class="staff-link" target="_blank" rel="noopener noreferrer">
+            ${staff
+              .map(
+                (person, index) => `
+              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${
+                  person.url || "#"
+                }">
+                <a href="${
+                  person.url || "#"
+                }" class="staff-link" target="_blank" rel="noopener noreferrer">
                   <div class="staff-suggestion">
-                    ${person.image ? `
+                    ${
+                      person.image
+                        ? `
                       <div class="staff-image">
-                        <img src="${person.image}" alt="${person.title || ''}" class="staff-thumbnail" loading="lazy">
+                        <img src="${person.image}" alt="${
+                            person.title || ""
+                          }" class="staff-thumbnail" loading="lazy">
                       </div>
-                    ` : ''}
+                    `
+                        : ""
+                    }
                     <div class="staff-info">
-                      <span class="suggestion-text">${person.title || ''}</span>
-                      ${person.position ? `<span class="staff-role">${person.position}</span>` : ''}
-                      ${person.affiliation ? `<span class="staff-role">${person.affiliation}</span>` : ''}
-                      ${person.department ? `<span class="staff-department">${person.department}</span>` : ''}
-                      ${person.college ? `<span class="staff-department">${person.college}</span>` : ''}
+                      <span class="suggestion-text">${person.title || ""}</span>
+                      ${
+                        person.position
+                          ? `<span class="staff-role">${person.position}</span>`
+                          : ""
+                      }
+                      ${
+                        person.affiliation
+                          ? `<span class="staff-role">${person.affiliation}</span>`
+                          : ""
+                      }
+                      ${
+                        person.department
+                          ? `<span class="staff-department">${person.department}</span>`
+                          : ""
+                      }
+                      ${
+                        person.college
+                          ? `<span class="staff-department">${person.college}</span>`
+                          : ""
+                      }
                     </div>
                   </div>
                 </a>
               </div>
-            `).join('')}
+            `
+              )
+              .join("")}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${programResults.length > 0 ? `
+        ${
+          programResults.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Programs</div>
-            ${programResults.map((program, index) => `
-              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${program.url || '#'}">
-                <a href="${program.url || '#'}" class="program-link" target="_blank" rel="noopener noreferrer">
+            ${programResults
+              .map(
+                (program, index) => `
+              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${
+                  program.url || "#"
+                }">
+                <a href="${
+                  program.url || "#"
+                }" class="program-link" target="_blank" rel="noopener noreferrer">
                   <div class="program-suggestion">
-                    <span class="suggestion-text">${program.title || ''}</span>
-                    ${program.details?.school ? `<span class="suggestion-type">${program.details.school}</span>` : ''}
-                    ${program.description ? `<span class="program-description">${program.description}</span>` : ''}
+                    <span class="suggestion-text">${program.title || ""}</span>
+                    ${
+                      program.details?.school
+                        ? `<span class="suggestion-type">${program.details.school}</span>`
+                        : ""
+                    }
+                    ${
+                      program.description
+                        ? `<span class="program-description">${program.description}</span>`
+                        : ""
+                    }
                   </div>
                 </a>
               </div>
-            `).join('')}
+            `
+              )
+              .join("")}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     </div>
   `;
@@ -149,31 +209,31 @@ function renderResultsPageSuggestions(data, container, query) {
 
   // Add click handlers for all suggestion items
   const attachClickHandlers = () => {
-    container.querySelectorAll('.suggestion-item').forEach(item => {
-      item.addEventListener('click', function (e) {
-        const text = this.querySelector('.suggestion-text').textContent;
+    container.querySelectorAll(".suggestion-item").forEach((item) => {
+      item.addEventListener("click", function (e) {
+        const text = this.querySelector(".suggestion-text").textContent;
         const type = this.dataset.type;
         const url = this.dataset.url;
 
         // Get additional details for tracking
         let title = text;
-        if (type === 'staff') {
-          const roleElement = this.querySelector('.staff-role');
-          const deptElement = this.querySelector('.staff-department');
+        if (type === "staff") {
+          const roleElement = this.querySelector(".staff-role");
+          const deptElement = this.querySelector(".staff-department");
           if (roleElement) {
             title = `${text} (${roleElement.textContent})`;
           }
-        } else if (type === 'program') {
-          const typeElement = this.querySelector('.suggestion-type');
+        } else if (type === "program") {
+          const typeElement = this.querySelector(".suggestion-type");
           if (typeElement) {
             title = `${text} - ${typeElement.textContent}`;
           }
         }
 
-        console.log('Suggestion clicked:', { type, text, title, url });
-
         // Find the search input and set its value
-        const searchInput = document.getElementById('autocomplete-concierge-inputField');
+        const searchInput = document.getElementById(
+          "autocomplete-concierge-inputField"
+        );
         if (searchInput) {
           searchInput.value = text;
         }
@@ -182,12 +242,12 @@ function renderResultsPageSuggestions(data, container, query) {
         trackSuggestionClick(text, type, url, title);
 
         // Handle staff and program items with URLs
-        if ((type === 'staff' || type === 'program') && url && url !== '#') {
+        if ((type === "staff" || type === "program") && url && url !== "#") {
           // If click was on a link, let it handle navigation
-          if (e.target.closest('a')) {
+          if (e.target.closest("a")) {
             // Trigger a background search after letting the link handle navigation
             setTimeout(() => {
-              const resultsContainer = document.getElementById('results');
+              const resultsContainer = document.getElementById("results");
               if (resultsContainer) {
                 performSearch(text, resultsContainer);
               }
@@ -197,15 +257,15 @@ function renderResultsPageSuggestions(data, container, query) {
           }
 
           // Otherwise open in new tab and continue with search
-          window.open(url, '_blank', 'noopener,noreferrer');
+          window.open(url, "_blank", "noopener,noreferrer");
         }
 
         // Hide suggestions
-        container.innerHTML = '';
+        container.innerHTML = "";
         container.hidden = true;
 
         // Perform search and update URL
-        const resultsContainer = document.getElementById('results');
+        const resultsContainer = document.getElementById("results");
         if (resultsContainer) {
           performSearch(text, resultsContainer);
         }
@@ -229,11 +289,11 @@ function trackSuggestionClick(text, type, url, title) {
     // Prepare data for the API call
     const data = {
       originalQuery: text,
-      clickedUrl: url || '',
+      clickedUrl: url || "",
       clickedTitle: title || text,
-      clickType: type || 'suggestion',
+      clickType: type || "suggestion",
       clickPosition: -1, // -1 for suggestions as they're not in the results list
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Only add sessionId if it's available
@@ -242,57 +302,54 @@ function trackSuggestionClick(text, type, url, title) {
     }
 
     // Get the API endpoint from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.proxyBaseUrl || 
-      'https://funnelback-proxy-dev.vercel.app/proxy';
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.proxyBaseUrl ||
+      "https://funnelback-proxy-dev.vercel.app/proxy";
     const endpoint = `${apiBaseUrl}/analytics/click`;
-
-    console.log('Tracking suggestion click:', data);
 
     // Use sendBeacon if available for non-blocking operation
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(data)], {
-        type: 'application/json'
+        type: "application/json",
       });
       navigator.sendBeacon(endpoint, blob);
     } else {
       // Fallback to fetch with keepalive
       fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        keepalive: true
-      }).catch(err => console.error('Error tracking suggestion click:', err));
+        keepalive: true,
+      }).catch(() => {
+        // Silent error handling
+      });
     }
   } catch (error) {
-    console.error('Error tracking suggestion click:', error);
-    // Continue with normal operation despite tracking failure
+    // Silent error handling
   }
 }
 
 // Enhanced fetch suggestions function
 async function fetchSuggestions(query, container, isResultsPage = true) {
-  console.log('Fetching suggestions for:', query);
-
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
 
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
-      'https://su-search-dev.vercel.app';
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.apiBaseUrl ||
+      "https://su-search-dev.vercel.app";
 
     // Prepare URL with parameters
     const params = new URLSearchParams({ query });
 
     // Only add session ID if it's available
     if (sessionId) {
-      params.append('sessionId', sessionId);
+      params.append("sessionId", sessionId);
     }
 
     // Fetch suggestions from API
     const url = `${apiBaseUrl}/api/suggestions?${params}`;
-    console.log('Fetching suggestions from:', url);
-
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -301,13 +358,11 @@ async function fetchSuggestions(query, container, isResultsPage = true) {
 
     // Get JSON response
     const data = await response.json();
-    console.log('Received suggestion data:', data);
 
     // Render suggestions
     renderResultsPageSuggestions(data, container, query);
   } catch (error) {
-    console.error('Suggestions fetch error:', error);
-    container.innerHTML = '';
+    container.innerHTML = "";
     container.hidden = true;
     // Continue with normal operation despite fetch failure
   }
@@ -315,36 +370,32 @@ async function fetchSuggestions(query, container, isResultsPage = true) {
 
 // Perform search via API
 async function performSearch(query, container) {
-  console.log('Performing search for:', query);
-
   try {
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
 
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl ||
-      'https://su-search-dev.vercel.app';
-    const collection = window.seattleUConfig?.search?.collection ||
-      'seattleu~sp-search';
-    const profile = window.seattleUConfig?.search?.profile ||
-      '_default';
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.apiBaseUrl ||
+      "https://su-search-dev.vercel.app";
+    const collection =
+      window.seattleUConfig?.search?.collection || "seattleu~sp-search";
+    const profile = window.seattleUConfig?.search?.profile || "_default";
 
     // Prepare URL with parameters
     const params = new URLSearchParams({
       query,
       collection,
-      profile
+      profile,
     });
 
     // Only add session ID if it's available
     if (sessionId) {
-      params.append('sessionId', sessionId);
+      params.append("sessionId", sessionId);
     }
 
     // Fetch results from API
     const url = `${apiBaseUrl}/api/search?${params}`;
-    console.log('Fetching search results from:', url);
-
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -366,10 +417,9 @@ async function performSearch(query, container) {
 
     // Scroll to results if not in viewport AND page is not already at the top
     if (!isElementInViewport(container) && window.scrollY > 0) {
-      container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      container.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   } catch (error) {
-    console.error('Search error:', error);
     container.innerHTML = `
       <div class="search-error">
         <h3>Error Loading Results</h3>
@@ -384,8 +434,8 @@ function updateUrl(query) {
   if (!window.history?.pushState) return;
 
   const url = new URL(window.location);
-  url.searchParams.set('query', query);
-  window.history.pushState({}, '', url);
+  url.searchParams.set("query", query);
+  window.history.pushState({}, "", url);
 }
 
 // Check if element is in viewport
@@ -394,7 +444,8 @@ function isElementInViewport(el) {
   return (
     rect.top >= 0 &&
     rect.left >= 0 &&
-    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+    rect.bottom <=
+      (window.innerHeight || document.documentElement.clientHeight) &&
     rect.right <= (window.innerWidth || document.documentElement.clientWidth)
   );
 }
@@ -403,16 +454,17 @@ function isElementInViewport(el) {
 function attachResultClickHandlers(container, query) {
   // Find all result links
   const resultLinks = container.querySelectorAll(
-    '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
+    ".fb-result h3 a, .search-result-item h3 a, .listing-item__title a"
   );
 
   resultLinks.forEach((link, index) => {
-    link.addEventListener('click', function (e) {
+    link.addEventListener("click", function (e) {
       // Don't prevent default navigation
 
       // Get link details
-      const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
-      const title = link.textContent.trim() || '';
+      const url =
+        link.getAttribute("data-live-url") || link.getAttribute("href") || "";
+      const title = link.textContent.trim() || "";
 
       // Track click
       trackResultClick(query, url, title, index + 1);
@@ -432,8 +484,8 @@ function trackResultClick(query, url, title, position) {
       clickedUrl: url,
       clickedTitle: title,
       clickPosition: position,
-      clickType: 'search',
-      timestamp: new Date().toISOString()
+      clickType: "search",
+      timestamp: new Date().toISOString(),
     };
 
     // Only add sessionId if it's available
@@ -442,30 +494,30 @@ function trackResultClick(query, url, title, position) {
     }
 
     // Get API endpoint from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.proxyBaseUrl || 
-      'https://funnelback-proxy-dev.vercel.app/proxy';
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.proxyBaseUrl ||
+      "https://funnelback-proxy-dev.vercel.app/proxy";
     const endpoint = `${apiBaseUrl}/analytics/click`;
-
-    console.log('Tracking result click:', data);
 
     // Use sendBeacon if available for non-blocking operation
     if (navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(data)], {
-        type: 'application/json'
+        type: "application/json",
       });
       navigator.sendBeacon(endpoint, blob);
     } else {
       // Fallback to fetch with keepalive
       fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        keepalive: true
-      }).catch(err => console.error('Error tracking click:', err));
+        keepalive: true,
+      }).catch(() => {
+        // Silent error handling
+      });
     }
   } catch (error) {
-    console.error('Error tracking click:', error);
-    // Continue with normal operation despite tracking failure
+    // Silent error handling
   }
 }
 
@@ -476,56 +528,70 @@ function addKeyboardNavigation(container) {
   let activeColumn = null;
 
   // Get all columns
-  const columns = container.querySelectorAll('.suggestions-column');
+  const columns = container.querySelectorAll(".suggestions-column");
 
   // Handle keyboard events for the search input
-  const searchInput = document.getElementById('autocomplete-concierge-inputField');
+  const searchInput = document.getElementById(
+    "autocomplete-concierge-inputField"
+  );
   if (!searchInput) return;
 
   // Remove any existing listeners to prevent duplicates
   const oldListener = searchInput._keydownListener;
   if (oldListener) {
-    searchInput.removeEventListener('keydown', oldListener);
+    searchInput.removeEventListener("keydown", oldListener);
   }
 
   // Create and add new listener
   const keydownListener = function (e) {
     // Only handle navigation keys
-    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) {
+    if (
+      ![
+        "ArrowDown",
+        "ArrowUp",
+        "ArrowLeft",
+        "ArrowRight",
+        "Enter",
+        "Escape",
+      ].includes(e.key)
+    ) {
       return;
     }
 
     // Check if suggestions are visible
-    if (container.hidden || container.querySelector('.suggestions-item') === null) {
+    if (
+      container.hidden ||
+      container.querySelector(".suggestions-item") === null
+    ) {
       return;
     }
 
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         navigateDown();
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
         navigateUp();
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         e.preventDefault();
         navigateRight();
         break;
-      case 'ArrowLeft':
+      case "ArrowLeft":
         e.preventDefault();
         navigateLeft();
         break;
-      case 'Enter':
+      case "Enter":
         if (activeItem) {
           e.preventDefault();
           activeItem.click();
         }
         break;
-      case 'Escape':
+      case "Escape":
         e.preventDefault();
-        container.innerHTML = '';
+        container.innerHTML = "";
         container.hidden = true;
         searchInput.blur();
         break;
@@ -533,54 +599,54 @@ function addKeyboardNavigation(container) {
   };
 
   searchInput._keydownListener = keydownListener;
-  searchInput.addEventListener('keydown', keydownListener);
+  searchInput.addEventListener("keydown", keydownListener);
 
   // Navigation functions
   function navigateDown() {
     if (!activeItem) {
       // Select first item in first column with items
       for (const column of columns) {
-        const items = column.querySelectorAll('.suggestion-item');
+        const items = column.querySelectorAll(".suggestion-item");
         if (items.length > 0) {
           activeItem = items[0];
           activeColumn = column;
-          activeItem.classList.add('active');
+          activeItem.classList.add("active");
           break;
         }
       }
     } else {
       // Move down in current column
-      const items = activeColumn.querySelectorAll('.suggestion-item');
+      const items = activeColumn.querySelectorAll(".suggestion-item");
       const currentIndex = Array.from(items).indexOf(activeItem);
 
       if (currentIndex < items.length - 1) {
-        activeItem.classList.remove('active');
+        activeItem.classList.remove("active");
         activeItem = items[currentIndex + 1];
-        activeItem.classList.add('active');
+        activeItem.classList.add("active");
       }
     }
 
     // Ensure active item is visible
     if (activeItem) {
-      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }
 
   function navigateUp() {
     if (activeItem) {
-      const items = activeColumn.querySelectorAll('.suggestion-item');
+      const items = activeColumn.querySelectorAll(".suggestion-item");
       const currentIndex = Array.from(items).indexOf(activeItem);
 
       if (currentIndex > 0) {
-        activeItem.classList.remove('active');
+        activeItem.classList.remove("active");
         activeItem = items[currentIndex - 1];
-        activeItem.classList.add('active');
+        activeItem.classList.add("active");
       }
     }
 
     // Ensure active item is visible
     if (activeItem) {
-      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }
 
@@ -592,23 +658,27 @@ function addKeyboardNavigation(container) {
       // Find next column with items
       for (let i = columnIndex + 1; i < columns.length; i++) {
         const nextColumn = columns[i];
-        const items = nextColumn.querySelectorAll('.suggestion-item');
+        const items = nextColumn.querySelectorAll(".suggestion-item");
 
         if (items.length > 0) {
-          activeItem.classList.remove('active');
+          activeItem.classList.remove("active");
 
           // Try to maintain similar position in new column
-          const currentItems = activeColumn.querySelectorAll('.suggestion-item');
+          const currentItems =
+            activeColumn.querySelectorAll(".suggestion-item");
           const currentIndex = Array.from(currentItems).indexOf(activeItem);
           const ratio = currentIndex / (currentItems.length - 1 || 1);
-          const targetIndex = Math.min(Math.round(ratio * (items.length - 1)), items.length - 1);
+          const targetIndex = Math.min(
+            Math.round(ratio * (items.length - 1)),
+            items.length - 1
+          );
 
           activeItem = items[targetIndex];
           activeColumn = nextColumn;
-          activeItem.classList.add('active');
+          activeItem.classList.add("active");
 
           // Ensure active item is visible
-          activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
           break;
         }
       }
@@ -623,23 +693,27 @@ function addKeyboardNavigation(container) {
       // Find previous column with items
       for (let i = columnIndex - 1; i >= 0; i--) {
         const prevColumn = columns[i];
-        const items = prevColumn.querySelectorAll('.suggestion-item');
+        const items = prevColumn.querySelectorAll(".suggestion-item");
 
         if (items.length > 0) {
-          activeItem.classList.remove('active');
+          activeItem.classList.remove("active");
 
           // Try to maintain similar position in new column
-          const currentItems = activeColumn.querySelectorAll('.suggestion-item');
+          const currentItems =
+            activeColumn.querySelectorAll(".suggestion-item");
           const currentIndex = Array.from(currentItems).indexOf(activeItem);
           const ratio = currentIndex / (currentItems.length - 1 || 1);
-          const targetIndex = Math.min(Math.round(ratio * (items.length - 1)), items.length - 1);
+          const targetIndex = Math.min(
+            Math.round(ratio * (items.length - 1)),
+            items.length - 1
+          );
 
           activeItem = items[targetIndex];
           activeColumn = prevColumn;
-          activeItem.classList.add('active');
+          activeItem.classList.add("active");
 
           // Ensure active item is visible
-          activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
           break;
         }
       }
@@ -659,18 +733,19 @@ function debounce(func, wait) {
 }
 
 // Initialize search suggestions on page load
-document.addEventListener('DOMContentLoaded', function () {
-  console.log('Initializing search page autocomplete');
-
+document.addEventListener("DOMContentLoaded", function () {
   // Initialize SessionManager
   SessionManager.init();
 
   // Find the search input and suggestions container
-  const searchInput = document.getElementById('autocomplete-concierge-inputField');
-  const suggestionsContainer = document.getElementById('autocomplete-suggestions');
+  const searchInput = document.getElementById(
+    "autocomplete-concierge-inputField"
+  );
+  const suggestionsContainer = document.getElementById(
+    "autocomplete-suggestions"
+  );
 
   if (!searchInput || !suggestionsContainer) {
-    console.log('Search input or suggestions container not found');
     return;
   }
 
@@ -682,7 +757,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const query = searchInput.value.trim();
 
     if (query.length < minQueryLength) {
-      suggestionsContainer.innerHTML = '';
+      suggestionsContainer.innerHTML = "";
       suggestionsContainer.hidden = true;
       return;
     }
@@ -691,17 +766,17 @@ document.addEventListener('DOMContentLoaded', function () {
   }, debounceTime);
 
   // Add input handler
-  searchInput.addEventListener('input', handleInput);
+  searchInput.addEventListener("input", handleInput);
 
   // Handle clicks outside
-  document.addEventListener('click', function (e) {
-    if (suggestionsContainer &&
+  document.addEventListener("click", function (e) {
+    if (
+      suggestionsContainer &&
       !searchInput.contains(e.target) &&
-      !suggestionsContainer.contains(e.target)) {
-      suggestionsContainer.innerHTML = '';
+      !suggestionsContainer.contains(e.target)
+    ) {
+      suggestionsContainer.innerHTML = "";
       suggestionsContainer.hidden = true;
     }
   });
-
-  console.log('Search page autocomplete initialized');
 });
