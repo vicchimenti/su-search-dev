@@ -1,40 +1,38 @@
 /**
  * @fileoverview Frontend Search Integration Script
- * 
+ *
  * This script integrates the frontend search API with the Seattle University website.
  * It enhances the existing search functionality by proxying requests through the new API
  * while maintaining compatibility with the current UI components.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.0.0
- * @lastModified 2025-04-10
+ * @version 2.1.0
+ * @lastModified 2025-04-28
  */
 
 (function () {
   // Configuration for the frontend API
   const config = {
-    apiBaseUrl: 'https://su-search-dev.vercel.app',
-    proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy',
-    collection: 'seattleu~sp-search',
-    profile: '_default',
+    apiBaseUrl: "https://su-search-dev.vercel.app",
+    proxyBaseUrl: "https://funnelback-proxy-dev.vercel.app/proxy",
+    collection: "seattleu~sp-search",
+    profile: "_default",
     minQueryLength: 3,
-    debounceTime: 200
+    debounceTime: 200,
   };
 
   // Make config available globally
   window.seattleUConfig = window.seattleUConfig || {};
   window.seattleUConfig.search = {
     ...config,
-    ...window.seattleUConfig?.search
+    ...window.seattleUConfig?.search,
   };
 
   // Initialize on DOM ready
-  document.addEventListener('DOMContentLoaded', function () {
-    console.log('🔍 Frontend Search Integration: Initializing');
-
+  document.addEventListener("DOMContentLoaded", function () {
     // Detect environment
-    const isResultsPage = window.location.pathname.includes('search-test');
-    console.log('🔍 On results page:', isResultsPage);
+    const isResultsPage = window.location.pathname.includes("search-test");
 
     // Find search components
     const searchComponents = findSearchComponents();
@@ -50,8 +48,6 @@
       // Process URL parameters for initial search
       processUrlParameters(searchComponents.results);
     }
-
-    console.log('🔍 Frontend Search Integration: Initialized');
   });
 
   /**
@@ -61,12 +57,12 @@
   function findSearchComponents() {
     const components = {
       header: null,
-      results: null
+      results: null,
     };
 
     // Header search components
-    const headerInput = document.getElementById('search-input');
-    const headerForm = headerInput?.closest('form');
+    const headerInput = document.getElementById("search-input");
+    const headerForm = headerInput?.closest("form");
     const headerButton = headerForm?.querySelector('button[type="submit"]');
 
     if (headerInput && headerForm) {
@@ -74,31 +70,39 @@
         input: headerInput,
         form: headerForm,
         button: headerButton,
-        container: document.createElement('div')
+        container: document.createElement("div"),
       };
 
       // Create suggestions container if not exists
-      if (!document.getElementById('header-suggestions')) {
-        const suggestionsContainer = document.createElement('div');
-        suggestionsContainer.id = 'header-suggestions';
-        suggestionsContainer.className = 'header-suggestions-container';
-        suggestionsContainer.setAttribute('role', 'listbox');
+      if (!document.getElementById("header-suggestions")) {
+        const suggestionsContainer = document.createElement("div");
+        suggestionsContainer.id = "header-suggestions";
+        suggestionsContainer.className = "header-suggestions-container";
+        suggestionsContainer.setAttribute("role", "listbox");
         suggestionsContainer.hidden = true;
 
         // Insert after search form
-        headerForm.parentNode.insertBefore(suggestionsContainer, headerForm.nextSibling);
+        headerForm.parentNode.insertBefore(
+          suggestionsContainer,
+          headerForm.nextSibling
+        );
         components.header.suggestionsContainer = suggestionsContainer;
       } else {
-        components.header.suggestionsContainer = document.getElementById('header-suggestions');
+        components.header.suggestionsContainer =
+          document.getElementById("header-suggestions");
       }
     }
 
     // Results page components
-    const resultsInput = document.getElementById('autocomplete-concierge-inputField');
-    const resultsForm = resultsInput?.closest('form');
-    const resultsButton = resultsForm?.querySelector('#on-page-search-button');
-    const resultsContainer = document.getElementById('results');
-    const suggestionsContainer = document.getElementById('autocomplete-suggestions');
+    const resultsInput = document.getElementById(
+      "autocomplete-concierge-inputField"
+    );
+    const resultsForm = resultsInput?.closest("form");
+    const resultsButton = resultsForm?.querySelector("#on-page-search-button");
+    const resultsContainer = document.getElementById("results");
+    const suggestionsContainer = document.getElementById(
+      "autocomplete-suggestions"
+    );
 
     if (resultsInput && resultsContainer) {
       components.results = {
@@ -106,7 +110,7 @@
         form: resultsForm,
         button: resultsButton,
         container: resultsContainer,
-        suggestionsContainer: suggestionsContainer
+        suggestionsContainer: suggestionsContainer,
       };
     }
 
@@ -118,10 +122,8 @@
    * @param {Object} component - Header search component references
    */
   function setupHeaderSearch(component) {
-    console.log('🔍 Setting up header search integration');
-
     // Intercept form submission
-    component.form.addEventListener('submit', function (e) {
+    component.form.addEventListener("submit", function (e) {
       e.preventDefault();
 
       const query = component.input.value.trim();
@@ -138,7 +140,7 @@
         const query = component.input.value.trim();
 
         if (query.length < config.minQueryLength) {
-          component.suggestionsContainer.innerHTML = '';
+          component.suggestionsContainer.innerHTML = "";
           component.suggestionsContainer.hidden = true;
           return;
         }
@@ -146,15 +148,17 @@
         fetchHeaderSuggestions(query, component.suggestionsContainer);
       }, config.debounceTime);
 
-      component.input.addEventListener('input', handleInput);
+      component.input.addEventListener("input", handleInput);
     }
 
     // Handle clicks outside
-    document.addEventListener('click', function (e) {
-      if (component.suggestionsContainer &&
+    document.addEventListener("click", function (e) {
+      if (
+        component.suggestionsContainer &&
         !component.input.contains(e.target) &&
-        !component.suggestionsContainer.contains(e.target)) {
-        component.suggestionsContainer.innerHTML = '';
+        !component.suggestionsContainer.contains(e.target)
+      ) {
+        component.suggestionsContainer.innerHTML = "";
         component.suggestionsContainer.hidden = true;
       }
     });
@@ -166,8 +170,6 @@
    * @param {HTMLElement} container - Container for suggestions
    */
   async function fetchHeaderSuggestions(query, container) {
-    console.log('🔍 Fetching header suggestions for:', query);
-
     try {
       // Prepare URL with parameters
       const params = new URLSearchParams({ query });
@@ -176,7 +178,7 @@
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
         if (sessionId) {
-          params.append('sessionId', sessionId);
+          params.append("sessionId", sessionId);
         }
       }
 
@@ -194,8 +196,7 @@
       // Render header suggestions (simple list)
       renderHeaderSuggestions(data, container, query);
     } catch (error) {
-      console.error('🔍 Header suggestions error:', error);
-      container.innerHTML = '';
+      container.innerHTML = "";
       container.hidden = true;
       // Continue with normal operation despite fetch failure
     }
@@ -211,7 +212,7 @@
     const suggestions = data.general || [];
 
     if (suggestions.length === 0) {
-      container.innerHTML = '';
+      container.innerHTML = "";
       container.hidden = true;
       return;
     }
@@ -227,27 +228,29 @@
       `;
     });
 
-    html += '</div>';
+    html += "</div>";
 
     container.innerHTML = html;
     container.hidden = false;
 
     // Add click handlers
-    container.querySelectorAll('.suggestion-item').forEach(item => {
-      item.addEventListener('click', function () {
-        const text = this.querySelector('.suggestion-text').textContent;
+    container.querySelectorAll(".suggestion-item").forEach((item) => {
+      item.addEventListener("click", function () {
+        const text = this.querySelector(".suggestion-text").textContent;
 
         // Set input value
-        const input = document.getElementById('search-input');
+        const input = document.getElementById("search-input");
         if (input) {
           input.value = text;
         }
 
         // Track suggestion click
-        trackSuggestionClick(text, 'general', '', text);
+        trackSuggestionClick(text, "general", "", text);
 
         // Redirect to search page
-        window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
+        window.location.href = `/search-test/?query=${encodeURIComponent(
+          text
+        )}`;
       });
     });
   }
@@ -257,16 +260,14 @@
    * @param {Object} component - Results search component references
    */
   function setupResultsSearch(component) {
-    console.log('🔍 Setting up results page search integration');
-
     // Make sure search button is visible
     if (component.button) {
-      component.button.classList.remove('empty-query');
+      component.button.classList.remove("empty-query");
     }
 
     // Intercept form submission
     if (component.form) {
-      component.form.addEventListener('submit', function (e) {
+      component.form.addEventListener("submit", function (e) {
         e.preventDefault();
 
         const query = component.input.value.trim();
@@ -282,7 +283,7 @@
 
     // Set up click tracking on results
     const urlParams = new URLSearchParams(window.location.search);
-    const queryParam = urlParams.get('query') || '';
+    const queryParam = urlParams.get("query") || "";
     attachResultClickHandlers(component.container, queryParam);
   }
 
@@ -291,14 +292,10 @@
    * @param {Object} component - Results search component references
    */
   function processUrlParameters(component) {
-    console.log('🔍 Processing URL parameters');
-
     const urlParams = new URLSearchParams(window.location.search);
-    const query = urlParams.get('query');
+    const query = urlParams.get("query");
 
     if (query) {
-      console.log('🔍 Found query parameter:', query);
-
       // Set input value
       if (component.input) {
         component.input.value = query;
@@ -315,21 +312,19 @@
    * @param {HTMLElement} container - Container for results
    */
   async function performSearch(query, container) {
-    console.log('🔍 Performing search for:', query);
-
     try {
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
         collection: config.collection,
-        profile: config.profile
+        profile: config.profile,
       });
 
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
         if (sessionId) {
-          params.append('sessionId', sessionId);
+          params.append("sessionId", sessionId);
         }
       }
 
@@ -356,10 +351,9 @@
 
       // Scroll to results if not in viewport AND page is not already at the top
       if (!isElementInViewport(container) && window.scrollY > 0) {
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        container.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     } catch (error) {
-      console.error('🔍 Search error:', error);
       container.innerHTML = `
         <div class="search-error">
           <h3>Error Loading Results</h3>
@@ -377,16 +371,17 @@
   function attachResultClickHandlers(container, query) {
     // Find all result links
     const resultLinks = container.querySelectorAll(
-      '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
+      ".fb-result h3 a, .search-result-item h3 a, .listing-item__title a"
     );
 
     resultLinks.forEach((link, index) => {
-      link.addEventListener('click', function (e) {
+      link.addEventListener("click", function (e) {
         // Don't prevent default navigation
 
         // Get link details
-        const url = link.getAttribute('data-live-url') || link.getAttribute('href') || '';
-        const title = link.textContent.trim() || '';
+        const url =
+          link.getAttribute("data-live-url") || link.getAttribute("href") || "";
+        const title = link.textContent.trim() || "";
 
         // Track click
         trackResultClick(query, url, title, index + 1);
@@ -403,16 +398,14 @@
    */
   function trackResultClick(query, url, title, position) {
     try {
-      console.log('🔍 Tracking result click:', { query, url, title, position });
-
       // Prepare data
       const data = {
         originalQuery: query,
         clickedUrl: url,
         clickedTitle: title,
         clickPosition: position,
-        clickType: 'search',
-        timestamp: new Date().toISOString()
+        clickType: "search",
+        timestamp: new Date().toISOString(),
       };
 
       // Get session ID directly from SessionService if available
@@ -428,21 +421,22 @@
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
+          type: "application/json",
         });
         navigator.sendBeacon(endpoint, blob);
       } else {
         // Fallback to fetch with keepalive
         fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking click:', err));
+          keepalive: true,
+        }).catch(() => {
+          // Silent error handling
+        });
       }
     } catch (error) {
-      console.error('Error tracking click:', error);
-      // Continue with normal operation despite tracking failure
+      // Silent error handling
     }
   }
 
@@ -456,16 +450,14 @@
    */
   window.trackSuggestionClick = function (text, type, url, title) {
     try {
-      console.log('🔍 Tracking suggestion click:', { text, type, url, title });
-
       // Prepare data for the API call
       const data = {
         originalQuery: text,
-        clickedUrl: url || '',
+        clickedUrl: url || "",
         clickedTitle: title || text,
-        clickType: type || 'suggestion',
+        clickType: type || "suggestion",
         clickPosition: -1, // -1 for suggestions
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // Get session ID directly from SessionService if available
@@ -481,21 +473,22 @@
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
+          type: "application/json",
         });
         navigator.sendBeacon(endpoint, blob);
       } else {
         // Fallback to fetch with keepalive
         fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking suggestion click:', err));
+          keepalive: true,
+        }).catch(() => {
+          // Silent error handling
+        });
       }
     } catch (error) {
-      console.error('Error tracking suggestion click:', error);
-      // Continue with normal operation despite tracking failure
+      // Silent error handling
     }
   };
 
@@ -508,17 +501,15 @@
    */
   window.trackTabChange = function (query, tabName, tabId) {
     try {
-      console.log('🔍 Tracking tab change:', { query, tabName, tabId });
-
       // Prepare data for the API call
       const data = {
         query: query,
         enrichmentData: {
-          actionType: 'tab',
+          actionType: "tab",
           tabName: tabName,
-          tabId: tabId
+          tabId: tabId,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       // Get session ID directly from SessionService if available
@@ -534,21 +525,22 @@
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
-          type: 'application/json'
+          type: "application/json",
         });
         navigator.sendBeacon(endpoint, blob);
       } else {
         // Fallback to fetch with keepalive
         fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
-          keepalive: true
-        }).catch(err => console.error('Error tracking tab change:', err));
+          keepalive: true,
+        }).catch(() => {
+          // Silent error handling
+        });
       }
     } catch (error) {
-      console.error('Error tracking tab change:', error);
-      // Continue with normal operation despite tracking failure
+      // Silent error handling
     }
   };
 
@@ -560,9 +552,8 @@
     if (!window.history?.pushState) return;
 
     const url = new URL(window.location);
-    url.searchParams.set('query', query);
-    window.history.pushState({}, '', url);
-    console.log('🔍 Updated URL:', url.toString());
+    url.searchParams.set("query", query);
+    window.history.pushState({}, "", url);
   }
 
   /**
@@ -591,12 +582,12 @@
    */
   function isElementInViewport(el) {
     const rect = el.getBoundingClientRect();
-    const isVisible = (
+    const isVisible =
       rect.top >= 0 &&
       rect.left >= 0 &&
-      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
+      rect.bottom <=
+        (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth);
     return isVisible;
   }
 
@@ -609,11 +600,12 @@
    * @param {string|HTMLElement} containerId - Container ID or element for results
    */
   window.performSearch = function (query, containerId) {
-    const container = typeof containerId === 'string' ?
-      document.getElementById(containerId) : containerId;
+    const container =
+      typeof containerId === "string"
+        ? document.getElementById(containerId)
+        : containerId;
 
     if (!container) {
-      console.error('🔍 Container not found:', containerId);
       return;
     }
 
