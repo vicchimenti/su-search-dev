@@ -1,12 +1,13 @@
 /**
  * @fileoverview Session ID Management Service with IP Tracking
- * 
+ *
  * This module provides centralized session ID management for the search API.
  * It serves as a single source of truth for session IDs across the application.
  * Now includes IP tracking capabilities to improve analytics and user tracking.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.0.1
+ * @version 2.1.1
  * @lastModified 2025-04-28
  */
 
@@ -15,9 +16,9 @@
  */
 const SessionService = {
   // Configuration constants
-  SESSION_ID_KEY: 'searchSessionId',
-  SESSION_IP_KEY: 'searchSessionIp',
-  SESSION_EXPIRY_KEY: 'searchSessionExpiry',
+  SESSION_ID_KEY: "searchSessionId",
+  SESSION_IP_KEY: "searchSessionIp",
+  SESSION_EXPIRY_KEY: "searchSessionExpiry",
   SESSION_DURATION: 30 * 60 * 1000, // 30 minutes
   IP_CHECK_THRESHOLD: 60 * 60 * 1000, // 1 hour
   IP_MISMATCH_LIMIT: 3, // Maximum number of IP changes before forcing a new session
@@ -33,8 +34,6 @@ const SessionService = {
    */
   initialize: async function () {
     try {
-      console.log('SessionService: Initializing');
-
       // Check if session exists and is valid
       const sessionId = sessionStorage.getItem(this.SESSION_ID_KEY);
       const expiryStr = sessionStorage.getItem(this.SESSION_EXPIRY_KEY);
@@ -45,7 +44,6 @@ const SessionService = {
       // Set internal state from storage
       if (storedIp) {
         this._lastKnownIp = storedIp;
-        console.log(`SessionService: Loaded stored IP: ${storedIp}`);
       }
 
       // If session is expired or doesn't exist, create a new one
@@ -59,10 +57,7 @@ const SessionService = {
       if (timeSinceLastCheck > this.IP_CHECK_THRESHOLD) {
         await this._verifyClientIp();
       }
-
-      console.log(`SessionService: Initialization complete with session ID: ${sessionId}`);
     } catch (error) {
-      console.error('SessionService: Error during initialization', error);
       // Ensure a valid session ID is available even if initialization fails
       if (!sessionStorage.getItem(this.SESSION_ID_KEY)) {
         this._setBasicSession();
@@ -75,7 +70,9 @@ const SessionService = {
    * @returns {string} A unique session ID
    */
   generateSessionId: function () {
-    return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    return (
+      "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9)
+    );
   },
 
   /**
@@ -90,14 +87,12 @@ const SessionService = {
       if (!sessionId) {
         sessionId = this.generateSessionId();
         this._setBasicSession(sessionId);
-        console.log('SessionService: Created new basic session ID:', sessionId);
       }
 
       return sessionId;
     } catch (e) {
       // Fallback if sessionStorage is unavailable (e.g., private browsing)
       const fallbackId = this.generateSessionId();
-      console.log('SessionService: Using fallback session ID (sessionStorage unavailable):', fallbackId);
       return fallbackId;
     }
   },
@@ -108,9 +103,10 @@ const SessionService = {
    */
   getSessionIp: function () {
     try {
-      return this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY) || null;
+      return (
+        this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY) || null
+      );
     } catch (e) {
-      console.error('SessionService: Error getting session IP:', e);
       return null;
     }
   },
@@ -124,7 +120,6 @@ const SessionService = {
       await this._createNewSession();
       return sessionStorage.getItem(this.SESSION_ID_KEY);
     } catch (e) {
-      console.error('SessionService: Error refreshing session:', e);
       const fallbackId = this.generateSessionId();
       this._setBasicSession(fallbackId);
       return fallbackId;
@@ -144,13 +139,12 @@ const SessionService = {
       const urlObj = new URL(url, window.location.origin);
 
       // Check if URL already has a sessionId parameter
-      if (!urlObj.searchParams.has('sessionId')) {
-        urlObj.searchParams.append('sessionId', sessionId);
+      if (!urlObj.searchParams.has("sessionId")) {
+        urlObj.searchParams.append("sessionId", sessionId);
       }
 
       return urlObj.toString();
     } catch (e) {
-      console.error('SessionService: Error adding session ID to URL:', e);
       return url; // Return original URL if there's an error
     }
   },
@@ -175,20 +169,19 @@ const SessionService = {
       const newParams = new URLSearchParams();
 
       for (const [key, value] of allParams) {
-        if (key !== 'sessionId') {
+        if (key !== "sessionId") {
           newParams.append(key, value);
         }
       }
 
       // Add the canonical session ID
-      newParams.append('sessionId', sessionId);
+      newParams.append("sessionId", sessionId);
 
       // Replace the search parameters
       urlObj.search = newParams.toString();
 
       return urlObj.toString();
     } catch (e) {
-      console.error('SessionService: Error normalizing URL:', e);
       return url; // Return original URL if there's an error
     }
   },
@@ -229,14 +222,15 @@ const SessionService = {
         expiresAt: expiry ? new Date(expiry).toISOString() : null,
         lastKnownIp: this.getSessionIp(),
         ipMismatchCount: this._ipMismatchCount,
-        lastIpCheckTime: this._lastIpCheckTime ? new Date(this._lastIpCheckTime).toISOString() : null
+        lastIpCheckTime: this._lastIpCheckTime
+          ? new Date(this._lastIpCheckTime).toISOString()
+          : null,
       };
     } catch (e) {
-      console.error('SessionService: Error getting session info:', e);
       return {
         sessionId: this.getSessionId(),
         hasSession: true,
-        error: e.message
+        error: e.message,
       };
     }
   },
@@ -265,21 +259,17 @@ const SessionService = {
       if (clientInfo && clientInfo.ip) {
         this._lastKnownIp = clientInfo.ip;
         sessionStorage.setItem(this.SESSION_IP_KEY, clientInfo.ip);
-        console.log(`SessionService: Created new session with ID ${sessionId} and IP ${clientInfo.ip}`);
-      } else {
-        console.log(`SessionService: Created new session with ID ${sessionId} (no IP available)`);
       }
 
       // Update last IP check time
       this._lastIpCheckTime = now;
 
       // Log session creation for analytics
-      this._logSessionEvent('created', {
+      this._logSessionEvent("created", {
         sessionId: sessionId,
-        ip: this._lastKnownIp
+        ip: this._lastKnownIp,
       });
     } catch (error) {
-      console.error('SessionService: Error creating new session', error);
       // Set basic session as fallback
       this._setBasicSession();
     }
@@ -297,10 +287,8 @@ const SessionService = {
 
       sessionStorage.setItem(this.SESSION_ID_KEY, id);
       sessionStorage.setItem(this.SESSION_EXPIRY_KEY, expiry.toString());
-
-      console.log(`SessionService: Set basic session with ID ${id}`);
     } catch (error) {
-      console.error('SessionService: Error setting basic session', error);
+      // Silent error handling
     }
   },
 
@@ -317,23 +305,22 @@ const SessionService = {
       // Get current client IP
       const clientInfo = await this._fetchClientIp();
       if (!clientInfo || !clientInfo.ip) {
-        console.log('SessionService: No IP information available for verification');
         return;
       }
 
       const currentIp = clientInfo.ip;
-      const previousIp = this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY);
+      const previousIp =
+        this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY);
 
       if (previousIp && currentIp !== previousIp) {
         // IP has changed
         this._ipMismatchCount++;
-        console.warn(`SessionService: IP mismatch detected. Previous: ${previousIp}, Current: ${currentIp}, Count: ${this._ipMismatchCount}`);
 
         // Log IP change for analytics
-        this._logSessionEvent('ip_changed', {
+        this._logSessionEvent("ip_changed", {
           previousIp: previousIp,
           currentIp: currentIp,
-          mismatchCount: this._ipMismatchCount
+          mismatchCount: this._ipMismatchCount,
         });
 
         // Update stored IP
@@ -342,19 +329,15 @@ const SessionService = {
 
         // If too many IP changes, create new session
         if (this._ipMismatchCount >= this.IP_MISMATCH_LIMIT) {
-          console.warn(`SessionService: IP changed ${this._ipMismatchCount} times, creating new session`);
           await this._createNewSession();
         }
       } else if (!previousIp) {
         // No previous IP, just store current one
         this._lastKnownIp = currentIp;
         sessionStorage.setItem(this.SESSION_IP_KEY, currentIp);
-        console.log(`SessionService: First IP recorded: ${currentIp}`);
-      } else {
-        console.log(`SessionService: IP verified successfully: ${currentIp}`);
       }
     } catch (error) {
-      console.error('SessionService: Error verifying client IP', error);
+      // Silent error handling
     }
   },
 
@@ -365,15 +348,18 @@ const SessionService = {
    */
   _fetchClientIp: async function () {
     try {
-      const response = await fetch('https://su-search-dev.vercel.app/api/client-info');
+      const response = await fetch(
+        "https://su-search-dev.vercel.app/api/client-info"
+      );
       if (!response.ok) {
-        throw new Error(`Error fetching client IP: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Error fetching client IP: ${response.status} ${response.statusText}`
+        );
       }
 
       const clientInfo = await response.json();
       return clientInfo;
     } catch (error) {
-      console.error('SessionService: Error fetching client IP', error);
       return null;
     }
   },
@@ -388,61 +374,62 @@ const SessionService = {
     try {
       const sessionId = this.getSessionId();
 
-      // Log to console in development
-      if (console.debug) {
-        console.debug(`SessionService Event [${eventType}]:`, {
-          sessionId,
-          ...eventData
-        });
-      }
-
       // Send to analytics using sendBeacon if available
       if (navigator.sendBeacon) {
         const analyticsData = {
           eventType: `session_${eventType}`,
           timestamp: new Date().toISOString(),
           sessionId: sessionId,
-          ...eventData
+          ...eventData,
         };
 
         const blob = new Blob([JSON.stringify(analyticsData)], {
-          type: 'application/json'
+          type: "application/json",
         });
 
-        navigator.sendBeacon('/api/analytics/session', blob);
+        navigator.sendBeacon("/api/analytics/session", blob);
       }
     } catch (error) {
-      console.error('SessionService: Error logging session event', error);
+      // Silent error handling
     }
-  }
+  },
 };
 
 // Initialize on page load
-window.addEventListener('DOMContentLoaded', () => {
-  SessionService.initialize().catch(error => {
-    console.error('SessionService: Failed to initialize', error);
+window.addEventListener("DOMContentLoaded", () => {
+  SessionService.initialize().catch(() => {
+    // Silent error handling
   });
 });
 
 // Extend session when user interacts with the page
-['click', 'keydown', 'scroll'].forEach(eventType => {
-  window.addEventListener(eventType, () => {
-    const now = Date.now();
-    const expiryStr = sessionStorage.getItem(SessionService.SESSION_EXPIRY_KEY);
-    const expiry = expiryStr ? parseInt(expiryStr) : 0;
+["click", "keydown", "scroll"].forEach((eventType) => {
+  window.addEventListener(
+    eventType,
+    () => {
+      const now = Date.now();
+      const expiryStr = sessionStorage.getItem(
+        SessionService.SESSION_EXPIRY_KEY
+      );
+      const expiry = expiryStr ? parseInt(expiryStr) : 0;
 
-    // Only extend if less than 5 minutes remaining
-    if (expiry - now < 5 * 60 * 1000) {
-      const newExpiry = now + SessionService.SESSION_DURATION;
-      sessionStorage.setItem(SessionService.SESSION_EXPIRY_KEY, newExpiry.toString());
-    }
-  }, { passive: true });
+      // Only extend if less than 5 minutes remaining
+      if (expiry - now < 5 * 60 * 1000) {
+        const newExpiry = now + SessionService.SESSION_DURATION;
+        sessionStorage.setItem(
+          SessionService.SESSION_EXPIRY_KEY,
+          newExpiry.toString()
+        );
+      }
+    },
+    { passive: true }
+  );
 });
 
 // Make globally available
 window.SessionService = SessionService;
 
 // For module systems, but will be ignored in browser script tags
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
   module.exports = SessionService;
 }
