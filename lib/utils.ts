@@ -5,8 +5,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.2.1
- * @lastModified 2025-04-29
+ * @version 2.3.0
+ * @lastModified 2025-05-05
  */
 
 /**
@@ -327,7 +327,7 @@ export function parseTabRequestUrl(url: string): {
       urlObj = new URL(url);
     } catch (e) {
       // Try as relative URL with a base
-      urlObj = new URL(url, '/search/');
+      urlObj = new URL(url, '/search-test/');
     }
 
     // Extract search params
