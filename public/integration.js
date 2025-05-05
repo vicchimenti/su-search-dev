@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.3.2
+ * @version 2.3.3
  * @lastModified 2025-05-05
  */
 
@@ -123,7 +123,7 @@
     proxyPreconnect.href = config.proxyBaseUrl;
     fragment.appendChild(proxyPreconnect);
 
-    // 2. Then preload critical JavaScript files with absolute paths
+    // 2. Then preload critical JavaScript files
     const sessionServicePreload = document.createElement("link");
     sessionServicePreload.rel = "preload";
     sessionServicePreload.href = `${config.apiBaseUrl}/js/SessionService.js`;
@@ -145,7 +145,7 @@
     // Append all links to the document head
     document.head.appendChild(fragment);
 
-    // Log to console without using process.env
+    // Log to console in development environments
     if (window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1' ||
       window.location.hostname.includes('dev')) {
