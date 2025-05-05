@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.3
+ * @version 2.2.0
  * @lastModified 2025-05-05
  */
 
@@ -32,7 +32,7 @@
   // Initialize on DOM ready
   document.addEventListener("DOMContentLoaded", function () {
     // Detect environment
-    const isResultsPage = window.location.pathname.includes("search");
+    const isResultsPage = window.location.pathname.includes("search-test");
 
     // Find search components
     const searchComponents = findSearchComponents();
