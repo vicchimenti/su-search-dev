@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.1
- * @lastModified 2025-04-28
+ * @version 2.1.2
+ * @lastModified 2025-05-05
  */
 
 /**
@@ -387,7 +387,8 @@ const SessionService = {
           type: "application/json",
         });
 
-        navigator.sendBeacon("/api/analytics/session", blob);
+        const endpoint = "https://funnelback-proxy-dev.vercel.app/proxy/analytics";
+        navigator.sendBeacon(endpoint, blob);
       }
     } catch (error) {
       // Silent error handling
