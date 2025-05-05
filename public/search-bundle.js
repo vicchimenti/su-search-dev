@@ -6,8 +6,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.0.1
- * @lastModified 2025-04-29
+ * @version 2.1.0
+ * @lastModified 2025-05-05
  */
 
 (function () {
@@ -95,7 +95,7 @@
         if (!query) return;
 
         // Navigate to search page with query
-        window.location.href = `/search/?query=${encodeURIComponent(query)}`;
+        window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
       });
     }
 
@@ -251,7 +251,7 @@
         trackSuggestionClick(text, 'general', '', text, sessionId);
 
         // Redirect to search page
-        window.location.href = `/search/?query=${encodeURIComponent(text)}`;
+        window.location.href = `/search-test/?query=${encodeURIComponent(text)}`;
       });
     });
   }
