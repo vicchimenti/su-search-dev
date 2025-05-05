@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.1
- * @lastModified 2025-04-29
+ * @version 2.1.2
+ * @lastModified 2025-05-05
  */
 
 (function () {
@@ -417,7 +417,7 @@
       }
 
       // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
+      const endpoint = `${config.proxyBaseUrl}/api/analytics/click`;
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
@@ -469,7 +469,7 @@
       }
 
       // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.proxyBaseUrl}/analytics/click`;
+      const endpoint = `${config.proxyBaseUrl}/api/analytics/click`;
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
@@ -521,7 +521,7 @@
       }
 
       // Use sendBeacon if available for non-blocking operation
-      const endpoint = `${config.proxyBaseUrl}/analytics/supplement`;
+      const endpoint = `${config.proxyBaseUrl}/api/analytics/supplement`;
 
       if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(data)], {
