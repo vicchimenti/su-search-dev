@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.2.1
+ * @version 2.2.2
  * @lastModified 2025-05-05
  */
 
@@ -248,7 +248,7 @@
         trackSuggestionClick(text, "general", "", text);
 
         // Redirect to search page
-        window.location.href = `/search/?query=${encodeURIComponent(
+        window.location.href = `/search-test/?query=${encodeURIComponent(
           text
         )}`;
       });
