@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.2.2
+ * @version 2.3.0
  * @lastModified 2025-05-05
  */
 
@@ -37,6 +37,9 @@
     // Find search components
     const searchComponents = findSearchComponents();
 
+    // Set up conditional preloading for search resources
+    setupConditionalPreloading();
+
     // Set up integrations based on detected components
     if (searchComponents.header) {
       setupHeaderSearch(searchComponents.header);
@@ -49,6 +52,87 @@
       processUrlParameters(searchComponents.results);
     }
   });
+
+  /**
+   * Set up conditional preloading of search-related resources
+   * Resources are only preloaded when the user interacts with the search UI
+   */
+  function setupConditionalPreloading() {
+    // Find the search toggle button
+    const searchToggle = document.getElementById("site-search--button-toggle") || 
+                        document.querySelector(".site-search__toggle");
+    
+    if (!searchToggle) {
+      console.log("Search toggle button not found on this page");
+      return;
+    }
+
+    // Check if we've already set up preloading (using sessionStorage)
+    const hasPreloaded = sessionStorage.getItem("searchResourcesPreloaded");
+    if (hasPreloaded === "true") {
+      return; // Don't set up listeners if we've already preloaded resources
+    }
+
+    // Add click event listener to the search toggle button
+    searchToggle.addEventListener("click", function() {
+      // Check again if we've already preloaded (could have happened between initial check and click)
+      if (sessionStorage.getItem("searchResourcesPreloaded") === "true") {
+        return;
+      }
+
+      // Create and inject preload links
+      preloadSearchResources();
+      
+      // Set flag to prevent redundant preloading
+      sessionStorage.setItem("searchResourcesPreloaded", "true");
+    });
+  }
+
+  /**
+   * Creates and injects preload elements for critical search resources
+   */
+  function preloadSearchResources() {
+    // Create a document fragment to hold all the link elements
+    const fragment = document.createDocumentFragment();
+    
+    // 1. First, establish connections to API domains
+    const apiPreconnect = document.createElement("link");
+    apiPreconnect.rel = "preconnect";
+    apiPreconnect.href = config.apiBaseUrl;
+    fragment.appendChild(apiPreconnect);
+    
+    const proxyPreconnect = document.createElement("link");
+    proxyPreconnect.rel = "preconnect";
+    proxyPreconnect.href = config.proxyBaseUrl;
+    fragment.appendChild(proxyPreconnect);
+    
+    // 2. Then preload critical JavaScript files
+    const sessionServicePreload = document.createElement("link");
+    sessionServicePreload.rel = "preload";
+    sessionServicePreload.href = "/js/SessionService.js";
+    sessionServicePreload.as = "script";
+    fragment.appendChild(sessionServicePreload);
+    
+    const searchBundlePreload = document.createElement("link");
+    searchBundlePreload.rel = "preload";
+    searchBundlePreload.href = "/search-bundle.js";
+    searchBundlePreload.as = "script";
+    fragment.appendChild(searchBundlePreload);
+    
+    // 3. Finally, prefetch the search results page template
+    const searchPagePrefetch = document.createElement("link");
+    searchPagePrefetch.rel = "prefetch";
+    searchPagePrefetch.href = "/search-test/";
+    fragment.appendChild(searchPagePrefetch);
+    
+    // Append all links to the document head
+    document.head.appendChild(fragment);
+    
+    // Log to console in development mode
+    if (process.env.NODE_ENV === "development") {
+      console.log("Search resources preloaded after search UI interaction");
+    }
+  }
 
   /**
    * Find search components on the page
