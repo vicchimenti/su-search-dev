@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.2.0
+ * @version 2.2.1
  * @lastModified 2025-05-05
  */
 
@@ -130,7 +130,7 @@
       if (!query) return;
 
       // Navigate to search page with query
-      window.location.href = `/search/?query=${encodeURIComponent(query)}`;
+      window.location.href = `/search-test/?query=${encodeURIComponent(query)}`;
     });
 
     // Set up suggestions
