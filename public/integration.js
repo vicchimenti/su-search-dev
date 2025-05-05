@@ -55,7 +55,12 @@
 
   /**
    * Set up conditional preloading of search-related resources
-   * Resources are only preloaded when the user interacts with the search UI
+   * This function finds the search toggle button and adds an event listener to preload
+   * critical search resources only when the user interacts with the search UI.
+   * Resources are preloaded only once per session to avoid redundant network requests.
+   * 
+   * @function
+   * @returns {void}
    */
   function setupConditionalPreloading() {
     // Find the search toggle button
@@ -90,6 +95,18 @@
 
   /**
    * Creates and injects preload elements for critical search resources
+   * This function dynamically creates and injects resource hints to preload/prefetch
+   * critical assets needed for the search results page. Resources are preloaded in
+   * the following order of priority:
+   * 1. Establish connections to API domains (preconnect)
+   * 2. Load critical JavaScript files (preload)
+   * 3. Prefetch the search results page template (prefetch)
+   * 
+   * This approach improves perceived performance when a user initiates a search
+   * by having critical resources already in the browser cache.
+   * 
+   * @function
+   * @returns {void}
    */
   function preloadSearchResources() {
     // Create a document fragment to hold all the link elements
@@ -109,20 +126,20 @@
     // 2. Then preload critical JavaScript files with absolute paths
     const sessionServicePreload = document.createElement("link");
     sessionServicePreload.rel = "preload";
-    sessionServicePreload.href = "https://www.seattleu.edu/js/SessionService.js";
+    sessionServicePreload.href = `${config.apiBaseUrl}/js/SessionService.js`;
     sessionServicePreload.as = "script";
     fragment.appendChild(sessionServicePreload);
 
     const searchBundlePreload = document.createElement("link");
     searchBundlePreload.rel = "preload";
-    searchBundlePreload.href = "https://www.seattleu.edu/search-bundle.js";
+    searchBundlePreload.href = `${config.apiBaseUrl}/search-bundle.js`;
     searchBundlePreload.as = "script";
     fragment.appendChild(searchBundlePreload);
 
     // 3. Finally, prefetch the search results page template
     const searchPagePrefetch = document.createElement("link");
     searchPagePrefetch.rel = "prefetch";
-    searchPagePrefetch.href = "https://www.seattleu.edu/search-test/";
+    searchPagePrefetch.href = "/search-test/";
     fragment.appendChild(searchPagePrefetch);
 
     // Append all links to the document head
