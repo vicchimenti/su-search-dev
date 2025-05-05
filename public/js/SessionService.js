@@ -1,18 +1,19 @@
 /**
- * @fileoverview Session ID Management Service with IP Tracking
+ * @fileoverview Enhanced Session ID Management Service with Redirect Optimization
  *
  * This module provides centralized session ID management for the search API.
  * It serves as a single source of truth for session IDs across the application.
- * Now includes IP tracking capabilities to improve analytics and user tracking.
+ * Includes IP tracking capabilities and special optimizations for search page redirects.
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.2
+ * @version 3.0.0
  * @lastModified 2025-05-05
  */
 
 /**
  * SessionService - Manages session IDs and IP tracking across the application
+ * with optimized handling for search redirects
  */
 const SessionService = {
   // Configuration constants
@@ -20,31 +21,80 @@ const SessionService = {
   SESSION_IP_KEY: "searchSessionIp",
   SESSION_EXPIRY_KEY: "searchSessionExpiry",
   SESSION_DURATION: 30 * 60 * 1000, // 30 minutes
-  IP_CHECK_THRESHOLD: 60 * 60 * 1000, // 1 hour
+  IP_CHECK_THRESHOLD: 24 * 60 * 60 * 1000, // 24 hours (increased from 1 hour)
   IP_MISMATCH_LIMIT: 3, // Maximum number of IP changes before forcing a new session
+  SESSION_REDIRECT_FLAG: "searchRedirectInProgress",
+  SESSION_READY_FLAG: "searchSessionReady",
+  IP_LAST_FETCH_TIME: "searchIpLastFetchTime",
 
   // Internal state
   _lastKnownIp: null,
   _ipMismatchCount: 0,
   _lastIpCheckTime: 0,
+  _initializationPromise: null,
+  _isRedirectOptimizationEnabled: true,
+  _pendingInitialization: false,
 
   /**
-   * Initialize session service - should be called once on page load
+   * Initialize session service with redirect optimization
+   * When coming from a search redirect, uses optimized path to avoid redundant operations
    * @returns {Promise<void>} Promise that resolves when initialization is complete
    */
   initialize: async function () {
+    // Prevent multiple concurrent initializations
+    if (this._pendingInitialization) {
+      return this._initializationPromise;
+    }
+
+    this._pendingInitialization = true;
+    this._initializationPromise = this._performInitialization();
+    
     try {
-      // Check if session exists and is valid
+      await this._initializationPromise;
+    } finally {
+      this._pendingInitialization = false;
+    }
+    
+    return this._initializationPromise;
+  },
+
+  /**
+   * Internal implementation of initialization with redirect optimization
+   * @private
+   * @returns {Promise<void>} Promise that resolves when initialization is complete
+   */
+  _performInitialization: async function () {
+    try {
+      // Check if we're coming from a search redirect
+      const isSearchRedirect = this._detectSearchRedirect();
+      
+      // Get existing session data
       const sessionId = sessionStorage.getItem(this.SESSION_ID_KEY);
       const expiryStr = sessionStorage.getItem(this.SESSION_EXPIRY_KEY);
       const storedIp = sessionStorage.getItem(this.SESSION_IP_KEY);
-
       const now = Date.now();
 
       // Set internal state from storage
       if (storedIp) {
         this._lastKnownIp = storedIp;
       }
+
+      // If we're coming from a search redirect and have valid session data, 
+      // take the fast path for performance
+      if (isSearchRedirect && sessionId && expiryStr && parseInt(expiryStr) > now) {
+        // Mark that we've handled the redirect
+        this._clearRedirectFlag();
+        
+        // Only update expiry without full initialization
+        this._extendSessionExpiry();
+        
+        // Schedule non-blocking IP verification for later
+        this._scheduleBackgroundIpCheck();
+        
+        return;
+      }
+
+      // Standard initialization path follows
 
       // If session is expired or doesn't exist, create a new one
       if (!sessionId || !expiryStr || parseInt(expiryStr) < now) {
@@ -53,8 +103,11 @@ const SessionService = {
       }
 
       // Session exists and is valid, check IP if needed
-      const timeSinceLastCheck = now - this._lastIpCheckTime;
-      if (timeSinceLastCheck > this.IP_CHECK_THRESHOLD) {
+      const ipLastFetchTimeStr = sessionStorage.getItem(this.IP_LAST_FETCH_TIME);
+      const ipLastFetchTime = ipLastFetchTimeStr ? parseInt(ipLastFetchTimeStr) : 0;
+      const timeSinceLastIpFetch = now - ipLastFetchTime;
+      
+      if (timeSinceLastIpFetch > this.IP_CHECK_THRESHOLD) {
         await this._verifyClientIp();
       }
     } catch (error) {
@@ -63,6 +116,96 @@ const SessionService = {
         this._setBasicSession();
       }
     }
+  },
+
+  /**
+   * Schedule a non-blocking IP verification for background processing
+   * @private
+   */
+  _scheduleBackgroundIpCheck: function () {
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => {
+        this._verifyClientIp().catch(() => {
+          // Silent error handling
+        });
+      });
+    } else {
+      // Fallback for browsers without requestIdleCallback
+      setTimeout(() => {
+        this._verifyClientIp().catch(() => {
+          // Silent error handling
+        });
+      }, 5000); // 5 second delay
+    }
+  },
+
+  /**
+   * Detect if this page load is part of a search redirect
+   * @private
+   * @returns {boolean} True if this is a search redirect
+   */
+  _detectSearchRedirect: function () {
+    // Check storage for redirect flag
+    const redirectFlag = sessionStorage.getItem(this.SESSION_REDIRECT_FLAG);
+    
+    // Check URL for search-related parameters
+    const isSearchPage = window.location.pathname.includes('search-test');
+    const hasQueryParam = new URLSearchParams(window.location.search).has('query');
+    
+    return (redirectFlag === 'true' && isSearchPage && hasQueryParam);
+  },
+
+  /**
+   * Clear the redirect flag after handling
+   * @private
+   */
+  _clearRedirectFlag: function () {
+    sessionStorage.removeItem(this.SESSION_REDIRECT_FLAG);
+  },
+
+  /**
+   * Set the redirect flag before performing a search redirect
+   * This prepares the session service for an optimized initialization
+   * on the search results page
+   */
+  prepareForSearchRedirect: function () {
+    try {
+      // Ensure session is valid and ready before redirect
+      this._ensureValidSession();
+      
+      // Set the redirect flag
+      sessionStorage.setItem(this.SESSION_REDIRECT_FLAG, 'true');
+      
+      // Update the session ready flag
+      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
+      
+      // Extend expiry to ensure session stays valid during redirect
+      this._extendSessionExpiry();
+    } catch (error) {
+      // Silent error handling
+    }
+  },
+
+  /**
+   * Ensure we have a valid session before redirect
+   * @private
+   */
+  _ensureValidSession: function () {
+    const sessionId = sessionStorage.getItem(this.SESSION_ID_KEY);
+    if (!sessionId) {
+      const newId = this.generateSessionId();
+      this._setBasicSession(newId);
+    }
+  },
+
+  /**
+   * Extend the current session expiry time
+   * @private
+   */
+  _extendSessionExpiry: function () {
+    const now = Date.now();
+    const newExpiry = now + this.SESSION_DURATION;
+    sessionStorage.setItem(this.SESSION_EXPIRY_KEY, newExpiry.toString());
   },
 
   /**
@@ -76,7 +219,7 @@ const SessionService = {
   },
 
   /**
-   * Get the current session ID or create a new one if it doesn't exist
+   * Get the current session ID - ensure's initialization completes first if needed
    * This is the primary method other components should use
    * @returns {string} The current session ID
    */
@@ -89,6 +232,13 @@ const SessionService = {
         this._setBasicSession(sessionId);
       }
 
+      // If we're not already initializing, trigger a background initialization
+      if (!this._pendingInitialization && !sessionStorage.getItem(this.SESSION_READY_FLAG)) {
+        this.initialize().catch(() => {
+          // Silent error handling
+        });
+      }
+
       return sessionId;
     } catch (e) {
       // Fallback if sessionStorage is unavailable (e.g., private browsing)
@@ -99,13 +249,27 @@ const SessionService = {
 
   /**
    * Get the IP address associated with the current session
+   * Uses cached IP to avoid redundant API calls
    * @returns {string|null} The current IP address or null if not available
    */
   getSessionIp: function () {
     try {
-      return (
-        this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY) || null
-      );
+      // First check instance variable for fastest access
+      if (this._lastKnownIp) {
+        return this._lastKnownIp;
+      }
+      
+      // Then check sessionStorage
+      const storedIp = sessionStorage.getItem(this.SESSION_IP_KEY);
+      if (storedIp) {
+        this._lastKnownIp = storedIp;
+        return storedIp;
+      }
+      
+      // Schedule a background IP check if we don't have one
+      this._scheduleBackgroundIpCheck();
+      
+      return null;
     } catch (e) {
       return null;
     }
@@ -214,6 +378,7 @@ const SessionService = {
       const expiryStr = sessionStorage.getItem(this.SESSION_EXPIRY_KEY);
       const expiry = expiryStr ? parseInt(expiryStr) : 0;
       const now = Date.now();
+      const isRedirectOptimized = sessionStorage.getItem(this.SESSION_REDIRECT_FLAG) === 'true';
 
       return {
         sessionId: sessionId,
@@ -225,6 +390,8 @@ const SessionService = {
         lastIpCheckTime: this._lastIpCheckTime
           ? new Date(this._lastIpCheckTime).toISOString()
           : null,
+        isRedirectOptimized: isRedirectOptimized,
+        redirectOptimizationEnabled: this._isRedirectOptimizationEnabled
       };
     } catch (e) {
       return {
@@ -236,7 +403,16 @@ const SessionService = {
   },
 
   /**
+   * Enable or disable redirect optimization
+   * @param {boolean} enabled - Whether to enable redirect optimization
+   */
+  setRedirectOptimization: function(enabled) {
+    this._isRedirectOptimizationEnabled = !!enabled;
+  },
+
+  /**
    * Create a new session with full IP information
+   * Uses a more efficient IP fetching strategy
    * @private
    * @returns {Promise<void>} Promise that resolves when session is created
    */
@@ -250,15 +426,24 @@ const SessionService = {
       const expiry = now + this.SESSION_DURATION;
       sessionStorage.setItem(this.SESSION_ID_KEY, sessionId);
       sessionStorage.setItem(this.SESSION_EXPIRY_KEY, expiry.toString());
+      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
 
       // Reset IP mismatch counter
       this._ipMismatchCount = 0;
 
-      // Get current client IP
-      const clientInfo = await this._fetchClientIp();
-      if (clientInfo && clientInfo.ip) {
-        this._lastKnownIp = clientInfo.ip;
-        sessionStorage.setItem(this.SESSION_IP_KEY, clientInfo.ip);
+      // Check if we already have a cached IP before making an API call
+      const cachedIp = sessionStorage.getItem(this.SESSION_IP_KEY);
+      if (cachedIp && this._isRecentIpFetch()) {
+        // Use cached IP if it's recent
+        this._lastKnownIp = cachedIp;
+      } else {
+        // Get current client IP
+        const clientInfo = await this._fetchClientIp();
+        if (clientInfo && clientInfo.ip) {
+          this._lastKnownIp = clientInfo.ip;
+          sessionStorage.setItem(this.SESSION_IP_KEY, clientInfo.ip);
+          sessionStorage.setItem(this.IP_LAST_FETCH_TIME, now.toString());
+        }
       }
 
       // Update last IP check time
@@ -276,6 +461,25 @@ const SessionService = {
   },
 
   /**
+   * Check if the last IP fetch was recent enough to be trusted
+   * @private
+   * @returns {boolean} Whether the last IP fetch was recent
+   */
+  _isRecentIpFetch: function() {
+    const now = Date.now();
+    const ipLastFetchTimeStr = sessionStorage.getItem(this.IP_LAST_FETCH_TIME);
+    
+    if (!ipLastFetchTimeStr) {
+      return false;
+    }
+    
+    const ipLastFetchTime = parseInt(ipLastFetchTimeStr);
+    const timeSinceLastIpFetch = now - ipLastFetchTime;
+    
+    return timeSinceLastIpFetch < this.IP_CHECK_THRESHOLD;
+  },
+
+  /**
    * Set a basic session ID without IP information (fallback)
    * @private
    * @param {string} [sessionId] - Optional session ID to use
@@ -287,6 +491,7 @@ const SessionService = {
 
       sessionStorage.setItem(this.SESSION_ID_KEY, id);
       sessionStorage.setItem(this.SESSION_EXPIRY_KEY, expiry.toString());
+      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
     } catch (error) {
       // Silent error handling
     }
@@ -294,6 +499,7 @@ const SessionService = {
 
   /**
    * Verify that the client's current IP matches stored IP
+   * Non-blocking implementation that can run in background
    * @private
    * @returns {Promise<void>} Promise that resolves when verification is complete
    */
@@ -307,6 +513,9 @@ const SessionService = {
       if (!clientInfo || !clientInfo.ip) {
         return;
       }
+
+      // Store the IP fetch time
+      sessionStorage.setItem(this.IP_LAST_FETCH_TIME, Date.now().toString());
 
       const currentIp = clientInfo.ip;
       const previousIp =
@@ -343,22 +552,54 @@ const SessionService = {
 
   /**
    * Fetch the client's IP address from the client-info API
+   * Uses caching to minimize API calls
    * @private
    * @returns {Promise<Object|null>} Promise that resolves with client info or null if error
    */
   _fetchClientIp: async function () {
     try {
-      const response = await fetch(
-        "https://su-search-dev.vercel.app/api/client-info"
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Error fetching client IP: ${response.status} ${response.statusText}`
-        );
+      // Check if we can use a cached value
+      const cachedIp = this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY);
+      const ipLastFetchTimeStr = sessionStorage.getItem(this.IP_LAST_FETCH_TIME);
+      
+      if (cachedIp && ipLastFetchTimeStr) {
+        const ipLastFetchTime = parseInt(ipLastFetchTimeStr);
+        const now = Date.now();
+        const timeSinceLastIpFetch = now - ipLastFetchTime;
+        
+        // If we have a recent cached IP, use it instead of making an API call
+        if (timeSinceLastIpFetch < this.IP_CHECK_THRESHOLD) {
+          return { ip: cachedIp, source: 'cache' };
+        }
       }
 
-      const clientInfo = await response.json();
-      return clientInfo;
+      // Make API call if no recent cache exists
+      const fetchController = new AbortController();
+      const timeoutId = setTimeout(() => fetchController.abort(), 3000); // 3 second timeout
+      
+      try {
+        const response = await fetch(
+          "https://su-search-dev.vercel.app/api/client-info",
+          { signal: fetchController.signal }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(
+            `Error fetching client IP: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const clientInfo = await response.json();
+        return clientInfo;
+      } catch (fetchError) {
+        // If fetch fails and we have a cached IP, return that
+        if (cachedIp) {
+          return { ip: cachedIp, source: 'cache-fallback' };
+        }
+        throw fetchError;
+      }
     } catch (error) {
       return null;
     }
@@ -366,6 +607,7 @@ const SessionService = {
 
   /**
    * Log session events for analytics
+   * Uses a non-blocking approach to avoid performance impact
    * @private
    * @param {string} eventType - The type of event to log
    * @param {Object} eventData - Additional event data
@@ -396,11 +638,43 @@ const SessionService = {
   },
 };
 
-// Initialize on page load
+// Initialize on page load with optimized handling for search redirects
 window.addEventListener("DOMContentLoaded", () => {
-  SessionService.initialize().catch(() => {
-    // Silent error handling
-  });
+  // Check if this is a search results page
+  const isSearchPage = window.location.pathname.includes('search-test');
+  const hasQueryParam = new URLSearchParams(window.location.search).has('query');
+  
+  if (isSearchPage && hasQueryParam) {
+    // For search results page, get session ID immediately for analytics
+    // but delay full initialization to prioritize search results loading
+    const sessionId = SessionService.getSessionId();
+    
+    // Delay complete initialization
+    setTimeout(() => {
+      SessionService.initialize().catch(() => {
+        // Silent error handling
+      });
+    }, 1000); // 1 second delay to prioritize search results
+  } else {
+    // For regular pages, initialize normally
+    SessionService.initialize().catch(() => {
+      // Silent error handling
+    });
+  }
+});
+
+// Add an event listener to the search form to prepare for redirects
+window.addEventListener("DOMContentLoaded", () => {
+  // Find the header search form
+  const headerSearchInput = document.getElementById("search-input");
+  const headerSearchForm = headerSearchInput?.closest("form");
+  
+  if (headerSearchForm) {
+    headerSearchForm.addEventListener("submit", function(e) {
+      // Prepare session for redirect before navigation
+      SessionService.prepareForSearchRedirect();
+    });
+  }
 });
 
 // Extend session when user interacts with the page
