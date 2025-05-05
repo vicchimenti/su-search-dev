@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.3.0
+ * @version 2.3.1
  * @lastModified 2025-05-05
  */
 
@@ -109,13 +109,13 @@
     // 2. Then preload critical JavaScript files
     const sessionServicePreload = document.createElement("link");
     sessionServicePreload.rel = "preload";
-    sessionServicePreload.href = "/js/SessionService.js";
+    sessionServicePreload.href = "https://su-search-dev.vercel.app/js/SessionService.js";
     sessionServicePreload.as = "script";
     fragment.appendChild(sessionServicePreload);
     
     const searchBundlePreload = document.createElement("link");
     searchBundlePreload.rel = "preload";
-    searchBundlePreload.href = "/search-bundle.js";
+    searchBundlePreload.href = "https://su-search-dev.vercel.app/search-bundle.js";
     searchBundlePreload.as = "script";
     fragment.appendChild(searchBundlePreload);
     
