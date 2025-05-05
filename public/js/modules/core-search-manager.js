@@ -12,9 +12,9 @@
  * - IP resolution for accurate client tracking
  *
  * @author Victor Chimenti
- * @version 3.1.1
+ * @version 3.1.2
  * @license MIT
- * @lastModified 2025-04-29
+ * @lastModified 2025-05-05
  */
 
 class SearchManager {
@@ -36,7 +36,7 @@ class SearchManager {
         click: "/analytics/click",
         batch: "/analytics/clicks-batch",
         supplement: "/analytics/supplement",
-        session: "/analytics/session",
+        session: "/analytics/",
       },
     };
 
