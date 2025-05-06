@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.3.3
- * @lastModified 2025-05-05
+ * @version 2.4.0
+ * @lastModified 2025-05-06
  */
 
 (function () {
@@ -20,6 +20,9 @@
     profile: "_default",
     minQueryLength: 3,
     debounceTime: 200,
+    prefetchDebounceTime: 300, // Slightly longer debounce for prefetch
+    prefetchMinQueryLength: 4, // Require slightly longer query for prefetch
+    cacheTTL: 300, // 5 minutes default TTL
   };
 
   // Make config available globally
@@ -252,6 +255,22 @@
       }, config.debounceTime);
 
       component.input.addEventListener("input", handleInput);
+
+      // Add prefetch functionality
+      const handlePrefetch = debounce(async function () {
+        const query = component.input.value.trim();
+
+        // Only prefetch if query is long enough
+        if (query.length < config.prefetchMinQueryLength) {
+          return;
+        }
+
+        // Prefetch in background
+        prefetchSearchResults(query);
+      }, config.prefetchDebounceTime);
+
+      // Add the prefetch listener
+      component.input.addEventListener("input", handlePrefetch);
     }
 
     // Handle clicks outside
@@ -265,6 +284,74 @@
         component.suggestionsContainer.hidden = true;
       }
     });
+  }
+
+  /**
+   * Prefetch search results for a query to warm up the cache
+   * This sends a low-priority request to the prefetch API endpoint
+   * which will cache the results without blocking the main thread
+   * 
+   * @param {string} query - Search query to prefetch
+   */
+  function prefetchSearchResults(query) {
+    try {
+      if (!query || query.length < config.prefetchMinQueryLength) {
+        return;
+      }
+
+      // Normalize query for consistent caching
+      const normalizedQuery = query.trim().toLowerCase();
+
+      // Get session ID if available
+      let sessionId = '';
+      if (window.SessionService) {
+        sessionId = window.SessionService.getSessionId() || '';
+      }
+
+      // Create URL with parameters
+      const params = new URLSearchParams({
+        query: normalizedQuery,
+        collection: config.collection,
+        profile: config.profile,
+        prefetch: 'true'
+      });
+
+      if (sessionId) {
+        params.append('sessionId', sessionId);
+      }
+
+      const prefetchUrl = `${config.apiBaseUrl}/api/prefetch?${params}`;
+
+      // Use fetch with appropriate flags for background operation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+      fetch(prefetchUrl, {
+        method: 'GET',
+        signal: controller.signal,
+        priority: 'low',
+        keepalive: true,
+        headers: {
+          'X-Prefetch-Request': 'true',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(response => {
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            if (window.location.hostname.includes('dev') ||
+              window.location.hostname === 'localhost') {
+              console.log(`Prefetched results for: ${normalizedQuery}`);
+            }
+          }
+        })
+        .catch(() => {
+          // Silent error handling for prefetch
+          clearTimeout(timeoutId);
+        });
+    } catch (error) {
+      // Silent error handling
+    }
   }
 
   /**
@@ -382,6 +469,24 @@
         // Update URL without reload
         updateUrl(query);
       });
+    }
+
+    // Add prefetch functionality to search page input
+    if (component.input) {
+      const handlePrefetch = debounce(async function () {
+        const query = component.input.value.trim();
+
+        // Only prefetch if query is long enough
+        if (query.length < config.prefetchMinQueryLength) {
+          return;
+        }
+
+        // Prefetch in background
+        prefetchSearchResults(query);
+      }, config.prefetchDebounceTime);
+
+      // Add the prefetch listener
+      component.input.addEventListener("input", handlePrefetch);
     }
 
     // Set up click tracking on results
@@ -719,4 +824,9 @@
    * Update URL without page reload (exposed globally for other components)
    */
   window.updateSearchUrl = updateUrl;
+
+  /**
+   * Expose prefetch function globally
+   */
+  window.prefetchSearchResults = prefetchSearchResults;
 })();
