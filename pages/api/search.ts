@@ -1,244 +1,258 @@
 /**
- * @fileoverview Server-side API for rendered search results
+ * @fileoverview Search API with enhanced cache support
  * 
- * This API endpoint handles search requests, fetches results from the backend API,
- * and returns server-side rendered search results. Includes tab content caching
- * and IP resolution for accurate client tracking.
+ * This API endpoint handles search requests with caching and tab-based content
+ * management. It includes enhanced cache detection, status headers, and 
+ * performance metrics tracking.
  *
- * @author Victor Chimenti
- * @version 3.0.0
- * @lastModified 2025-04-28
+ * @author Seattle University
+ * @version 4.0.0
+ * @lastModified 2025-05-06
+ * @license MIT
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createApiClient } from '../../lib/api-client';
 import {
-  getCachedData,
-  setCachedData
+  getCachedSearchResults,
+  setCachedSearchResults,
+  getSearchTTL,
+  updateCacheMetrics,
+  searchResultsExistInCache
 } from '../../lib/cache';
-import {
-  isTabRequest,
-  extractTabId,
-  normalizeTabId,
-  generateTabCacheKey,
-  parseTabRequestUrl
-} from '../../lib/utils';
-import {
-  getClientInfo,
-  getClientIpHeaders
-} from '../../lib/ip-service';
+import { getClientInfo } from '../../lib/ip-service';
 
-// List of frequently accessed tabs for extended caching
-const POPULAR_TABS = ['Results', 'Programs', 'Faculty_Staff', 'News'];
+// Set up CORS headers
+const ALLOWED_ORIGINS = [
+  'https://www.seattleu.edu',
+  'https://seattleu.edu',
+  'https://dev.seattleu.edu',
+  'http://localhost:3000',
+  'http://localhost:8000'
+];
 
-// Define an interface for the params object
-interface SearchParams {
-  query: string | string[];
-  collection: string | string[];
-  profile: string | string[];
-  form: string | string[];
-  sessionId: string | string[];
-  [key: string]: string | string[] | undefined;
+/**
+ * Handle OPTIONS requests for CORS
+ * @param res - NextApiResponse object
+ */
+function handleCorsOptions(res: NextApiResponse) {
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, X-Cache-Only');
+  res.status(200).end();
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.seattleu.edu');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+/**
+ * Set CORS headers for response
+ * @param req - NextApiRequest object
+ * @param res - NextApiResponse object
+ */
+function setCorsHeaders(req: NextApiRequest, res: NextApiResponse) {
+  const origin = req.headers.origin;
 
-  // Handle preflight requests
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Allow any origin in development
+    if (process.env.NODE_ENV === 'development') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', 'https://www.seattleu.edu');
+    }
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, X-Cache-Only');
+}
+
+/**
+ * Add cache status headers to response
+ * @param res - NextApiResponse object
+ * @param cacheStatus - Cache status (HIT or MISS)
+ * @param cachedAt - Timestamp when the content was cached
+ * @param ttl - Time to live in seconds
+ */
+function addCacheHeaders(
+  res: NextApiResponse,
+  cacheStatus: 'HIT' | 'MISS',
+  cachedAt?: number,
+  ttl?: number
+) {
+  res.setHeader('X-Cache-Status', cacheStatus);
+
+  if (cacheStatus === 'HIT' && cachedAt) {
+    const now = Date.now();
+    const ageSeconds = Math.floor((now - cachedAt) / 1000);
+    res.setHeader('X-Cache-Age', String(ageSeconds));
+
+    if (ttl) {
+      const remainingTtl = Math.max(0, ttl - ageSeconds);
+      res.setHeader('X-Cache-TTL-Remaining', String(remainingTtl));
+    }
+  }
+}
+
+/**
+ * Search API handler
+ * 
+ * This endpoint handles search requests with tiered caching and enhanced 
+ * metrics tracking.
+ * 
+ * @param req - NextApiRequest object
+ * @param res - NextApiResponse object
+ */
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Set CORS headers
+  setCorsHeaders(req, res);
+
+  // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return handleCorsOptions(res);
   }
 
   // Only allow GET requests
   if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Extract and log the full request URL for debugging
-  const fullUrl = req.url || '';
-  console.log(`[SEARCH-API] Received full request URL: ${fullUrl}`);
-  console.log(`[SEARCH-API] Query params:`, req.query);
-
-  const { query, collection, profile, form, sessionId } = req.query;
-
-  // Basic validation
-  if (!query) {
-    res.status(400).json({ error: 'Query parameter is required' });
-    return;
-  }
+  const startTime = Date.now();
 
   try {
-    // Resolve client IP information
-    console.log(`[SEARCH-API] Resolving client IP information`);
-    const clientInfo = await getClientInfo(req.headers);
-    console.log(`[SEARCH-API] Resolved client IP: ${clientInfo.ip} (${clientInfo.source})`);
+    // Extract query parameters
+    const {
+      query = '',
+      collection = 'seattleu~sp-search',
+      profile = '_default',
+      sessionId = ''
+    } = req.query;
 
-    // Add IP metadata to response headers for debugging/monitoring
-    res.setHeader('X-Client-IP-Source', clientInfo.source);
-
-    // Try to identify if this is a tab request
-    let tabRequestDetected = false;
-    let tabId = null;
-
-    try {
-      // First attempt with isTabRequest function
-      tabRequestDetected = isTabRequest(fullUrl);
-
-      // If detected as tab request, try to extract tab ID
-      if (tabRequestDetected) {
-        tabId = extractTabId(fullUrl);
-        tabId = normalizeTabId(tabId);
-      }
-
-      console.log(`[SEARCH-API] Tab request detection from URL: ${tabRequestDetected}, Tab ID: ${tabId}`);
-    } catch (tabError) {
-      console.error('[SEARCH-API] Error parsing tab request:', tabError);
-      // Continue with request even if tab detection fails
-      tabRequestDetected = false;
-      tabId = null;
+    // Validate query
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Query parameter is required' });
     }
 
-    // Fall back to checking query parameters directly if URL parsing fails
-    if (!tabRequestDetected) {
-      // Check for form=partial which is a strong indicator of tab request
-      if (form === 'partial') {
-        tabRequestDetected = true;
+    // Check if we should only check cache (indicated by header)
+    const cacheOnlyRequest = req.headers['x-cache-only'] === 'true';
 
-        // Try to determine tab from other parameters if not already set
-        if (!tabId) {
-          // Check known tab-specific URL patterns
-          if (fullUrl.includes('Faculty') || fullUrl.includes('Staff')) {
-            tabId = 'Faculty_Staff';
-          } else if (fullUrl.includes('Programs')) {
-            tabId = 'Programs';
-          } else if (fullUrl.includes('News')) {
-            tabId = 'News';
-          } else {
-            // Default to Results tab
-            tabId = 'Results';
-          }
-        }
+    // Normalize collection and profile for consistent cache keys
+    const normalizedCollection = Array.isArray(collection) ? collection[0] : collection;
+    const normalizedProfile = Array.isArray(profile) ? profile[0] : profile;
 
-        console.log(`[SEARCH-API] Tab detection from params: ${tabRequestDetected}, Tab ID: ${tabId}`);
-      }
-    }
-
-    // Add cache info to response headers for debugging/monitoring
-    res.setHeader('X-Cache-Enabled', 'true');
-
-    // For tab requests, try to get from tab-specific cache first
-    if (tabRequestDetected && tabId) {
-      console.log(`[SEARCH-API] Request for tab '${tabId}' with query '${query}'`);
-
-      // Generate cache key for this tab request
-      const tabCacheKey = generateTabCacheKey(
-        query as string,
-        collection as string || 'seattleu~sp-search',
-        tabId
+    // Check if the search results are in cache
+    if (cacheOnlyRequest) {
+      const exists = await searchResultsExistInCache(
+        query.toString(),
+        normalizedCollection,
+        normalizedProfile
       );
-      console.log(`[SEARCH-API] Generated cache key: ${tabCacheKey}`);
 
-      // Try to get from cache
-      const cachedTabContent = await getCachedData(tabCacheKey);
-
-      if (cachedTabContent) {
-        console.log(`[SEARCH-API] HIT - Serving cached content for tab '${tabId}'`);
-        res.setHeader('X-Cache-Status', 'HIT');
-        res.setHeader('X-Cache-Type', 'tab');
-        res.setHeader('X-Cache-Tab-ID', tabId);
-
-        // Return cached tab content
-        return res.status(200).send(cachedTabContent);
+      if (exists) {
+        // If just checking cache existence, return simplified response
+        updateCacheMetrics('search', 'hit', query.toString());
+        return res.status(200).json({
+          cacheStatus: 'HIT',
+          query: query.toString(),
+          timestamp: Date.now()
+        });
+      } else {
+        // Cache miss for check-only request
+        updateCacheMetrics('search', 'miss', query.toString());
+        return res.status(404).json({
+          cacheStatus: 'MISS',
+          query: query.toString(),
+          timestamp: Date.now()
+        });
       }
-
-      console.log(`[SEARCH-API] MISS - Fetching content for tab '${tabId}' from backend`);
-      res.setHeader('X-Cache-Status', 'MISS');
-      res.setHeader('X-Cache-Type', 'tab');
-      res.setHeader('X-Cache-Tab-ID', tabId);
-    } else {
-      // For non-tab requests, use general search cache
-      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
-
-      // Try to get from cache
-      const cachedResult = await getCachedData(cacheKey);
-      if (cachedResult) {
-        console.log(`[SEARCH-API] Cache hit for ${cacheKey}`);
-        res.setHeader('X-Cache-Status', 'HIT');
-        res.setHeader('X-Cache-Type', 'search');
-
-        return res.status(200).send(cachedResult);
-      }
-
-      res.setHeader('X-Cache-Status', 'MISS');
-      res.setHeader('X-Cache-Type', 'search');
-      console.log(`[SEARCH-API] Cache miss for ${cacheKey}`);
     }
 
-    // Cache miss - prepare parameters for backend API
-    const params: SearchParams = {
-      query,
-      collection: collection || 'seattleu~sp-search',
-      profile: profile || '_default',
-      form: form || 'partial',
-      sessionId: sessionId || ''
-    };
+    // Try to get from cache first
+    const cachedResult = await getCachedSearchResults(
+      query.toString(),
+      normalizedCollection,
+      normalizedProfile
+    );
 
-    // Add any additional parameters from the original request
-    // Including facet parameters like f.Tabs which are critical for tab content
-    Object.keys(req.query).forEach(key => {
-      if (!['query', 'collection', 'profile', 'form', 'sessionId'].includes(key)) {
-        params[key] = req.query[key];
+    if (cachedResult) {
+      // Update the cache hit metric
+      updateCacheMetrics('search', 'hit', query.toString());
+
+      // Log cache hit in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[SEARCH-API] Cache HIT for ${query} (age: ${Math.floor((Date.now() - cachedResult.timestamp) / 1000)}s)`);
+      }
+
+      // Add cache headers
+      addCacheHeaders(res, 'HIT', cachedResult.timestamp, cachedResult.ttl);
+
+      // Return cached data
+      return res.status(200).send(cachedResult.data);
+    }
+
+    // Cache miss - update metric
+    updateCacheMetrics('search', 'miss', query.toString());
+
+    // Log cache miss in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[SEARCH-API] Cache MISS for ${query}`);
+    }
+
+    // Add cache miss header
+    addCacheHeaders(res, 'MISS');
+
+    // Get client info for analytics
+    const clientInfo = await getClientInfo(req.headers);
+
+    // Configure API client with IP forwarding
+    const apiClient = createApiClient(req.headers);
+
+    // Start backend request timing
+    const backendStartTime = Date.now();
+
+    // Forward request to backend search API
+    const response = await apiClient.get('/funnelback/search', {
+      params: {
+        query,
+        collection: normalizedCollection,
+        profile: normalizedProfile,
+        sessionId: Array.isArray(sessionId) ? sessionId[0] : sessionId,
+        clientIp: clientInfo?.ip || '',
       }
     });
 
-    // Log the full parameters being sent to backend
-    console.log(`[SEARCH-API] Sending to backend API:`, params);
+    // Calculate backend timing
+    const backendTime = Date.now() - backendStartTime;
 
-    // Create API client with client IP propagation
-    const apiClient = createApiClient(req.headers);
+    // Cache the results
+    const ttl = getSearchTTL(query.toString());
+    await setCachedSearchResults(
+      query.toString(),
+      normalizedCollection,
+      normalizedProfile,
+      response.data
+    );
 
-    // Add the client IP info to request log
-    console.log(`[SEARCH-API] Using client IP: ${clientInfo.ip} (${clientInfo.source}) for backend request`);
-
-    // Fetch from backend API with client IP
-    console.log(`[SEARCH-API] Fetching from backend for query: ${query}${tabId ? `, tab: ${tabId}` : ''}`);
-    const result = await apiClient.get('/funnelback/search', { params });
-
-    // Cache the result based on request type
-    if (tabRequestDetected && tabId) {
-      // For tab content requests
-      const tabCacheKey = generateTabCacheKey(
-        query as string,
-        collection as string || 'seattleu~sp-search',
-        tabId
-      );
-
-      // Check if this is a popular tab for longer TTL
-      const isPopularTab = POPULAR_TABS.includes(tabId);
-      const cacheTTL = isPopularTab ? 7200 : 1800; // 2 hours vs 30 minutes
-
-      // Store in cache
-      await setCachedData(tabCacheKey, result.data, cacheTTL);
-      console.log(`[SEARCH-API] Stored tab content in cache with key: ${tabCacheKey}, TTL: ${cacheTTL}s, popular: ${isPopularTab}`);
-    } else {
-      // For general search requests
-      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
-      await setCachedData(cacheKey, result.data, 600); // 10 minutes TTL
-      console.log(`[SEARCH-API] Cached search result for key: ${cacheKey}, TTL: 600s`);
+    // Log successful cache in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[SEARCH-API] Cached results for ${query} with TTL ${ttl}s (backend time: ${backendTime}ms)`);
     }
 
-    // Return the result
-    res.status(200).send(result.data);
+    // Add timing header
+    res.setHeader('X-Backend-Time', String(backendTime));
+
+    // Return the search results
+    res.status(200).send(response.data);
   } catch (error) {
-    console.error('[SEARCH-API] Search API error:', error);
-    res.status(500).json({ error: 'Failed to fetch search results' });
+    console.error('[SEARCH-API] Error:', error);
+
+    // Return error response
+    res.status(500).json({
+      error: 'Failed to process search request',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  } finally {
+    // Log total request time in development
+    if (process.env.NODE_ENV === 'development') {
+      const totalTime = Date.now() - startTime;
+      console.log(`[SEARCH-API] Total request time: ${totalTime}ms`);
+    }
   }
 }
