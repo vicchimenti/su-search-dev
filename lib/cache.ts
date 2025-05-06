@@ -6,7 +6,7 @@
  * support for tab content caching and tiered TTL for popular queries.
  *
  * @author Victor Chimenti
- * @version 2.1.0
+ * @version 2.1.1
  * @lastModified 2025-05-06
  */
 
@@ -128,21 +128,23 @@ export function updateCacheMetrics(
     metrics[category] = { hits: 0, misses: 0, sets: 0 };
   }
 
-  // Increment the appropriate counter
+  // Map operation string to the corresponding property name in CacheMetrics
+  let propertyName: keyof CacheMetrics;
   if (operation === 'hit') {
-    metrics[category].hits += 1;
-    metrics.total.hits += 1;
+    propertyName = 'hits';
   } else if (operation === 'miss') {
-    metrics[category].misses += 1;
-    metrics.total.misses += 1;
-  } else if (operation === 'set') {
-    metrics[category].sets += 1;
-    metrics.total.sets += 1;
+    propertyName = 'misses';
+  } else { // operation === 'set'
+    propertyName = 'sets';
   }
+
+  // Increment the appropriate counter
+  metrics[category][propertyName] += 1;
+  metrics.total[propertyName] += 1;
 
   // Log in development
   if (process.env.NODE_ENV === 'development') {
-    console.log(`[CACHE-METRICS] ${category} ${operation} - Total: ${metrics[category][operation]}`);
+    console.log(`[CACHE-METRICS] ${category} ${operation} - Total: ${metrics[category][propertyName]}`);
   }
 }
 
