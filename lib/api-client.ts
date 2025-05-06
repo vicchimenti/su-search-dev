@@ -3,11 +3,12 @@
  * 
  * This module provides a configured Axios client for communicating
  * with the backend search API. Includes IP resolution functionality
- * to preserve original client IPs.
+ * to preserve original client IPs and enhanced cache awareness.
  *
+ * @license MIT
  * @author Victor Chimenti
- * @version 2.0.2
- * @lastModified 2025-04-28
+ * @version 2.1.0
+ * @lastModified 2025-05-06
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosRequestHeaders } from 'axios';
@@ -94,11 +95,12 @@ export function getCachedClientIp(): string | null {
 }
 
 /**
- * Create an axios instance with client IP inclusion
+ * Create an axios instance with client IP inclusion and optional cache awareness
  * @param headers - Optional request headers
+ * @param options - Additional client options (including cache awareness)
  * @returns Configured axios instance
  */
-export function createApiClient(headers?: any): AxiosInstance {
+export function createApiClient(headers?: any, options: { cacheAware?: boolean } = {}): AxiosInstance {
   console.log('API-CLIENT: Creating API client instance');
 
   let clientIp: string | null = null;
@@ -113,15 +115,28 @@ export function createApiClient(headers?: any): AxiosInstance {
     }
   }
 
+  // Create default headers
+  const defaultHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  // Add IP headers if available
+  if (clientIp) {
+    defaultHeaders['X-Forwarded-For'] = clientIp;
+    defaultHeaders['X-Client-IP'] = clientIp;
+  }
+
+  // Add cache awareness header if requested
+  if (options.cacheAware) {
+    defaultHeaders['X-Cache-Aware'] = 'true';
+  }
+
   // Create a configured Axios instance
   const apiClient = axios.create({
     baseURL: BACKEND_API_URL,
     timeout: 10000,
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(clientIp && { 'X-Forwarded-For': clientIp, 'X-Client-IP': clientIp })
-    }
+    headers: defaultHeaders
   });
 
   if (clientIp) {
@@ -181,7 +196,8 @@ export function createApiClient(headers?: any): AxiosInstance {
         data: request.data,
         headers: {
           'X-Forwarded-For': request.headers?.['X-Forwarded-For'],
-          'X-Client-IP': request.headers?.['X-Client-IP']
+          'X-Client-IP': request.headers?.['X-Client-IP'],
+          'X-Cache-Aware': request.headers?.['X-Cache-Aware'],
         }
       });
     }
@@ -192,10 +208,16 @@ export function createApiClient(headers?: any): AxiosInstance {
   apiClient.interceptors.response.use(
     response => {
       if (process.env.NODE_ENV === 'development') {
+        // Log cache status headers if present
+        const cacheStatus = response.headers['x-cache-status'];
+        const cacheAge = response.headers['x-cache-age'];
+
         console.log('API-CLIENT: Backend API Response:', {
           status: response.status,
           dataLength: response.data ?
-            (typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length) : 0
+            (typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length) : 0,
+          cacheStatus: cacheStatus || 'N/A',
+          cacheAge: cacheAge || 'N/A'
         });
       }
       return response;
@@ -216,14 +238,40 @@ export function createApiClient(headers?: any): AxiosInstance {
 // Create a default instance for backward compatibility
 export const backendApiClient = createApiClient();
 
-// Helper function for GET requests with IP forwarding
-export async function fetchFromBackend(endpoint: string, params: any = {}, headers?: any) {
+// Create a cache-aware instance for use with endpoints that support caching
+export const cacheAwareApiClient = createApiClient(undefined, { cacheAware: true });
+
+/**
+ * Helper function for GET requests with IP forwarding
+ * @param endpoint - API endpoint
+ * @param params - Request parameters
+ * @param options - Additional request options
+ * @param headers - Optional request headers
+ * @returns Response data
+ */
+export async function fetchFromBackend(
+  endpoint: string,
+  params: any = {},
+  options: { cacheAware?: boolean } = {},
+  headers?: any
+) {
   try {
     // Create a client instance with provided headers (useful for server-side requests)
-    const client = headers ? createApiClient(headers) : backendApiClient;
+    const client = headers ?
+      createApiClient(headers, options) :
+      options.cacheAware ? cacheAwareApiClient : backendApiClient;
 
     console.log(`API-CLIENT: Fetching from ${endpoint} with params:`, params);
-    const response = await client.get(endpoint, { params });
+
+    // Set custom headers for cache awareness if needed
+    const requestConfig: AxiosRequestConfig = { params };
+    if (options.cacheAware) {
+      requestConfig.headers = {
+        'X-Cache-Aware': 'true'
+      };
+    }
+
+    const response = await client.get(endpoint, requestConfig);
     return response.data;
   } catch (error) {
     console.error(`API-CLIENT: Error fetching from ${endpoint}:`, error);
@@ -231,7 +279,14 @@ export async function fetchFromBackend(endpoint: string, params: any = {}, heade
   }
 }
 
-// Helper function for POST requests with IP forwarding
+/**
+ * Helper function for POST requests with IP forwarding
+ * @param endpoint - API endpoint
+ * @param data - Request body
+ * @param params - Request parameters
+ * @param headers - Optional request headers
+ * @returns Response data
+ */
 export async function postToBackend(endpoint: string, data: any = {}, params: any = {}, headers?: any) {
   try {
     // Create a client instance with provided headers (useful for server-side requests)

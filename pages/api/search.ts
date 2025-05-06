@@ -6,21 +6,27 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.0.0
- * @lastModified 2025-04-28
+ * @version 3.1.0
+ * @lastModified 2025-05-06
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createApiClient } from '../../lib/api-client';
 import {
   getCachedData,
-  setCachedData
+  setCachedData,
+  getCachedSearchResults,
+  setCachedSearchResults,
+  getCachedTabContent,
+  setCachedTabContent,
+  generateSearchCacheKey,
+  generateTabCacheKey,
+  getRecommendedTtl
 } from '../../lib/cache';
 import {
   isTabRequest,
   extractTabId,
   normalizeTabId,
-  generateTabCacheKey,
   parseTabRequestUrl
 } from '../../lib/utils';
 import {
@@ -41,6 +47,43 @@ interface SearchParams {
   [key: string]: string | string[] | undefined;
 }
 
+/**
+ * Add cache status headers to the response
+ * This is non-intrusive and doesn't affect the response content
+ * 
+ * @param res - NextApiResponse object
+ * @param status - Cache status (HIT or MISS)
+ * @param type - Cache type (search or tab)
+ * @param metadata - Additional metadata
+ */
+function addCacheHeaders(
+  res: NextApiResponse,
+  status: 'HIT' | 'MISS',
+  type: 'search' | 'tab',
+  metadata: any = {}
+): void {
+  // Add standard cache headers
+  res.setHeader('X-Cache-Status', status);
+  res.setHeader('X-Cache-Type', type);
+
+  // Add additional metadata if available
+  if (metadata.tabId) {
+    res.setHeader('X-Cache-Tab-ID', metadata.tabId);
+  }
+
+  if (metadata.age) {
+    res.setHeader('X-Cache-Age', metadata.age.toString());
+  }
+
+  if (metadata.ttl) {
+    res.setHeader('X-Cache-TTL', metadata.ttl.toString());
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[SEARCH-API] Cache ${status} for ${type}${metadata.tabId ? ` (tab: ${metadata.tabId})` : ''}`);
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -48,7 +91,7 @@ export default async function handler(
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', 'https://www.seattleu.edu');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Cache-Only');
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -64,8 +107,7 @@ export default async function handler(
 
   // Extract and log the full request URL for debugging
   const fullUrl = req.url || '';
-  console.log(`[SEARCH-API] Received full request URL: ${fullUrl}`);
-  console.log(`[SEARCH-API] Query params:`, req.query);
+  console.log(`[SEARCH-API] Received request: ${fullUrl}`);
 
   const { query, collection, profile, form, sessionId } = req.query;
 
@@ -76,6 +118,9 @@ export default async function handler(
   }
 
   try {
+    // Special case: Check if this is a cache-check-only request
+    const cacheCheckOnly = req.headers['x-cache-only'] === 'true';
+
     // Resolve client IP information
     console.log(`[SEARCH-API] Resolving client IP information`);
     const clientInfo = await getClientInfo(req.headers);
@@ -98,7 +143,7 @@ export default async function handler(
         tabId = normalizeTabId(tabId);
       }
 
-      console.log(`[SEARCH-API] Tab request detection from URL: ${tabRequestDetected}, Tab ID: ${tabId}`);
+      console.log(`[SEARCH-API] Tab request detection: ${tabRequestDetected}, Tab ID: ${tabId}`);
     } catch (tabError) {
       console.error('[SEARCH-API] Error parsing tab request:', tabError);
       // Continue with request even if tab detection fails
@@ -131,55 +176,80 @@ export default async function handler(
       }
     }
 
-    // Add cache info to response headers for debugging/monitoring
-    res.setHeader('X-Cache-Enabled', 'true');
-
     // For tab requests, try to get from tab-specific cache first
     if (tabRequestDetected && tabId) {
       console.log(`[SEARCH-API] Request for tab '${tabId}' with query '${query}'`);
 
-      // Generate cache key for this tab request
-      const tabCacheKey = generateTabCacheKey(
+      // Check if this is a popular tab
+      const isPopularTab = POPULAR_TABS.includes(tabId);
+
+      // Try to get from cache using enhanced function
+      const cachedTabContent = await getCachedTabContent(
         query as string,
         collection as string || 'seattleu~sp-search',
+        profile as string || '_default',
         tabId
       );
-      console.log(`[SEARCH-API] Generated cache key: ${tabCacheKey}`);
-
-      // Try to get from cache
-      const cachedTabContent = await getCachedData(tabCacheKey);
 
       if (cachedTabContent) {
-        console.log(`[SEARCH-API] HIT - Serving cached content for tab '${tabId}'`);
-        res.setHeader('X-Cache-Status', 'HIT');
-        res.setHeader('X-Cache-Type', 'tab');
-        res.setHeader('X-Cache-Tab-ID', tabId);
+        console.log(`[SEARCH-API] Cache HIT for tab '${tabId}'`);
 
-        // Return cached tab content
+        // Add cache status headers - non-intrusive enhancement
+        addCacheHeaders(res, 'HIT', 'tab', {
+          tabId,
+          popular: isPopularTab
+        });
+
+        // Handle cache-check-only requests
+        if (cacheCheckOnly) {
+          return res.status(200).json({ cacheStatus: 'HIT', tabId });
+        }
+
+        // Return cached tab content as-is to preserve the exact HTML structure
         return res.status(200).send(cachedTabContent);
       }
 
-      console.log(`[SEARCH-API] MISS - Fetching content for tab '${tabId}' from backend`);
-      res.setHeader('X-Cache-Status', 'MISS');
-      res.setHeader('X-Cache-Type', 'tab');
-      res.setHeader('X-Cache-Tab-ID', tabId);
+      console.log(`[SEARCH-API] Cache MISS for tab '${tabId}'`);
+
+      // Add cache status headers - non-intrusive enhancement
+      addCacheHeaders(res, 'MISS', 'tab', { tabId });
+
+      // Handle cache-check-only requests
+      if (cacheCheckOnly) {
+        return res.status(404).json({ cacheStatus: 'MISS', tabId });
+      }
     } else {
       // For non-tab requests, use general search cache
-      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
+      const cachedResult = await getCachedSearchResults(
+        query as string,
+        collection as string || 'seattleu~sp-search',
+        profile as string || '_default'
+      );
 
-      // Try to get from cache
-      const cachedResult = await getCachedData(cacheKey);
       if (cachedResult) {
-        console.log(`[SEARCH-API] Cache hit for ${cacheKey}`);
-        res.setHeader('X-Cache-Status', 'HIT');
-        res.setHeader('X-Cache-Type', 'search');
+        console.log(`[SEARCH-API] Cache HIT for search: ${query}`);
 
+        // Add cache status headers - non-intrusive enhancement
+        addCacheHeaders(res, 'HIT', 'search');
+
+        // Handle cache-check-only requests
+        if (cacheCheckOnly) {
+          return res.status(200).json({ cacheStatus: 'HIT' });
+        }
+
+        // Return cached search results as-is to preserve the exact HTML structure
         return res.status(200).send(cachedResult);
       }
 
-      res.setHeader('X-Cache-Status', 'MISS');
-      res.setHeader('X-Cache-Type', 'search');
-      console.log(`[SEARCH-API] Cache miss for ${cacheKey}`);
+      console.log(`[SEARCH-API] Cache MISS for search: ${query}`);
+
+      // Add cache status headers - non-intrusive enhancement
+      addCacheHeaders(res, 'MISS', 'search');
+
+      // Handle cache-check-only requests
+      if (cacheCheckOnly) {
+        return res.status(404).json({ cacheStatus: 'MISS' });
+      }
     }
 
     // Cache miss - prepare parameters for backend API
@@ -202,40 +272,49 @@ export default async function handler(
     // Log the full parameters being sent to backend
     console.log(`[SEARCH-API] Sending to backend API:`, params);
 
-    // Create API client with client IP propagation
-    const apiClient = createApiClient(req.headers);
-
-    // Add the client IP info to request log
-    console.log(`[SEARCH-API] Using client IP: ${clientInfo.ip} (${clientInfo.source}) for backend request`);
+    // Create cache-aware API client with client IP propagation
+    const apiClient = createApiClient(req.headers, { cacheAware: true });
 
     // Fetch from backend API with client IP
     console.log(`[SEARCH-API] Fetching from backend for query: ${query}${tabId ? `, tab: ${tabId}` : ''}`);
     const result = await apiClient.get('/funnelback/search', { params });
 
+    // Parse string query safely
+    const queryStr = typeof query === 'string' ? query : Array.isArray(query) ? query[0] : '';
+    const collectionStr = typeof collection === 'string' ? collection :
+      Array.isArray(collection) ? collection[0] : 'seattleu~sp-search';
+    const profileStr = typeof profile === 'string' ? profile :
+      Array.isArray(profile) ? profile[0] : '_default';
+
     // Cache the result based on request type
     if (tabRequestDetected && tabId) {
       // For tab content requests
-      const tabCacheKey = generateTabCacheKey(
-        query as string,
-        collection as string || 'seattleu~sp-search',
-        tabId
+      const isPopularTab = POPULAR_TABS.includes(tabId);
+
+      // Use enhanced function
+      await setCachedTabContent(
+        queryStr,
+        collectionStr,
+        profileStr,
+        tabId,
+        result.data,
+        isPopularTab
       );
 
-      // Check if this is a popular tab for longer TTL
-      const isPopularTab = POPULAR_TABS.includes(tabId);
-      const cacheTTL = isPopularTab ? 7200 : 1800; // 2 hours vs 30 minutes
-
-      // Store in cache
-      await setCachedData(tabCacheKey, result.data, cacheTTL);
-      console.log(`[SEARCH-API] Stored tab content in cache with key: ${tabCacheKey}, TTL: ${cacheTTL}s, popular: ${isPopularTab}`);
+      console.log(`[SEARCH-API] Cached tab content for '${tabId}', popular: ${isPopularTab}`);
     } else {
-      // For general search requests
-      const cacheKey = `search:${query}:${collection || 'default'}:${profile || 'default'}`;
-      await setCachedData(cacheKey, result.data, 600); // 10 minutes TTL
-      console.log(`[SEARCH-API] Cached search result for key: ${cacheKey}, TTL: 600s`);
+      // For general search requests - use enhanced function
+      await setCachedSearchResults(
+        queryStr,
+        collectionStr,
+        profileStr,
+        result.data
+      );
+
+      console.log(`[SEARCH-API] Cached search result with tiered TTL`);
     }
 
-    // Return the result
+    // Return the result as-is to preserve the exact HTML structure
     res.status(200).send(result.data);
   } catch (error) {
     console.error('[SEARCH-API] Search API error:', error);
