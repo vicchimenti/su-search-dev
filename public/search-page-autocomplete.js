@@ -1,14 +1,15 @@
 /**
- * @fileoverview Enhanced search page autocomplete functionality
+ * @fileoverview Enhanced search page autocomplete functionality with cache-first optimization
  *
  * This implementation provides a three-column layout for search suggestions
  * on the search results page, with support for general suggestions,
- * staff/faculty profiles, and academic programs.
+ * staff/faculty profiles, and academic programs. Now includes cache-first
+ * optimization for faster search results.
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-04-28
+ * @version 2.2.0
+ * @lastModified 2025-05-07
  */
 
 // Create a module-level session handler that serves as the single source of truth within this file
@@ -56,6 +57,69 @@ const SessionManager = {
   },
 };
 
+// Cache monitoring for tracking metrics
+const CacheMonitor = {
+  // Simple metrics
+  metrics: {
+    cacheChecks: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    cacheErrors: 0,
+    totalSearches: 0,
+    fastPathSearches: 0
+  },
+
+  // Reset metrics
+  reset() {
+    Object.keys(this.metrics).forEach(key => {
+      this.metrics[key] = 0;
+    });
+  },
+
+  // Log a cache check
+  logCacheCheck(result) {
+    this.metrics.cacheChecks++;
+
+    if (result === 'hit') {
+      this.metrics.cacheHits++;
+    } else if (result === 'miss') {
+      this.metrics.cacheMisses++;
+    } else if (result === 'error') {
+      this.metrics.cacheErrors++;
+    }
+  },
+
+  // Log a search
+  logSearch(wasFastPath) {
+    this.metrics.totalSearches++;
+
+    if (wasFastPath) {
+      this.metrics.fastPathSearches++;
+    }
+  },
+
+  // Get cache hit rate
+  getCacheHitRate() {
+    if (this.metrics.cacheChecks === 0) return 0;
+    return (this.metrics.cacheHits / this.metrics.cacheChecks) * 100;
+  },
+
+  // Get fast path rate
+  getFastPathRate() {
+    if (this.metrics.totalSearches === 0) return 0;
+    return (this.metrics.fastPathSearches / this.metrics.totalSearches) * 100;
+  },
+
+  // Get metrics as formatted object
+  getMetricsReport() {
+    return {
+      ...this.metrics,
+      cacheHitRate: `${this.getCacheHitRate().toFixed(1)}%`,
+      fastPathRate: `${this.getFastPathRate().toFixed(1)}%`
+    };
+  }
+};
+
 // Function to render the results page suggestions (3-column layout)
 function renderResultsPageSuggestions(data, container, query) {
   // Extract and process data
@@ -83,122 +147,107 @@ function renderResultsPageSuggestions(data, container, query) {
   let html = `
     <div class="suggestions-list">
       <div class="suggestions-columns">
-        ${
-          general.length > 0
-            ? `
+        ${general.length > 0
+      ? `
           <div class="suggestions-column">
             <div class="column-header">Suggestions</div>
             ${general
-              .map((suggestion, index) => {
-                const display = suggestion.display || suggestion;
-                return `
+        .map((suggestion, index) => {
+          const display = suggestion.display || suggestion;
+          return `
                 <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
                   <span class="suggestion-text">${display}</span>
                 </div>
               `;
-              })
-              .join("")}
+        })
+        .join("")}
           </div>
         `
-            : ""
-        }
+      : ""
+    }
         
-        ${
-          staff.length > 0
-            ? `
+        ${staff.length > 0
+      ? `
           <div class="suggestions-column">
             <div class="column-header">Faculty & Staff</div>
             ${staff
-              .map(
-                (person, index) => `
-              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${
-                  person.url || "#"
-                }">
-                <a href="${
-                  person.url || "#"
-                }" class="staff-link" target="_blank" rel="noopener noreferrer">
+        .map(
+          (person, index) => `
+              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${person.url || "#"
+            }">
+                <a href="${person.url || "#"
+            }" class="staff-link" target="_blank" rel="noopener noreferrer">
                   <div class="staff-suggestion">
-                    ${
-                      person.image
-                        ? `
+                    ${person.image
+              ? `
                       <div class="staff-image">
-                        <img src="${person.image}" alt="${
-                            person.title || ""
-                          }" class="staff-thumbnail" loading="lazy">
+                        <img src="${person.image}" alt="${person.title || ""
+              }" class="staff-thumbnail" loading="lazy">
                       </div>
                     `
-                        : ""
-                    }
+              : ""
+            }
                     <div class="staff-info">
                       <span class="suggestion-text">${person.title || ""}</span>
-                      ${
-                        person.position
-                          ? `<span class="staff-role">${person.position}</span>`
-                          : ""
-                      }
-                      ${
-                        person.affiliation
-                          ? `<span class="staff-role">${person.affiliation}</span>`
-                          : ""
-                      }
-                      ${
-                        person.department
-                          ? `<span class="staff-department">${person.department}</span>`
-                          : ""
-                      }
-                      ${
-                        person.college
-                          ? `<span class="staff-department">${person.college}</span>`
-                          : ""
-                      }
+                      ${person.position
+              ? `<span class="staff-role">${person.position}</span>`
+              : ""
+            }
+                      ${person.affiliation
+              ? `<span class="staff-role">${person.affiliation}</span>`
+              : ""
+            }
+                      ${person.department
+              ? `<span class="staff-department">${person.department}</span>`
+              : ""
+            }
+                      ${person.college
+              ? `<span class="staff-department">${person.college}</span>`
+              : ""
+            }
                     </div>
                   </div>
                 </a>
               </div>
             `
-              )
-              .join("")}
+        )
+        .join("")}
           </div>
         `
-            : ""
-        }
+      : ""
+    }
         
-        ${
-          programResults.length > 0
-            ? `
+        ${programResults.length > 0
+      ? `
           <div class="suggestions-column">
             <div class="column-header">Programs</div>
             ${programResults
-              .map(
-                (program, index) => `
-              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${
-                  program.url || "#"
-                }">
-                <a href="${
-                  program.url || "#"
-                }" class="program-link" target="_blank" rel="noopener noreferrer">
+        .map(
+          (program, index) => `
+              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${program.url || "#"
+            }">
+                <a href="${program.url || "#"
+            }" class="program-link" target="_blank" rel="noopener noreferrer">
                   <div class="program-suggestion">
                     <span class="suggestion-text">${program.title || ""}</span>
-                    ${
-                      program.details?.school
-                        ? `<span class="suggestion-type">${program.details.school}</span>`
-                        : ""
-                    }
-                    ${
-                      program.description
-                        ? `<span class="program-description">${program.description}</span>`
-                        : ""
-                    }
+                    ${program.details?.school
+              ? `<span class="suggestion-type">${program.details.school}</span>`
+              : ""
+            }
+                    ${program.description
+              ? `<span class="program-description">${program.description}</span>`
+              : ""
+            }
                   </div>
                 </a>
               </div>
             `
-              )
-              .join("")}
+        )
+        .join("")}
           </div>
         `
-            : ""
-        }
+      : ""
+    }
       </div>
     </div>
   `;
@@ -368,9 +417,99 @@ async function fetchSuggestions(query, container, isResultsPage = true) {
   }
 }
 
-// Perform search via API
+// Check if search results exist in cache
+async function checkCacheForResults(query, collection, profile) {
+  try {
+    // Get session ID from SessionManager
+    const sessionId = SessionManager.getSessionId();
+
+    // Get API URL from global config or use default
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.apiBaseUrl ||
+      "https://su-search-dev.vercel.app";
+
+    // Prepare URL with parameters
+    const params = new URLSearchParams({
+      query,
+      collection: collection || "seattleu~sp-search",
+      profile: profile || "_default"
+    });
+
+    // Only add session ID if it's available
+    if (sessionId) {
+      params.append("sessionId", sessionId);
+    }
+
+    // Use AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout for cache check
+
+    try {
+      // Make the cache check request
+      const url = `${apiBaseUrl}/api/check-cache?${params}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        }
+      });
+
+      // Clear timeout since we got a response
+      clearTimeout(timeoutId);
+
+      // Get performance data from headers
+      const checkTime = response.headers.get('X-Cache-Check-Time');
+      const cacheStatus = response.headers.get('X-Cache-Status');
+
+      // Process response based on status
+      if (response.status === 200) {
+        // Cache hit
+        const data = await response.json();
+        console.log(`Cache hit for "${query}". TTL: ${data.ttl || 'unknown'}, Check time: ${checkTime}ms`);
+        CacheMonitor.logCacheCheck('hit');
+        return { exists: true, data };
+      } else if (response.status === 404) {
+        // Cache miss
+        console.log(`Cache miss for "${query}". Check time: ${checkTime}ms`);
+        CacheMonitor.logCacheCheck('miss');
+        return { exists: false };
+      } else {
+        // Unexpected status
+        console.warn(`Unexpected status from cache check: ${response.status}`);
+        CacheMonitor.logCacheCheck('error');
+        return { exists: false };
+      }
+    } catch (fetchError) {
+      // Clear timeout if we had an error
+      clearTimeout(timeoutId);
+
+      // Handle abort (timeout)
+      if (fetchError.name === 'AbortError') {
+        console.warn(`Cache check timed out for "${query}"`);
+      } else {
+        console.error(`Error checking cache: ${fetchError.message}`);
+      }
+
+      CacheMonitor.logCacheCheck('error');
+      return { exists: false };
+    }
+  } catch (error) {
+    console.error(`Exception in checkCacheForResults: ${error.message}`);
+    CacheMonitor.logCacheCheck('error');
+    return { exists: false };
+  }
+}
+
+// Perform search via API with cache-first optimization
 async function performSearch(query, container) {
   try {
+    // Set container to loading state
+    setLoadingState(container, true);
+    const startTime = Date.now();
+    let usedCachePath = false;
+
     // Get session ID from SessionManager
     const sessionId = SessionManager.getSessionId();
 
@@ -382,50 +521,142 @@ async function performSearch(query, container) {
       window.seattleUConfig?.search?.collection || "seattleu~sp-search";
     const profile = window.seattleUConfig?.search?.profile || "_default";
 
-    // Prepare URL with parameters
-    const params = new URLSearchParams({
-      query,
-      collection,
-      profile,
-    });
+    // Check cache first (fast path)
+    const cacheCheck = await checkCacheForResults(query, collection, profile);
 
-    // Only add session ID if it's available
-    if (sessionId) {
-      params.append("sessionId", sessionId);
+    if (cacheCheck.exists) {
+      // Fast path - cache hit
+      usedCachePath = true;
+
+      // Prepare URL with parameters for normal search
+      const params = new URLSearchParams({
+        query,
+        collection,
+        profile,
+        fromCache: "true" // Signal that we know it's cached
+      });
+
+      // Only add session ID if it's available
+      if (sessionId) {
+        params.append("sessionId", sessionId);
+      }
+
+      // Fetch results from API
+      const url = `${apiBaseUrl}/api/search?${params}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      // Get HTML response
+      const html = await response.text();
+
+      // Calculate total time
+      const totalTime = Date.now() - startTime;
+      console.log(`Fast path search completed in ${totalTime}ms for "${query}"`);
+
+      // Update results container
+      container.innerHTML = `
+        <div class="funnelback-search-container">
+          ${html}
+          <div class="search-performance-info" style="font-size: 12px; color: #666; margin-top: 10px; text-align: right;">
+            Results loaded in ${totalTime}ms via cache
+          </div>
+        </div>
+      `;
+
+      // Attach click handlers for tracking
+      attachResultClickHandlers(container, query);
+
+      // Scroll to results if not in viewport AND page is not already at the top
+      if (!isElementInViewport(container) && window.scrollY > 0) {
+        container.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } else {
+      // Slow path - cache miss
+      // Prepare URL with parameters
+      const params = new URLSearchParams({
+        query,
+        collection,
+        profile,
+      });
+
+      // Only add session ID if it's available
+      if (sessionId) {
+        params.append("sessionId", sessionId);
+      }
+
+      // Fetch results from API
+      const url = `${apiBaseUrl}/api/search?${params}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      // Get HTML response
+      const html = await response.text();
+
+      // Calculate total time
+      const totalTime = Date.now() - startTime;
+      console.log(`Standard search completed in ${totalTime}ms for "${query}"`);
+
+      // Update results container
+      container.innerHTML = `
+        <div class="funnelback-search-container">
+          ${html}
+        </div>
+      `;
+
+      // Attach click handlers for tracking
+      attachResultClickHandlers(container, query);
+
+      // Scroll to results if not in viewport AND page is not already at the top
+      if (!isElementInViewport(container) && window.scrollY > 0) {
+        container.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     }
 
-    // Fetch results from API
-    const url = `${apiBaseUrl}/api/search?${params}`;
-    const response = await fetch(url);
+    // Log search to metrics
+    CacheMonitor.logSearch(usedCachePath);
 
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
-    }
-
-    // Get HTML response
-    const html = await response.text();
-
-    // Update results container
-    container.innerHTML = `
-      <div class="funnelback-search-container">
-        ${html}
-      </div>
-    `;
-
-    // Attach click handlers for tracking
-    attachResultClickHandlers(container, query);
-
-    // Scroll to results if not in viewport AND page is not already at the top
-    if (!isElementInViewport(container) && window.scrollY > 0) {
-      container.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    // Clear loading state
+    setLoadingState(container, false);
   } catch (error) {
+    // Clear loading state
+    setLoadingState(container, false);
+
     container.innerHTML = `
       <div class="search-error">
         <h3>Error Loading Results</h3>
         <p>${error.message}</p>
       </div>
     `;
+  }
+}
+
+// Set loading state for the container
+function setLoadingState(container, isLoading) {
+  if (isLoading) {
+    // Add loading indicator if not exists
+    if (!container.querySelector('.results-loading')) {
+      const loadingIndicator = document.createElement('div');
+      loadingIndicator.className = 'results-loading';
+      loadingIndicator.innerHTML = `
+        <div class="spinner"></div>
+        <p>Loading search results...</p>
+      `;
+      container.appendChild(loadingIndicator);
+    }
+    container.classList.add('loading');
+  } else {
+    // Remove loading indicators
+    const loadingIndicator = container.querySelector('.results-loading');
+    if (loadingIndicator) {
+      loadingIndicator.remove();
+    }
+    container.classList.remove('loading');
   }
 }
 
@@ -445,7 +676,7 @@ function isElementInViewport(el) {
     rect.top >= 0 &&
     rect.left >= 0 &&
     rect.bottom <=
-      (window.innerHeight || document.documentElement.clientHeight) &&
+    (window.innerHeight || document.documentElement.clientHeight) &&
     rect.right <= (window.innerWidth || document.documentElement.clientWidth)
   );
 }
@@ -779,4 +1010,32 @@ document.addEventListener("DOMContentLoaded", function () {
       suggestionsContainer.hidden = true;
     }
   });
+
+  // Process any URL parameters for initial search
+  const urlParams = new URLSearchParams(window.location.search);
+  const query = urlParams.get("query");
+
+  if (query && searchInput && document.getElementById('results')) {
+    // Set query in input field
+    searchInput.value = query;
+
+    // For performance, prioritize page ready state before performing search
+    if (document.readyState === 'complete') {
+      performSearch(query, document.getElementById('results'));
+    } else {
+      // If page not fully loaded, wait briefly before search
+      setTimeout(() => {
+        performSearch(query, document.getElementById('results'));
+      }, 100);
+    }
+  }
 });
+
+// Make functions available globally
+window.performSearch = performSearch;
+window.fetchSuggestions = fetchSuggestions;
+window.trackResultClick = trackResultClick;
+window.trackSuggestionClick = trackSuggestionClick;
+window.getCacheMetrics = function () {
+  return CacheMonitor.getMetricsReport();
+};
