@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.1.0
- * @lastModified 2025-05-06
+ * @version 3.2.0
+ * @lastModified 2025-05-07
  */
 
 /**
@@ -26,8 +26,18 @@ const SessionService = {
   SESSION_REDIRECT_FLAG: "searchRedirectInProgress",
   SESSION_READY_FLAG: "searchSessionReady",
   IP_LAST_FETCH_TIME: "searchIpLastFetchTime",
-  LAST_SEARCH_QUERY_KEY: "lastSearchQuery", // New key to store the last query
-  DEBUG_MODE: false, // Set to true for verbose console logging
+  LAST_SEARCH_QUERY_KEY: "lastSearchQuery", // Key to store the last query
+
+  // Logging configuration
+  LOG_LEVELS: {
+    ERROR: 0,
+    WARN: 1,
+    INFO: 2,
+    DEBUG: 3,
+  },
+
+  // Default log level
+  _logLevel: 2, // INFO level by default
 
   // Internal state
   _lastKnownIp: null,
@@ -36,6 +46,54 @@ const SessionService = {
   _initializationPromise: null,
   _isRedirectOptimizationEnabled: true,
   _pendingInitialization: false,
+
+  /**
+   * Log a message with the appropriate level
+   * @param {string} message - The message to log
+   * @param {number} level - The log level (0=ERROR, 1=WARN, 2=INFO, 3=DEBUG)
+   * @param {any} [data] - Optional data to include
+   */
+  log: function (message, level, data) {
+    if (level > this._logLevel) return;
+
+    const prefix = this._getLogPrefix(level);
+
+    if (data !== undefined) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
+  },
+
+  /**
+   * Get the prefix for a log message based on level
+   * @private
+   * @param {number} level - The log level
+   * @returns {string} The prefix
+   */
+  _getLogPrefix: function (level) {
+    switch (level) {
+      case 0:
+        return "[SessionService-ERROR]";
+      case 1:
+        return "[SessionService-WARN]";
+      case 2:
+        return "[SessionService-INFO]";
+      case 3:
+        return "[SessionService-DEBUG]";
+      default:
+        return "[SessionService]";
+    }
+  },
+
+  /**
+   * Set the log level
+   * @param {number} level - The log level to set
+   */
+  setLogLevel: function (level) {
+    this._logLevel = level;
+    this.log(`Log level set to ${level}`, 2);
+  },
 
   /**
    * Initialize session service with redirect optimization
@@ -70,9 +128,10 @@ const SessionService = {
       // Check if we're coming from a search redirect
       const isSearchRedirect = this._detectSearchRedirect();
 
-      if (this.DEBUG_MODE) {
-        console.log(`[SessionService] Initializing. Redirect detected: ${isSearchRedirect}`);
-      }
+      this.log(
+        `Initializing. Redirect detected: ${isSearchRedirect}`,
+        this.LOG_LEVELS.INFO
+      );
 
       // Get existing session data
       const sessionId = sessionStorage.getItem(this.SESSION_ID_KEY);
@@ -85,9 +144,14 @@ const SessionService = {
         this._lastKnownIp = storedIp;
       }
 
-      // If we're coming from a search redirect and have valid session data, 
+      // If we're coming from a search redirect and have valid session data,
       // take the fast path for performance
-      if (isSearchRedirect && sessionId && expiryStr && parseInt(expiryStr) > now) {
+      if (
+        isSearchRedirect &&
+        sessionId &&
+        expiryStr &&
+        parseInt(expiryStr) > now
+      ) {
         // Mark that we've handled the redirect
         this._clearRedirectFlag();
 
@@ -97,10 +161,12 @@ const SessionService = {
         // Schedule non-blocking IP verification for later
         this._scheduleBackgroundIpCheck();
 
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Used fast path optimization for redirect. SessionId: ${this._maskString(sessionId)}`);
-        }
-
+        this.log(
+          `Used fast path optimization for redirect. SessionId: ${this._maskString(
+            sessionId
+          )}`,
+          this.LOG_LEVELS.INFO
+        );
         return;
       }
 
@@ -113,8 +179,12 @@ const SessionService = {
       }
 
       // Session exists and is valid, check IP if needed
-      const ipLastFetchTimeStr = sessionStorage.getItem(this.IP_LAST_FETCH_TIME);
-      const ipLastFetchTime = ipLastFetchTimeStr ? parseInt(ipLastFetchTimeStr) : 0;
+      const ipLastFetchTimeStr = sessionStorage.getItem(
+        this.IP_LAST_FETCH_TIME
+      );
+      const ipLastFetchTime = ipLastFetchTimeStr
+        ? parseInt(ipLastFetchTimeStr)
+        : 0;
       const timeSinceLastIpFetch = now - ipLastFetchTime;
 
       if (timeSinceLastIpFetch > this.IP_CHECK_THRESHOLD) {
@@ -126,9 +196,7 @@ const SessionService = {
         this._setBasicSession();
       }
 
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Initialization error: ${error.message}`);
-      }
+      this.log(`Initialization error: ${error.message}`, this.LOG_LEVELS.ERROR);
     }
   },
 
@@ -139,15 +207,21 @@ const SessionService = {
   _scheduleBackgroundIpCheck: function () {
     if (window.requestIdleCallback) {
       window.requestIdleCallback(() => {
-        this._verifyClientIp().catch(() => {
-          // Silent error handling
+        this._verifyClientIp().catch((error) => {
+          this.log(
+            `Background IP check error: ${error.message}`,
+            this.LOG_LEVELS.ERROR
+          );
         });
       });
     } else {
       // Fallback for browsers without requestIdleCallback
       setTimeout(() => {
-        this._verifyClientIp().catch(() => {
-          // Silent error handling
+        this._verifyClientIp().catch((error) => {
+          this.log(
+            `Background IP check error: ${error.message}`,
+            this.LOG_LEVELS.ERROR
+          );
         });
       }, 5000); // 5 second delay
     }
@@ -163,13 +237,15 @@ const SessionService = {
     const redirectFlag = sessionStorage.getItem(this.SESSION_REDIRECT_FLAG);
 
     // Check URL for search-related parameters
-    const isSearchPage = window.location.pathname.includes('search-test');
-    const hasQueryParam = new URLSearchParams(window.location.search).has('query');
+    const isSearchPage = window.location.pathname.includes("search-test");
+    const hasQueryParam = new URLSearchParams(window.location.search).has(
+      "query"
+    );
 
-    const isRedirect = (redirectFlag === 'true' && isSearchPage && hasQueryParam);
+    const isRedirect = redirectFlag === "true" && isSearchPage && hasQueryParam;
 
-    if (this.DEBUG_MODE && isRedirect) {
-      console.log('[SessionService] Detected search redirect');
+    if (isRedirect) {
+      this.log("Detected search redirect", this.LOG_LEVELS.INFO);
     }
 
     return isRedirect;
@@ -181,40 +257,38 @@ const SessionService = {
    */
   _clearRedirectFlag: function () {
     sessionStorage.removeItem(this.SESSION_REDIRECT_FLAG);
-    if (this.DEBUG_MODE) {
-      console.log('[SessionService] Cleared redirect flag');
-    }
+    this.log("Cleared redirect flag", this.LOG_LEVELS.INFO);
   },
 
   /**
    * Set the redirect flag before performing a search redirect
    * This prepares the session service for an optimized initialization
    * on the search results page
-   * 
+   *
    * @param {string} query - The search query being used for the redirect
+   * @returns {boolean} Whether the preparation was successful
    */
   prepareForSearchRedirect: function (query) {
     try {
-      if (this.DEBUG_MODE) {
-        console.log(`[SessionService] Preparing for search redirect. Query: ${query}`);
-      }
+      this.log(
+        `Preparing for search redirect. Query: ${query}`,
+        this.LOG_LEVELS.INFO
+      );
 
       // Ensure session is valid and ready before redirect
       this._ensureValidSession();
 
       // Set the redirect flag
-      sessionStorage.setItem(this.SESSION_REDIRECT_FLAG, 'true');
+      sessionStorage.setItem(this.SESSION_REDIRECT_FLAG, "true");
 
       // Store the search query for fast access on results page
       if (query) {
         sessionStorage.setItem(this.LAST_SEARCH_QUERY_KEY, query);
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Stored search query: ${query}`);
-        }
+        this.log(`Stored search query: ${query}`, this.LOG_LEVELS.DEBUG);
       }
 
       // Update the session ready flag
-      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
+      sessionStorage.setItem(this.SESSION_READY_FLAG, "true");
 
       // Extend expiry to ensure session stays valid during redirect
       this._extendSessionExpiry();
@@ -222,15 +296,15 @@ const SessionService = {
       // Log session preparation for analytics
       this._logSessionEvent("redirect_prepared", {
         sessionId: this.getSessionId(),
-        query: query
+        query: query,
       });
 
       return true;
     } catch (error) {
-      // Silent error handling
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error preparing for redirect: ${error.message}`);
-      }
+      this.log(
+        `Error preparing for redirect: ${error.message}`,
+        this.LOG_LEVELS.ERROR
+      );
       return false;
     }
   },
@@ -242,11 +316,18 @@ const SessionService = {
   getLastSearchQuery: function () {
     try {
       const query = sessionStorage.getItem(this.LAST_SEARCH_QUERY_KEY);
-      if (this.DEBUG_MODE && query) {
-        console.log(`[SessionService] Retrieved last search query: ${query}`);
+      if (query) {
+        this.log(
+          `Retrieved last search query: ${query}`,
+          this.LOG_LEVELS.DEBUG
+        );
       }
       return query;
     } catch (e) {
+      this.log(
+        `Error retrieving last search query: ${e.message}`,
+        this.LOG_LEVELS.ERROR
+      );
       return null;
     }
   },
@@ -258,11 +339,12 @@ const SessionService = {
   clearLastSearchQuery: function () {
     try {
       sessionStorage.removeItem(this.LAST_SEARCH_QUERY_KEY);
-      if (this.DEBUG_MODE) {
-        console.log('[SessionService] Cleared last search query');
-      }
+      this.log("Cleared last search query", this.LOG_LEVELS.INFO);
     } catch (e) {
-      // Silent error handling
+      this.log(
+        `Error clearing last search query: ${e.message}`,
+        this.LOG_LEVELS.ERROR
+      );
     }
   },
 
@@ -275,9 +357,10 @@ const SessionService = {
     if (!sessionId) {
       const newId = this.generateSessionId();
       this._setBasicSession(newId);
-      if (this.DEBUG_MODE) {
-        console.log(`[SessionService] Created new session for redirect: ${this._maskString(newId)}`);
-      }
+      this.log(
+        `Created new session for redirect: ${this._maskString(newId)}`,
+        this.LOG_LEVELS.INFO
+      );
     }
   },
 
@@ -289,9 +372,10 @@ const SessionService = {
     const now = Date.now();
     const newExpiry = now + this.SESSION_DURATION;
     sessionStorage.setItem(this.SESSION_EXPIRY_KEY, newExpiry.toString());
-    if (this.DEBUG_MODE) {
-      console.log(`[SessionService] Extended session expiry to: ${new Date(newExpiry).toISOString()}`);
-    }
+    this.log(
+      `Extended session expiry to: ${new Date(newExpiry).toISOString()}`,
+      this.LOG_LEVELS.DEBUG
+    );
   },
 
   /**
@@ -316,15 +400,22 @@ const SessionService = {
       if (!sessionId) {
         sessionId = this.generateSessionId();
         this._setBasicSession(sessionId);
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Created new session on getSessionId: ${this._maskString(sessionId)}`);
-        }
+        this.log(
+          `Created new session on getSessionId: ${this._maskString(sessionId)}`,
+          this.LOG_LEVELS.INFO
+        );
       }
 
       // If we're not already initializing, trigger a background initialization
-      if (!this._pendingInitialization && !sessionStorage.getItem(this.SESSION_READY_FLAG)) {
-        this.initialize().catch(() => {
-          // Silent error handling
+      if (
+        !this._pendingInitialization &&
+        !sessionStorage.getItem(this.SESSION_READY_FLAG)
+      ) {
+        this.initialize().catch((error) => {
+          this.log(
+            `Background initialization error: ${error.message}`,
+            this.LOG_LEVELS.ERROR
+          );
         });
       }
 
@@ -332,9 +423,14 @@ const SessionService = {
     } catch (e) {
       // Fallback if sessionStorage is unavailable (e.g., private browsing)
       const fallbackId = this.generateSessionId();
-      if (this.DEBUG_MODE) {
-        console.warn(`[SessionService] Using fallback session ID: ${this._maskString(fallbackId)}`);
-      }
+      this.log(
+        `Using fallback session ID due to error: ${e.message}`,
+        this.LOG_LEVELS.WARN
+      );
+      this.log(
+        `Fallback ID: ${this._maskString(fallbackId)}`,
+        this.LOG_LEVELS.DEBUG
+      );
       return fallbackId;
     }
   },
@@ -363,6 +459,7 @@ const SessionService = {
 
       return null;
     } catch (e) {
+      this.log(`Error getting session IP: ${e.message}`, this.LOG_LEVELS.ERROR);
       return null;
     }
   },
@@ -373,13 +470,12 @@ const SessionService = {
    */
   refreshSession: async function () {
     try {
-      if (this.DEBUG_MODE) {
-        console.log('[SessionService] Explicitly refreshing session');
-      }
+      this.log("Explicitly refreshing session", this.LOG_LEVELS.INFO);
 
       await this._createNewSession();
       return sessionStorage.getItem(this.SESSION_ID_KEY);
     } catch (e) {
+      this.log(`Error refreshing session: ${e.message}`, this.LOG_LEVELS.ERROR);
       const fallbackId = this.generateSessionId();
       this._setBasicSession(fallbackId);
       return fallbackId;
@@ -405,6 +501,10 @@ const SessionService = {
 
       return urlObj.toString();
     } catch (e) {
+      this.log(
+        `Error adding session ID to URL: ${e.message}`,
+        this.LOG_LEVELS.ERROR
+      );
       return url; // Return original URL if there's an error
     }
   },
@@ -442,6 +542,7 @@ const SessionService = {
 
       return urlObj.toString();
     } catch (e) {
+      this.log(`Error normalizing URL: ${e.message}`, this.LOG_LEVELS.ERROR);
       return url; // Return original URL if there's an error
     }
   },
@@ -474,8 +575,11 @@ const SessionService = {
       const expiryStr = sessionStorage.getItem(this.SESSION_EXPIRY_KEY);
       const expiry = expiryStr ? parseInt(expiryStr) : 0;
       const now = Date.now();
-      const isRedirectOptimized = sessionStorage.getItem(this.SESSION_REDIRECT_FLAG) === 'true';
-      const lastSearchQuery = sessionStorage.getItem(this.LAST_SEARCH_QUERY_KEY);
+      const isRedirectOptimized =
+        sessionStorage.getItem(this.SESSION_REDIRECT_FLAG) === "true";
+      const lastSearchQuery = sessionStorage.getItem(
+        this.LAST_SEARCH_QUERY_KEY
+      );
 
       return {
         sessionId: this._maskString(sessionId),
@@ -490,9 +594,17 @@ const SessionService = {
         isRedirectOptimized: isRedirectOptimized,
         redirectOptimizationEnabled: this._isRedirectOptimizationEnabled,
         hasStoredQuery: !!lastSearchQuery,
-        lastSearchQuery: lastSearchQuery
+        lastSearchQuery: lastSearchQuery,
+        logLevel: {
+          current: this._getLogLevelName(this._logLevel),
+          value: this._logLevel,
+        },
       };
     } catch (e) {
+      this.log(
+        `Error getting session info: ${e.message}`,
+        this.LOG_LEVELS.ERROR
+      );
       return {
         sessionId: this._maskString(this.getSessionId()),
         hasSession: true,
@@ -502,14 +614,36 @@ const SessionService = {
   },
 
   /**
+   * Get the name of a log level
+   * @private
+   * @param {number} level - The log level
+   * @returns {string} The name of the log level
+   */
+  _getLogLevelName: function (level) {
+    switch (level) {
+      case 0:
+        return "ERROR";
+      case 1:
+        return "WARN";
+      case 2:
+        return "INFO";
+      case 3:
+        return "DEBUG";
+      default:
+        return "UNKNOWN";
+    }
+  },
+
+  /**
    * Enable or disable redirect optimization
    * @param {boolean} enabled - Whether to enable redirect optimization
    */
   setRedirectOptimization: function (enabled) {
     this._isRedirectOptimizationEnabled = !!enabled;
-    if (this.DEBUG_MODE) {
-      console.log(`[SessionService] Redirect optimization ${enabled ? 'enabled' : 'disabled'}`);
-    }
+    this.log(
+      `Redirect optimization ${enabled ? "enabled" : "disabled"}`,
+      this.LOG_LEVELS.INFO
+    );
   },
 
   /**
@@ -540,6 +674,7 @@ const SessionService = {
       // Unknown format, return first 4 chars followed by asterisks
       return ip.substring(0, 4) + "*".repeat(Math.max(0, ip.length - 4));
     } catch (error) {
+      this.log(`Error masking IP: ${error.message}`, this.LOG_LEVELS.ERROR);
       return "***.***.***";
     }
   },
@@ -577,7 +712,7 @@ const SessionService = {
       const expiry = now + this.SESSION_DURATION;
       sessionStorage.setItem(this.SESSION_ID_KEY, sessionId);
       sessionStorage.setItem(this.SESSION_EXPIRY_KEY, expiry.toString());
-      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
+      sessionStorage.setItem(this.SESSION_READY_FLAG, "true");
 
       // Reset IP mismatch counter
       this._ipMismatchCount = 0;
@@ -587,9 +722,10 @@ const SessionService = {
       if (cachedIp && this._isRecentIpFetch()) {
         // Use cached IP if it's recent
         this._lastKnownIp = cachedIp;
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Using cached IP: ${this._maskIp(cachedIp)}`);
-        }
+        this.log(
+          `Using cached IP: ${this._maskIp(cachedIp)}`,
+          this.LOG_LEVELS.INFO
+        );
       } else {
         // Get current client IP
         const clientInfo = await this._fetchClientIp();
@@ -597,9 +733,10 @@ const SessionService = {
           this._lastKnownIp = clientInfo.ip;
           sessionStorage.setItem(this.SESSION_IP_KEY, clientInfo.ip);
           sessionStorage.setItem(this.IP_LAST_FETCH_TIME, now.toString());
-          if (this.DEBUG_MODE) {
-            console.log(`[SessionService] Fetched new IP: ${this._maskIp(clientInfo.ip)}`);
-          }
+          this.log(
+            `Fetched new IP: ${this._maskIp(clientInfo.ip)}`,
+            this.LOG_LEVELS.INFO
+          );
         }
       }
 
@@ -614,9 +751,10 @@ const SessionService = {
     } catch (error) {
       // Set basic session as fallback
       this._setBasicSession();
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error creating new session: ${error.message}`);
-      }
+      this.log(
+        `Error creating new session: ${error.message}`,
+        this.LOG_LEVELS.ERROR
+      );
     }
   },
 
@@ -651,16 +789,17 @@ const SessionService = {
 
       sessionStorage.setItem(this.SESSION_ID_KEY, id);
       sessionStorage.setItem(this.SESSION_EXPIRY_KEY, expiry.toString());
-      sessionStorage.setItem(this.SESSION_READY_FLAG, 'true');
+      sessionStorage.setItem(this.SESSION_READY_FLAG, "true");
 
-      if (this.DEBUG_MODE) {
-        console.log(`[SessionService] Set basic session: ${this._maskString(id)}`);
-      }
+      this.log(
+        `Set basic session: ${this._maskString(id)}`,
+        this.LOG_LEVELS.INFO
+      );
     } catch (error) {
-      // Silent error handling
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error setting basic session: ${error.message}`);
-      }
+      this.log(
+        `Error setting basic session: ${error.message}`,
+        this.LOG_LEVELS.ERROR
+      );
     }
   },
 
@@ -678,6 +817,10 @@ const SessionService = {
       // Get current client IP
       const clientInfo = await this._fetchClientIp();
       if (!clientInfo || !clientInfo.ip) {
+        this.log(
+          "Failed to fetch client IP for verification",
+          this.LOG_LEVELS.WARN
+        );
         return;
       }
 
@@ -699,9 +842,12 @@ const SessionService = {
           mismatchCount: this._ipMismatchCount,
         });
 
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] IP changed from ${this._maskIp(previousIp)} to ${this._maskIp(currentIp)}`);
-        }
+        this.log(
+          `IP changed from ${this._maskIp(previousIp)} to ${this._maskIp(
+            currentIp
+          )}`,
+          this.LOG_LEVELS.INFO
+        );
 
         // Update stored IP
         this._lastKnownIp = currentIp;
@@ -709,24 +855,26 @@ const SessionService = {
 
         // If too many IP changes, create new session
         if (this._ipMismatchCount >= this.IP_MISMATCH_LIMIT) {
-          if (this.DEBUG_MODE) {
-            console.log(`[SessionService] IP mismatch limit reached (${this._ipMismatchCount}), creating new session`);
-          }
+          this.log(
+            `IP mismatch limit reached (${this._ipMismatchCount}), creating new session`,
+            this.LOG_LEVELS.INFO
+          );
           await this._createNewSession();
         }
       } else if (!previousIp) {
         // No previous IP, just store current one
         this._lastKnownIp = currentIp;
         sessionStorage.setItem(this.SESSION_IP_KEY, currentIp);
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Stored initial IP: ${this._maskIp(currentIp)}`);
-        }
+        this.log(
+          `Stored initial IP: ${this._maskIp(currentIp)}`,
+          this.LOG_LEVELS.INFO
+        );
       }
     } catch (error) {
-      // Silent error handling
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error verifying client IP: ${error.message}`);
-      }
+      this.log(
+        `Error verifying client IP: ${error.message}`,
+        this.LOG_LEVELS.ERROR
+      );
     }
   },
 
@@ -739,8 +887,11 @@ const SessionService = {
   _fetchClientIp: async function () {
     try {
       // Check if we can use a cached value
-      const cachedIp = this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY);
-      const ipLastFetchTimeStr = sessionStorage.getItem(this.IP_LAST_FETCH_TIME);
+      const cachedIp =
+        this._lastKnownIp || sessionStorage.getItem(this.SESSION_IP_KEY);
+      const ipLastFetchTimeStr = sessionStorage.getItem(
+        this.IP_LAST_FETCH_TIME
+      );
 
       if (cachedIp && ipLastFetchTimeStr) {
         const ipLastFetchTime = parseInt(ipLastFetchTimeStr);
@@ -749,10 +900,11 @@ const SessionService = {
 
         // If we have a recent cached IP, use it instead of making an API call
         if (timeSinceLastIpFetch < this.IP_CHECK_THRESHOLD) {
-          if (this.DEBUG_MODE) {
-            console.log(`[SessionService] Using cached IP: ${this._maskIp(cachedIp)}`);
-          }
-          return { ip: cachedIp, source: 'cache' };
+          this.log(
+            `Using cached IP: ${this._maskIp(cachedIp)}`,
+            this.LOG_LEVELS.DEBUG
+          );
+          return { ip: cachedIp, source: "cache" };
         }
       }
 
@@ -761,9 +913,7 @@ const SessionService = {
       const timeoutId = setTimeout(() => fetchController.abort(), 3000); // 3 second timeout
 
       try {
-        if (this.DEBUG_MODE) {
-          console.log('[SessionService] Fetching client IP from API');
-        }
+        this.log("Fetching client IP from API", this.LOG_LEVELS.INFO);
 
         const response = await fetch(
           "https://su-search-dev.vercel.app/api/client-info",
@@ -780,25 +930,30 @@ const SessionService = {
 
         const clientInfo = await response.json();
 
-        if (this.DEBUG_MODE && clientInfo?.ip) {
-          console.log(`[SessionService] Fetched client IP: ${this._maskIp(clientInfo.ip)}`);
+        if (clientInfo?.ip) {
+          this.log(
+            `Fetched client IP: ${this._maskIp(clientInfo.ip)}`,
+            this.LOG_LEVELS.INFO
+          );
         }
 
         return clientInfo;
       } catch (fetchError) {
         // If fetch fails and we have a cached IP, return that
         if (cachedIp) {
-          if (this.DEBUG_MODE) {
-            console.warn(`[SessionService] Fetch failed, using cached IP: ${this._maskIp(cachedIp)}`);
-          }
-          return { ip: cachedIp, source: 'cache-fallback' };
+          this.log(
+            `Fetch failed, using cached IP: ${this._maskIp(cachedIp)}`,
+            this.LOG_LEVELS.WARN
+          );
+          return { ip: cachedIp, source: "cache-fallback" };
         }
         throw fetchError;
       }
     } catch (error) {
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error fetching client IP: ${error.message}`);
-      }
+      this.log(
+        `Error fetching client IP: ${error.message}`,
+        this.LOG_LEVELS.ERROR
+      );
       return null;
     }
   },
@@ -827,68 +982,79 @@ const SessionService = {
           type: "application/json",
         });
 
-        const endpoint = "https://funnelback-proxy-dev.vercel.app/proxy/analytics";
+        const endpoint =
+          "https://funnelback-proxy-dev.vercel.app/proxy/analytics";
         navigator.sendBeacon(endpoint, blob);
 
-        if (this.DEBUG_MODE) {
-          console.log(`[SessionService] Logged event: ${eventType}`);
-        }
+        this.log(`Logged event: ${eventType}`, this.LOG_LEVELS.DEBUG);
       }
     } catch (error) {
-      // Silent error handling
-      if (this.DEBUG_MODE) {
-        console.error(`[SessionService] Error logging event: ${error.message}`);
-      }
+      this.log(`Error logging event: ${error.message}`, this.LOG_LEVELS.ERROR);
     }
   },
-
-  /**
-   * Toggle debug mode on/off
-   * @param {boolean} enabled - Whether to enable debug mode
-   */
-  setDebugMode: function (enabled) {
-    this.DEBUG_MODE = !!enabled;
-    console.log(`[SessionService] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
 };
 
 // Initialize on page load with optimized handling for search redirects
 window.addEventListener("DOMContentLoaded", () => {
   // Check if this is a search results page
-  const isSearchPage = window.location.pathname.includes('search-test');
-  const hasQueryParam = new URLSearchParams(window.location.search).has('query');
+  const isSearchPage = window.location.pathname.includes("search-test");
+  const hasQueryParam = new URLSearchParams(window.location.search).has(
+    "query"
+  );
+
+  // Check for debug mode via URL parameter
+  const debugMode = new URLSearchParams(window.location.search).has(
+    "debug_session"
+  );
+  if (debugMode) {
+    SessionService.setLogLevel(SessionService.LOG_LEVELS.DEBUG);
+    SessionService.log(`Running in debug mode`, SessionService.LOG_LEVELS.INFO);
+  }
 
   if (isSearchPage && hasQueryParam) {
     // For search results page, get session ID immediately for analytics
     // but delay full initialization to prioritize search results loading
     const sessionId = SessionService.getSessionId();
+    SessionService.log(
+      `On search results page, session ID: ${SessionService._maskString(
+        sessionId
+      )}`,
+      SessionService.LOG_LEVELS.INFO
+    );
 
-    // Check if debug mode is enabled via URL parameter
-    const debugMode = new URLSearchParams(window.location.search).has('debug_session');
-    if (debugMode) {
-      SessionService.setDebugMode(true);
-      console.log(`[SessionService] Running in debug mode, session ID: ${SessionService._maskString(sessionId)}`);
-    }
-
-    // Log that we've arrived on the search page
-    console.log(`[SessionService] On search results page, query: ${new URLSearchParams(window.location.search).get('query')}`);
+    // Log query information
+    const query = new URLSearchParams(window.location.search).get("query");
+    SessionService.log(
+      `Search query: ${query}`,
+      SessionService.LOG_LEVELS.INFO
+    );
 
     // Check for redirect flag
-    const isRedirect = sessionStorage.getItem(SessionService.SESSION_REDIRECT_FLAG) === 'true';
+    const isRedirect =
+      sessionStorage.getItem(SessionService.SESSION_REDIRECT_FLAG) === "true";
     if (isRedirect) {
-      console.log('[SessionService] Search redirect detected, using optimized path');
+      SessionService.log(
+        "Search redirect detected, using optimized path",
+        SessionService.LOG_LEVELS.INFO
+      );
     }
 
     // Delay complete initialization
     setTimeout(() => {
-      SessionService.initialize().catch(() => {
-        // Silent error handling
+      SessionService.initialize().catch((error) => {
+        SessionService.log(
+          `Delayed initialization error: ${error.message}`,
+          SessionService.LOG_LEVELS.ERROR
+        );
       });
     }, 1000); // 1 second delay to prioritize search results
   } else {
     // For regular pages, initialize normally
-    SessionService.initialize().catch(() => {
-      // Silent error handling
+    SessionService.initialize().catch((error) => {
+      SessionService.log(
+        `Standard initialization error: ${error.message}`,
+        SessionService.LOG_LEVELS.ERROR
+      );
     });
   }
 });
@@ -907,7 +1073,10 @@ window.addEventListener("DOMContentLoaded", () => {
       // Prepare session for redirect before navigation
       if (query) {
         SessionService.prepareForSearchRedirect(query);
-        console.log(`[SessionService] Prepared for redirect with query: ${query}`);
+        SessionService.log(
+          `Prepared for redirect with query: ${query}`,
+          SessionService.LOG_LEVELS.INFO
+        );
       }
     });
   }
@@ -932,9 +1101,10 @@ window.addEventListener("DOMContentLoaded", () => {
           newExpiry.toString()
         );
 
-        if (SessionService.DEBUG_MODE) {
-          console.log('[SessionService] Extended session due to user activity');
-        }
+        SessionService.log(
+          "Extended session due to user activity",
+          SessionService.LOG_LEVELS.DEBUG
+        );
       }
     },
     { passive: true }

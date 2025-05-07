@@ -6,11 +6,25 @@
  * support for tab content caching and tiered TTL for popular queries.
  *
  * @author Victor Chimenti
- * @version 2.1.1
- * @lastModified 2025-05-06
+ * @version 2.2.0
+ * @lastModified 2025-05-07
  */
 
 import Redis from 'ioredis';
+
+// Define log levels
+export enum LogLevel {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3
+}
+
+// Set default log level (can be overridden via environment variable)
+const DEFAULT_LOG_LEVEL = LogLevel.INFO;
+let currentLogLevel = process.env.CACHE_LOG_LEVEL
+  ? parseInt(process.env.CACHE_LOG_LEVEL, 10)
+  : DEFAULT_LOG_LEVEL;
 
 // Initialize Redis client
 const redisClient = process.env.front_dev_REDIS_URL
@@ -55,6 +69,52 @@ const queryPopularity: {
 } = {};
 
 /**
+ * Logger function with level-based filtering
+ * @param message - The message to log
+ * @param level - The log level for this message
+ * @param data - Optional data to include in the log
+ */
+export function log(message: string, level: LogLevel = LogLevel.INFO, data?: any): void {
+  if (level <= currentLogLevel) {
+    const prefix = getLogPrefix(level);
+    if (data !== undefined) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
+  }
+}
+
+/**
+ * Get the prefix for a log level
+ * @param level - The log level
+ * @returns The prefix string
+ */
+function getLogPrefix(level: LogLevel): string {
+  switch (level) {
+    case LogLevel.ERROR:
+      return '[CACHE-ERROR]';
+    case LogLevel.WARN:
+      return '[CACHE-WARN]';
+    case LogLevel.INFO:
+      return '[CACHE-INFO]';
+    case LogLevel.DEBUG:
+      return '[CACHE-DEBUG]';
+    default:
+      return '[CACHE]';
+  }
+}
+
+/**
+ * Set the current log level
+ * @param level - The new log level
+ */
+export function setLogLevel(level: LogLevel): void {
+  currentLogLevel = level;
+  log(`Log level set to ${LogLevel[level]}`, LogLevel.INFO);
+}
+
+/**
  * Track a query hit for popularity metrics
  * Does not affect existing cache behavior
  * @param query - The query string
@@ -78,10 +138,8 @@ export function trackQueryHit(query: string, type: 'hit' | 'miss' | 'set'): void
   queryPopularity[normalizedQuery].count += 1;
   queryPopularity[normalizedQuery].lastAccessed = Date.now();
 
-  // Log in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[CACHE] Query "${normalizedQuery}" hit count: ${queryPopularity[normalizedQuery].count} (${type})`);
-  }
+  // Log at DEBUG level
+  log(`Query "${normalizedQuery}" hit count: ${queryPopularity[normalizedQuery].count} (${type})`, LogLevel.DEBUG);
 }
 
 /**
@@ -142,10 +200,8 @@ export function updateCacheMetrics(
   metrics[category][propertyName] += 1;
   metrics.total[propertyName] += 1;
 
-  // Log in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[CACHE-METRICS] ${category} ${operation} - Total: ${metrics[category][propertyName]}`);
-  }
+  // Log at DEBUG level
+  log(`${category} ${operation} - Total: ${metrics[category][propertyName]}`, LogLevel.DEBUG);
 }
 
 /**
@@ -201,10 +257,7 @@ export async function getCachedData(
           trackQueryHit(query, 'hit');
         }
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[CACHE] HIT for ${key}`);
-        }
-
+        log(`HIT for ${key}`, LogLevel.INFO);
         return JSON.parse(cachedData);
       }
 
@@ -218,10 +271,7 @@ export async function getCachedData(
         trackQueryHit(query, 'miss');
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[CACHE] MISS for ${key}`);
-      }
-
+      log(`MISS for ${key}`, LogLevel.INFO);
       return null;
     }
 
@@ -239,10 +289,7 @@ export async function getCachedData(
           trackQueryHit(query, 'hit');
         }
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[CACHE] HIT for ${key} (memory cache)`);
-        }
-
+        log(`HIT for ${key} (memory cache)`, LogLevel.INFO);
         return data;
       }
 
@@ -260,13 +307,10 @@ export async function getCachedData(
       trackQueryHit(query, 'miss');
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[CACHE] MISS for ${key} (memory cache)`);
-    }
-
+    log(`MISS for ${key} (memory cache)`, LogLevel.INFO);
     return null;
   } catch (error) {
-    console.error('Cache error:', error);
+    log(`Error retrieving from cache: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     return null;
   }
 }
@@ -316,10 +360,7 @@ export async function setCachedData(
         trackQueryHit(query, 'set');
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[CACHE] SET for ${key} with TTL ${ttlSeconds}s`);
-      }
-
+      log(`SET for ${key} with TTL ${ttlSeconds}s`, LogLevel.INFO);
       return true;
     }
 
@@ -339,13 +380,10 @@ export async function setCachedData(
       trackQueryHit(query, 'set');
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[CACHE] SET for ${key} with TTL ${ttlSeconds}s (memory cache)`);
-    }
-
+    log(`SET for ${key} with TTL ${ttlSeconds}s (memory cache)`, LogLevel.INFO);
     return true;
   } catch (error) {
-    console.error('Cache set error:', error);
+    log(`Cache set error: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     return false;
   }
 }
@@ -364,10 +402,14 @@ export async function clearCachedData(key: string): Promise<boolean> {
         const keys = await redisClient.keys(key);
         if (keys.length > 0) {
           await redisClient.del(keys);
+          log(`Cleared ${keys.length} keys matching pattern: ${key}`, LogLevel.INFO);
+        } else {
+          log(`No keys found matching pattern: ${key}`, LogLevel.INFO);
         }
       } else {
         // Single key delete
-        await redisClient.del(key);
+        const result = await redisClient.del(key);
+        log(`Cleared key: ${key}, result: ${result}`, LogLevel.INFO);
       }
       return true;
     }
@@ -375,18 +417,22 @@ export async function clearCachedData(key: string): Promise<boolean> {
     // Clear from memory cache
     if (key.includes('*')) {
       const pattern = new RegExp(key.replace('*', '.*'));
+      let count = 0;
       for (const k of memoryCache.keys()) {
         if (pattern.test(k)) {
           memoryCache.delete(k);
+          count++;
         }
       }
+      log(`Cleared ${count} keys matching pattern: ${key} (memory cache)`, LogLevel.INFO);
     } else {
       memoryCache.delete(key);
+      log(`Cleared key: ${key} (memory cache)`, LogLevel.INFO);
     }
 
     return true;
   } catch (error) {
-    console.error('Cache clear error:', error);
+    log(`Cache clear error: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     return false;
   }
 }
@@ -557,12 +603,23 @@ export async function searchResultsExistInCache(
 ): Promise<boolean> {
   const cacheKey = generateSearchCacheKey(query, collection, profile);
 
-  if (redisClient) {
-    const exists = await redisClient.exists(cacheKey);
-    return exists === 1;
-  }
+  try {
+    if (redisClient) {
+      const exists = await redisClient.exists(cacheKey);
+      return exists === 1;
+    }
 
-  return memoryCache.has(cacheKey);
+    const exists = memoryCache.has(cacheKey);
+    if (exists) {
+      const { expiry } = memoryCache.get(cacheKey);
+      return expiry > Date.now();
+    }
+
+    return false;
+  } catch (error) {
+    log(`Error checking cache existence: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
+    return false;
+  }
 }
 
 /**
@@ -588,6 +645,10 @@ export async function getCacheStats(): Promise<any> {
         highVolume: Object.keys(queryPopularity).filter(k =>
           queryPopularity[k].count >= 20
         ).length
+      },
+      logLevel: {
+        current: LogLevel[currentLogLevel],
+        value: currentLogLevel
       }
     };
 
@@ -645,7 +706,34 @@ export async function getCacheStats(): Promise<any> {
 
     return stats;
   } catch (error) {
-    console.error('Error getting cache stats:', error);
+    log(`Error getting cache stats: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
+    return null;
+  }
+}
+
+/**
+ * Get the current TTL for a cache key
+ * @param key - The cache key
+ * @returns The remaining TTL in seconds, or null if key doesn't exist or error
+ */
+export async function getKeyTTL(key: string): Promise<number | null> {
+  try {
+    if (redisClient) {
+      const ttl = await redisClient.ttl(key);
+      return ttl > 0 ? ttl : null;
+    }
+
+    if (memoryCache.has(key)) {
+      const { expiry } = memoryCache.get(key);
+      const now = Date.now();
+      if (expiry > now) {
+        return Math.round((expiry - now) / 1000);
+      }
+    }
+
+    return null;
+  } catch (error) {
+    log(`Error getting key TTL: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     return null;
   }
 }
@@ -657,9 +745,11 @@ export async function isRedisHealthy(): Promise<boolean> {
 
     // Ping Redis to check connection
     const pong = await redisClient.ping();
-    return pong === 'PONG';
+    const isHealthy = pong === 'PONG';
+    log(`Redis health check: ${isHealthy ? 'HEALTHY' : 'UNHEALTHY'}`, LogLevel.INFO);
+    return isHealthy;
   } catch (error) {
-    console.error('Redis health check error:', error);
+    log(`Redis health check error: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     return false;
   }
 }

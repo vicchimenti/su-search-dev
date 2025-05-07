@@ -7,11 +7,22 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.5.0
- * @lastModified 2025-05-06
+ * @version 2.6.0
+ * @lastModified 2025-05-07
  */
 
 (function () {
+  // Logging system configuration
+  const LOG_LEVELS = {
+    ERROR: 0,
+    WARN: 1,
+    INFO: 2,
+    DEBUG: 3,
+  };
+
+  // Default log level is INFO but can be overridden via URL parameter
+  let currentLogLevel = LOG_LEVELS.INFO;
+
   // Configuration for the frontend API
   const config = {
     apiBaseUrl: "https://su-search-dev.vercel.app",
@@ -23,7 +34,7 @@
     prefetchDebounceTime: 300, // Slightly longer debounce for prefetch
     prefetchMinQueryLength: 4, // Require slightly longer query for prefetch
     cacheTTL: 300, // 5 minutes default TTL
-    enableDebugLogging: false, // Set to true to enable verbose console logging
+    logLevel: currentLogLevel, // Default log level
   };
 
   // Make config available globally
@@ -33,38 +44,74 @@
     ...window.seattleUConfig?.search,
   };
 
-  // Enable debug logging if URL has debug parameter
-  if (new URLSearchParams(window.location.search).has('debug_search')) {
-    config.enableDebugLogging = true;
-    console.log('[Integration] Debug logging enabled');
+  /**
+   * Log a message with the appropriate level
+   * @param {string} message - The message to log
+   * @param {number} level - The log level (0=ERROR, 1=WARN, 2=INFO, 3=DEBUG)
+   * @param {any} [data] - Optional data to include
+   */
+  function log(message, level = LOG_LEVELS.INFO, data) {
+    if (level > currentLogLevel) return;
+
+    const prefix = getLogPrefix(level);
+
+    if (data !== undefined) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
   }
 
   /**
-   * Log a debug message if debug logging is enabled
-   * @param {string} message - The message to log
-   * @param {any} data - Optional data to log
+   * Get the prefix for a log message based on level
+   * @param {number} level - The log level
+   * @returns {string} The prefix
    */
-  function debugLog(message, data) {
-    if (!config.enableDebugLogging) return;
-
-    if (data !== undefined) {
-      console.log(`[Integration] ${message}`, data);
-    } else {
-      console.log(`[Integration] ${message}`);
+  function getLogPrefix(level) {
+    switch (level) {
+      case LOG_LEVELS.ERROR:
+        return "[Integration-ERROR]";
+      case LOG_LEVELS.WARN:
+        return "[Integration-WARN]";
+      case LOG_LEVELS.INFO:
+        return "[Integration-INFO]";
+      case LOG_LEVELS.DEBUG:
+        return "[Integration-DEBUG]";
+      default:
+        return "[Integration]";
     }
+  }
+
+  /**
+   * Set the log level
+   * @param {number} level - The log level to set
+   */
+  function setLogLevel(level) {
+    currentLogLevel = level;
+    config.logLevel = level;
+    log(`Log level set to ${level}`, LOG_LEVELS.INFO);
+  }
+
+  // Enable debug logging if URL has debug parameter
+  if (new URLSearchParams(window.location.search).has("debug_search")) {
+    setLogLevel(LOG_LEVELS.DEBUG);
+    log("Debug logging enabled", LOG_LEVELS.INFO);
   }
 
   // Initialize on DOM ready
   document.addEventListener("DOMContentLoaded", function () {
-    debugLog('DOM content loaded, initializing search integration');
+    log("DOM content loaded, initializing search integration", LOG_LEVELS.INFO);
 
     // Detect environment
     const isResultsPage = window.location.pathname.includes("search-test");
-    debugLog(`Current page type: ${isResultsPage ? 'search results' : 'regular'}`);
+    log(
+      `Current page type: ${isResultsPage ? "search results" : "regular"}`,
+      LOG_LEVELS.INFO
+    );
 
     // Find search components
     const searchComponents = findSearchComponents();
-    debugLog('Found search components', searchComponents);
+    log("Found search components", LOG_LEVELS.DEBUG, searchComponents);
 
     // Set up conditional preloading for search resources
     setupConditionalPreloading();
@@ -78,7 +125,8 @@
       setupResultsSearch(searchComponents.results);
 
       // Process URL parameters for initial search
-      const cacheFirst = window.SessionService &&
+      const cacheFirst =
+        window.SessionService &&
         window.SessionService.getLastSearchQuery &&
         window.SessionService._detectSearchRedirect &&
         window.SessionService._detectSearchRedirect();
@@ -86,7 +134,7 @@
       processUrlParameters(searchComponents.results, cacheFirst);
     }
 
-    debugLog('Search integration initialization complete');
+    log("Search integration initialization complete", LOG_LEVELS.INFO);
   });
 
   /**
@@ -94,28 +142,32 @@
    * This function finds the search toggle button and adds an event listener to preload
    * critical search resources only when the user interacts with the search UI.
    * Resources are preloaded only once per session to avoid redundant network requests.
-   * 
+   *
    * @function
    * @returns {void}
    */
   function setupConditionalPreloading() {
     // Find the search toggle button
-    const searchToggle = document.getElementById("site-search--button-toggle") ||
+    const searchToggle =
+      document.getElementById("site-search--button-toggle") ||
       document.querySelector(".site-search__toggle");
 
     if (!searchToggle) {
-      debugLog("Search toggle button not found on this page");
+      log("Search toggle button not found on this page", LOG_LEVELS.INFO);
       return;
     }
 
     // Check if we've already set up preloading (using sessionStorage)
     const hasPreloaded = sessionStorage.getItem("searchResourcesPreloaded");
     if (hasPreloaded === "true") {
-      debugLog("Resources already preloaded, skipping preload setup");
+      log(
+        "Resources already preloaded, skipping preload setup",
+        LOG_LEVELS.INFO
+      );
       return; // Don't set up listeners if we've already preloaded resources
     }
 
-    debugLog("Setting up preload listener on search toggle button");
+    log("Setting up preload listener on search toggle button", LOG_LEVELS.INFO);
 
     // Add click event listener to the search toggle button
     searchToggle.addEventListener("click", function () {
@@ -140,15 +192,15 @@
    * 1. Establish connections to API domains (preconnect)
    * 2. Load critical JavaScript files (preload)
    * 3. Prefetch the search results page template (prefetch)
-   * 
+   *
    * This approach improves perceived performance when a user initiates a search
    * by having critical resources already in the browser cache.
-   * 
+   *
    * @function
    * @returns {void}
    */
   function preloadSearchResources() {
-    debugLog("Preloading search resources");
+    log("Preloading search resources", LOG_LEVELS.INFO);
 
     // Create a document fragment to hold all the link elements
     const fragment = document.createDocumentFragment();
@@ -186,7 +238,7 @@
     // Append all links to the document head
     document.head.appendChild(fragment);
 
-    debugLog("Search resources preloaded successfully");
+    log("Search resources preloaded successfully", LOG_LEVELS.INFO);
   }
 
   /**
@@ -261,7 +313,7 @@
    * @param {Object} component - Header search component references
    */
   function setupHeaderSearch(component) {
-    debugLog("Setting up header search integration");
+    log("Setting up header search integration", LOG_LEVELS.INFO);
 
     // Intercept form submission
     component.form.addEventListener("submit", function (e) {
@@ -270,22 +322,36 @@
       const query = component.input.value.trim();
       if (!query) return;
 
-      debugLog(`Header search form submitted with query: ${query}`);
+      log(`Header search form submitted with query: ${query}`, LOG_LEVELS.INFO);
 
       // Normalize the query
       const normalizedQuery = normalizeQuery(query);
 
       // Use SessionService to prepare for redirect if available
-      if (window.SessionService && window.SessionService.prepareForSearchRedirect) {
-        const prepared = window.SessionService.prepareForSearchRedirect(normalizedQuery);
-        debugLog(`SessionService prepared for redirect: ${prepared ? 'success' : 'failed'}`);
+      if (
+        window.SessionService &&
+        window.SessionService.prepareForSearchRedirect
+      ) {
+        const prepared =
+          window.SessionService.prepareForSearchRedirect(normalizedQuery);
+        log(
+          `SessionService prepared for redirect: ${
+            prepared ? "success" : "failed"
+          }`,
+          LOG_LEVELS.INFO
+        );
       } else {
-        debugLog("SessionService not available for redirect preparation");
+        log(
+          "SessionService not available for redirect preparation",
+          LOG_LEVELS.WARN
+        );
       }
 
       // Navigate to search page with query
-      const redirectUrl = `/search-test/?query=${encodeURIComponent(normalizedQuery)}`;
-      debugLog(`Redirecting to: ${redirectUrl}`);
+      const redirectUrl = `/search-test/?query=${encodeURIComponent(
+        normalizedQuery
+      )}`;
+      log(`Redirecting to: ${redirectUrl}`, LOG_LEVELS.INFO);
       window.location.href = redirectUrl;
     });
 
@@ -345,18 +411,18 @@
    * @returns {string} Normalized query
    */
   function normalizeQuery(query) {
-    if (!query) return '';
+    if (!query) return "";
 
     // Convert to lowercase
     let normalized = query.toLowerCase();
 
     // Remove extra whitespace
-    normalized = normalized.trim().replace(/\s+/g, ' ');
+    normalized = normalized.trim().replace(/\s+/g, " ");
 
     // Remove certain special characters
-    normalized = normalized.replace(/['"?!.,]/g, '');
+    normalized = normalized.replace(/['"?!.,]/g, "");
 
-    debugLog(`Normalized query: "${query}" -> "${normalized}"`);
+    log(`Normalized query: "${query}" -> "${normalized}"`, LOG_LEVELS.DEBUG);
 
     return normalized;
   }
@@ -365,7 +431,7 @@
    * Prefetch search results for a query to warm up the cache
    * This sends a low-priority request to the prefetch API endpoint
    * which will cache the results without blocking the main thread
-   * 
+   *
    * @param {string} query - Search query to prefetch
    */
   function prefetchSearchResults(query) {
@@ -374,13 +440,17 @@
         return;
       }
 
-      debugLog(`Prefetching results for query: ${query}`);
+      log(`Prefetching results for query: ${query}`, LOG_LEVELS.INFO);
 
       // Get session ID if available
-      let sessionId = '';
+      let sessionId = "";
       if (window.SessionService) {
-        sessionId = window.SessionService.getSessionId() || '';
-        debugLog(`Using session ID for prefetch: ${window.SessionService._maskString(sessionId)}`);
+        sessionId = window.SessionService.getSessionId() || "";
+        // Use a masked version of the session ID for logging
+        if (window.SessionService._maskString && sessionId) {
+          const maskedId = window.SessionService._maskString(sessionId);
+          log(`Using session ID for prefetch: ${maskedId}`, LOG_LEVELS.DEBUG);
+        }
       }
 
       // Create URL with parameters
@@ -388,11 +458,11 @@
         query: query,
         collection: config.collection,
         profile: config.profile,
-        prefetch: 'true'
+        prefetch: "true",
       });
 
       if (sessionId) {
-        params.append('sessionId', sessionId);
+        params.append("sessionId", sessionId);
       }
 
       const prefetchUrl = `${config.apiBaseUrl}/api/prefetch?${params}`;
@@ -402,40 +472,39 @@
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
       fetch(prefetchUrl, {
-        method: 'GET',
+        method: "GET",
         signal: controller.signal,
-        priority: 'low',
+        priority: "low",
         keepalive: true,
         headers: {
-          'X-Prefetch-Request': 'true',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+          "X-Prefetch-Request": "true",
+          "X-Requested-With": "XMLHttpRequest",
+        },
       })
-        .then(response => {
+        .then((response) => {
           clearTimeout(timeoutId);
           if (response.ok) {
-            debugLog(`Prefetch request successful for: ${query}`);
+            log(`Prefetch request successful for: ${query}`, LOG_LEVELS.INFO);
             return response.json();
           } else {
-            debugLog(`Prefetch request failed with status: ${response.status}`);
+            log(
+              `Prefetch request failed with status: ${response.status}`,
+              LOG_LEVELS.WARN
+            );
             throw new Error(`Prefetch failed: ${response.status}`);
           }
         })
-        .then(data => {
-          debugLog(`Prefetch response data:`, data);
+        .then((data) => {
+          log(`Prefetch response data:`, LOG_LEVELS.DEBUG, data);
         })
-        .catch(error => {
+        .catch((error) => {
           // Silent error handling for prefetch
           clearTimeout(timeoutId);
-          if (config.enableDebugLogging) {
-            console.error(`[Integration] Prefetch error:`, error);
-          }
+          log(`Prefetch error: ${error.message}`, LOG_LEVELS.ERROR);
         });
     } catch (error) {
       // Silent error handling
-      if (config.enableDebugLogging) {
-        console.error(`[Integration] Prefetch exception:`, error);
-      }
+      log(`Prefetch exception: ${error.message}`, LOG_LEVELS.ERROR);
     }
   }
 
@@ -446,7 +515,7 @@
    */
   async function fetchHeaderSuggestions(query, container) {
     try {
-      debugLog(`Fetching header suggestions for query: ${query}`);
+      log(`Fetching header suggestions for query: ${query}`, LOG_LEVELS.INFO);
 
       // Prepare URL with parameters
       const params = new URLSearchParams({ query });
@@ -456,13 +525,20 @@
         const sessionId = window.SessionService.getSessionId();
         if (sessionId) {
           params.append("sessionId", sessionId);
-          debugLog(`Added session ID to suggestions request: ${window.SessionService._maskString(sessionId)}`);
+          // Use a masked version of the session ID for logging
+          if (window.SessionService._maskString) {
+            const maskedId = window.SessionService._maskString(sessionId);
+            log(
+              `Added session ID to suggestions request: ${maskedId}`,
+              LOG_LEVELS.DEBUG
+            );
+          }
         }
       }
 
       // Fetch suggestions from API
       const url = `${config.apiBaseUrl}/api/suggestions?${params}`;
-      debugLog(`Suggestions API URL: ${url}`);
+      log(`Suggestions API URL: ${url}`, LOG_LEVELS.DEBUG);
 
       const response = await fetch(url);
 
@@ -472,16 +548,16 @@
 
       // Get JSON response
       const data = await response.json();
-      debugLog(`Received suggestions data:`, {
+      log(`Received suggestions data:`, LOG_LEVELS.DEBUG, {
         generalCount: data.general?.length || 0,
         staffCount: data.staff?.length || 0,
-        programsCount: data.programs?.length || 0
+        programsCount: data.programs?.length || 0,
       });
 
       // Render header suggestions (simple list)
       renderHeaderSuggestions(data, container, query);
     } catch (error) {
-      debugLog(`Error fetching suggestions: ${error.message}`);
+      log(`Error fetching suggestions: ${error.message}`, LOG_LEVELS.ERROR);
       container.innerHTML = "";
       container.hidden = true;
       // Continue with normal operation despite fetch failure
@@ -523,7 +599,7 @@
     container.querySelectorAll(".suggestion-item").forEach((item) => {
       item.addEventListener("click", function () {
         const text = this.querySelector(".suggestion-text").textContent;
-        debugLog(`Suggestion clicked: ${text}`);
+        log(`Suggestion clicked: ${text}`, LOG_LEVELS.INFO);
 
         // Set input value
         const input = document.getElementById("search-input");
@@ -535,16 +611,24 @@
         const normalizedQuery = normalizeQuery(text);
 
         // Use SessionService to prepare for redirect if available
-        if (window.SessionService && window.SessionService.prepareForSearchRedirect) {
+        if (
+          window.SessionService &&
+          window.SessionService.prepareForSearchRedirect
+        ) {
           window.SessionService.prepareForSearchRedirect(normalizedQuery);
-          debugLog(`SessionService prepared for redirect with suggestion: ${normalizedQuery}`);
+          log(
+            `SessionService prepared for redirect with suggestion: ${normalizedQuery}`,
+            LOG_LEVELS.INFO
+          );
         }
 
         // Track suggestion click
         trackSuggestionClick(text, "general", "", text);
 
         // Redirect to search page
-        window.location.href = `/search-test/?query=${encodeURIComponent(normalizedQuery)}`;
+        window.location.href = `/search-test/?query=${encodeURIComponent(
+          normalizedQuery
+        )}`;
       });
     });
   }
@@ -554,7 +638,7 @@
    * @param {Object} component - Results search component references
    */
   function setupResultsSearch(component) {
-    debugLog("Setting up results page search integration");
+    log("Setting up results page search integration", LOG_LEVELS.INFO);
 
     // Make sure search button is visible
     if (component.button) {
@@ -569,7 +653,10 @@
         const query = component.input.value.trim();
         if (!query) return;
 
-        debugLog(`Results page search form submitted with query: ${query}`);
+        log(
+          `Results page search form submitted with query: ${query}`,
+          LOG_LEVELS.INFO
+        );
 
         // Normalize the query
         const normalizedQuery = normalizeQuery(query);
@@ -610,16 +697,20 @@
 
     // Check if this is a redirect from a prefetched query
     if (window.SessionService) {
-      const lastQuery = window.SessionService.getLastSearchQuery &&
+      const lastQuery =
+        window.SessionService.getLastSearchQuery &&
         window.SessionService.getLastSearchQuery();
 
       if (lastQuery) {
-        debugLog(`Found last search query from SessionService: ${lastQuery}`);
+        log(
+          `Found last search query from SessionService: ${lastQuery}`,
+          LOG_LEVELS.INFO
+        );
 
         // Clear after using to avoid stale data
         if (window.SessionService.clearLastSearchQuery) {
           window.SessionService.clearLastSearchQuery();
-          debugLog('Cleared last search query from SessionService');
+          log("Cleared last search query from SessionService", LOG_LEVELS.INFO);
         }
       }
     }
@@ -635,11 +726,14 @@
     const query = urlParams.get("query");
 
     if (!query) {
-      debugLog("No query parameter found in URL");
+      log("No query parameter found in URL", LOG_LEVELS.INFO);
       return;
     }
 
-    debugLog(`Processing URL parameters with query: ${query}, cacheFirst: ${cacheFirst}`);
+    log(
+      `Processing URL parameters with query: ${query}, cacheFirst: ${cacheFirst}`,
+      LOG_LEVELS.INFO
+    );
 
     // Set input value
     if (component.input) {
@@ -650,14 +744,24 @@
     const normalizedQuery = normalizeQuery(query);
 
     // If cache-first is enabled and we have cached results, try to use them
-    if (cacheFirst && window.SessionService && window.SessionService.getLastSearchQuery) {
+    if (
+      cacheFirst &&
+      window.SessionService &&
+      window.SessionService.getLastSearchQuery
+    ) {
       const lastQuery = window.SessionService.getLastSearchQuery();
 
       if (lastQuery === normalizedQuery) {
-        debugLog(`Cache-first approach possible for query: ${normalizedQuery}`);
+        log(
+          `Cache-first approach possible for query: ${normalizedQuery}`,
+          LOG_LEVELS.INFO
+        );
         // TODO: In Phase 4, implement cache check here
       } else {
-        debugLog(`Cache-first approach not possible, query mismatch. URL: ${normalizedQuery}, Cached: ${lastQuery}`);
+        log(
+          `Cache-first approach not possible, query mismatch. URL: ${normalizedQuery}, Cached: ${lastQuery}`,
+          LOG_LEVELS.INFO
+        );
       }
     }
 
@@ -672,7 +776,7 @@
    */
   async function performSearch(query, container) {
     try {
-      debugLog(`Performing search for query: ${query}`);
+      log(`Performing search for query: ${query}`, LOG_LEVELS.INFO);
 
       // Prepare URL with parameters
       const params = new URLSearchParams({
@@ -686,13 +790,20 @@
         const sessionId = window.SessionService.getSessionId();
         if (sessionId) {
           params.append("sessionId", sessionId);
-          debugLog(`Added session ID to search request: ${window.SessionService._maskString(sessionId)}`);
+          // Use a masked version of the session ID for logging
+          if (window.SessionService._maskString) {
+            const maskedId = window.SessionService._maskString(sessionId);
+            log(
+              `Added session ID to search request: ${maskedId}`,
+              LOG_LEVELS.DEBUG
+            );
+          }
         }
       }
 
       // Fetch results from API
       const url = `${config.apiBaseUrl}/api/search?${params}`;
-      debugLog(`Search API URL: ${url}`);
+      log(`Search API URL: ${url}`, LOG_LEVELS.DEBUG);
 
       const startTime = Date.now();
       const response = await fetch(url);
@@ -703,11 +814,14 @@
       }
 
       // Check if response was from cache
-      const cacheStatus = response.headers.get('X-Cache-Status');
+      const cacheStatus = response.headers.get("X-Cache-Status");
       if (cacheStatus) {
-        debugLog(`Search response cache status: ${cacheStatus}, response time: ${responseTime}ms`);
+        log(
+          `Search response cache status: ${cacheStatus}, response time: ${responseTime}ms`,
+          LOG_LEVELS.INFO
+        );
       } else {
-        debugLog(`Search response received in ${responseTime}ms`);
+        log(`Search response received in ${responseTime}ms`, LOG_LEVELS.INFO);
       }
 
       // Get HTML response
@@ -728,7 +842,7 @@
         container.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     } catch (error) {
-      debugLog(`Error performing search: ${error.message}`);
+      log(`Error performing search: ${error.message}`, LOG_LEVELS.ERROR);
       container.innerHTML = `
         <div class="search-error">
           <h3>Error Loading Results</h3>
@@ -749,7 +863,10 @@
       ".fb-result h3 a, .search-result-item h3 a, .listing-item__title a"
     );
 
-    debugLog(`Attaching click handlers to ${resultLinks.length} result links`);
+    log(
+      `Attaching click handlers to ${resultLinks.length} result links`,
+      LOG_LEVELS.INFO
+    );
 
     resultLinks.forEach((link, index) => {
       link.addEventListener("click", function (e) {
@@ -760,7 +877,10 @@
           link.getAttribute("data-live-url") || link.getAttribute("href") || "";
         const title = link.textContent.trim() || "";
 
-        debugLog(`Result clicked: ${title}, position: ${index + 1}`);
+        log(
+          `Result clicked: ${title}, position: ${index + 1}`,
+          LOG_LEVELS.INFO
+        );
 
         // Track click
         trackResultClick(query, url, title, index + 1);
@@ -777,7 +897,10 @@
    */
   function trackResultClick(query, url, title, position) {
     try {
-      debugLog(`Tracking result click - Query: ${query}, Title: ${title}, Position: ${position}`);
+      log(
+        `Tracking result click - Query: ${query}, Title: ${title}, Position: ${position}`,
+        LOG_LEVELS.INFO
+      );
 
       // Prepare data
       const data = {
@@ -805,24 +928,28 @@
           type: "application/json",
         });
         const sent = navigator.sendBeacon(endpoint, blob);
-        debugLog(`Click tracking sent via sendBeacon: ${sent ? 'success' : 'failed'}`);
+        log(
+          `Click tracking sent via sendBeacon: ${sent ? "success" : "failed"}`,
+          LOG_LEVELS.DEBUG
+        );
       } else {
         // Fallback to fetch with keepalive
-        debugLog('SendBeacon not available, using fetch with keepalive');
+        log(
+          "SendBeacon not available, using fetch with keepalive",
+          LOG_LEVELS.DEBUG
+        );
         fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
           keepalive: true,
         }).catch((error) => {
-          debugLog(`Error tracking click: ${error.message}`);
+          log(`Error tracking click: ${error.message}`, LOG_LEVELS.ERROR);
         });
       }
     } catch (error) {
-      // Silent error handling
-      if (config.enableDebugLogging) {
-        console.error(`[Integration] Error tracking result click:`, error);
-      }
+      // Error handling with logging
+      log(`Error tracking result click: ${error.message}`, LOG_LEVELS.ERROR);
     }
   }
 
@@ -836,7 +963,10 @@
    */
   window.trackSuggestionClick = function (text, type, url, title) {
     try {
-      debugLog(`Tracking suggestion click - Text: ${text}, Type: ${type}`);
+      log(
+        `Tracking suggestion click - Text: ${text}, Type: ${type}`,
+        LOG_LEVELS.INFO
+      );
 
       // Prepare data for the API call
       const data = {
@@ -863,23 +993,37 @@
         const blob = new Blob([JSON.stringify(data)], {
           type: "application/json",
         });
-        navigator.sendBeacon(endpoint, blob);
+        const sent = navigator.sendBeacon(endpoint, blob);
+        log(
+          `Suggestion click tracking sent via sendBeacon: ${
+            sent ? "success" : "failed"
+          }`,
+          LOG_LEVELS.DEBUG
+        );
       } else {
         // Fallback to fetch with keepalive
+        log(
+          "SendBeacon not available, using fetch with keepalive",
+          LOG_LEVELS.DEBUG
+        );
         fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
           keepalive: true,
-        }).catch(() => {
-          // Silent error handling
+        }).catch((error) => {
+          log(
+            `Error tracking suggestion click: ${error.message}`,
+            LOG_LEVELS.ERROR
+          );
         });
       }
     } catch (error) {
-      // Silent error handling
-      if (config.enableDebugLogging) {
-        console.error(`[Integration] Error tracking suggestion click:`, error);
-      }
+      // Error handling with logging
+      log(
+        `Error tracking suggestion click: ${error.message}`,
+        LOG_LEVELS.ERROR
+      );
     }
   };
 
@@ -892,7 +1036,10 @@
    */
   window.trackTabChange = function (query, tabName, tabId) {
     try {
-      debugLog(`Tracking tab change - Query: ${query}, Tab: ${tabName}, ID: ${tabId}`);
+      log(
+        `Tracking tab change - Query: ${query}, Tab: ${tabName}, ID: ${tabId}`,
+        LOG_LEVELS.INFO
+      );
 
       // Prepare data for the API call
       const data = {
@@ -920,23 +1067,31 @@
         const blob = new Blob([JSON.stringify(data)], {
           type: "application/json",
         });
-        navigator.sendBeacon(endpoint, blob);
+        const sent = navigator.sendBeacon(endpoint, blob);
+        log(
+          `Tab change tracking sent via sendBeacon: ${
+            sent ? "success" : "failed"
+          }`,
+          LOG_LEVELS.DEBUG
+        );
       } else {
         // Fallback to fetch with keepalive
+        log(
+          "SendBeacon not available, using fetch with keepalive",
+          LOG_LEVELS.DEBUG
+        );
         fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
           keepalive: true,
-        }).catch(() => {
-          // Silent error handling
+        }).catch((error) => {
+          log(`Error tracking tab change: ${error.message}`, LOG_LEVELS.ERROR);
         });
       }
     } catch (error) {
-      // Silent error handling
-      if (config.enableDebugLogging) {
-        console.error(`[Integration] Error tracking tab change:`, error);
-      }
+      // Error handling with logging
+      log(`Error tracking tab change: ${error.message}`, LOG_LEVELS.ERROR);
     }
   };
 
@@ -951,7 +1106,7 @@
     url.searchParams.set("query", query);
     window.history.pushState({}, "", url);
 
-    debugLog(`Updated URL without page reload: ${url.toString()}`);
+    log(`Updated URL without page reload: ${url.toString()}`, LOG_LEVELS.INFO);
   }
 
   /**
@@ -984,7 +1139,7 @@
       rect.top >= 0 &&
       rect.left >= 0 &&
       rect.bottom <=
-      (window.innerHeight || document.documentElement.clientHeight) &&
+        (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
     return isVisible;
   }
@@ -1004,6 +1159,7 @@
         : containerId;
 
     if (!container) {
+      log(`Search container not found: ${containerId}`, LOG_LEVELS.ERROR);
       return;
     }
 
@@ -1033,7 +1189,7 @@
    * @param {boolean} enabled - Whether to enable debug logging
    */
   window.setSearchDebugLogging = function (enabled) {
-    config.enableDebugLogging = !!enabled;
-    console.log(`[Integration] Debug logging ${enabled ? 'enabled' : 'disabled'}`);
+    setLogLevel(enabled ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO);
+    log(`Debug logging ${enabled ? "enabled" : "disabled"}`, LOG_LEVELS.INFO);
   };
 })();

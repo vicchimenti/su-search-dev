@@ -7,14 +7,27 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-05-06
+ * @version 2.2.0
+ * @lastModified 2025-05-07
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosRequestHeaders } from 'axios';
 
 // Get backend API URL from environment variables, with fallback
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy';
+
+// Define log levels
+export enum LogLevel {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3
+}
+
+// Set default log level (can be overridden via environment variable)
+let currentLogLevel = process.env.API_CLIENT_LOG_LEVEL
+  ? parseInt(process.env.API_CLIENT_LOG_LEVEL, 10)
+  : LogLevel.INFO;
 
 // Flag to determine if we're in a server context
 const isServer = typeof window === 'undefined';
@@ -25,13 +38,61 @@ let cachedClientIpTimestamp = 0;
 const CLIENT_IP_CACHE_DURATION = 60 * 1000; // 1 minute in milliseconds
 
 /**
+ * Logger function with level-based filtering
+ * @param message - The message to log
+ * @param level - The log level for this message
+ * @param data - Optional data to include in the log
+ */
+export function log(message: string, level: LogLevel = LogLevel.INFO, data?: any): void {
+  if (level <= currentLogLevel) {
+    const prefix = getLogPrefix(level);
+    if (data !== undefined) {
+      console.log(`${prefix} ${message}`, data);
+    } else {
+      console.log(`${prefix} ${message}`);
+    }
+  }
+}
+
+/**
+ * Get the prefix for a log level
+ * @param level - The log level
+ * @returns The prefix string
+ */
+function getLogPrefix(level: LogLevel): string {
+  switch (level) {
+    case LogLevel.ERROR:
+      return '[API-CLIENT-ERROR]';
+    case LogLevel.WARN:
+      return '[API-CLIENT-WARN]';
+    case LogLevel.INFO:
+      return '[API-CLIENT-INFO]';
+    case LogLevel.DEBUG:
+      return '[API-CLIENT-DEBUG]';
+    default:
+      return '[API-CLIENT]';
+  }
+}
+
+/**
+ * Set the current log level
+ * @param level - The new log level
+ */
+export function setLogLevel(level: LogLevel): void {
+  currentLogLevel = level;
+  log(`Log level set to ${LogLevel[level]}`, LogLevel.INFO);
+}
+
+/**
  * Resolves the client IP address from request headers in server context
  * @param headers - Request headers
  * @returns Resolved IP address
  */
 function resolveClientIpFromHeaders(headers: any): string {
-  console.log('API-CLIENT: Resolving client IP from headers');
-  console.log('API-CLIENT: Available headers:', JSON.stringify(headers));
+  log('Resolving client IP from headers', LogLevel.INFO);
+
+  // Log available headers at DEBUG level
+  log('Available headers:', LogLevel.DEBUG, headers);
 
   // Check x-forwarded-for header (common for proxied requests)
   if (headers['x-forwarded-for']) {
@@ -41,7 +102,7 @@ function resolveClientIpFromHeaders(headers: any): string {
 
     // Extract the first IP in the list (the original client)
     const clientIp = forwardedIps.split(',')[0].trim();
-    console.log(`API-CLIENT: Extracted IP from x-forwarded-for: ${clientIp}`);
+    log(`Extracted IP from x-forwarded-for: ${clientIp}`, LogLevel.INFO);
     return clientIp;
   }
 
@@ -56,12 +117,12 @@ function resolveClientIpFromHeaders(headers: any): string {
   for (const header of ipHeaders) {
     if (headers[header]) {
       const ip = Array.isArray(headers[header]) ? headers[header][0] : headers[header];
-      console.log(`API-CLIENT: Extracted IP from ${header}: ${ip}`);
+      log(`Extracted IP from ${header}: ${ip}`, LogLevel.INFO);
       return ip;
     }
   }
 
-  console.warn('API-CLIENT: Could not extract IP address from headers');
+  log('Could not extract IP address from headers', LogLevel.WARN);
   return '0.0.0.0';
 }
 
@@ -71,7 +132,7 @@ function resolveClientIpFromHeaders(headers: any): string {
  */
 export function setClientIp(ip: string): void {
   if (isServer) {
-    console.log(`API-CLIENT: Setting cached client IP to ${ip}`);
+    log(`Setting cached client IP to ${ip}`, LogLevel.INFO);
     cachedClientIp = ip;
     cachedClientIpTimestamp = Date.now();
   }
@@ -86,11 +147,11 @@ export function getCachedClientIp(): string | null {
 
   const now = Date.now();
   if (cachedClientIp && now - cachedClientIpTimestamp < CLIENT_IP_CACHE_DURATION) {
-    console.log(`API-CLIENT: Using cached client IP: ${cachedClientIp}`);
+    log(`Using cached client IP: ${cachedClientIp}`, LogLevel.DEBUG);
     return cachedClientIp;
   }
 
-  console.log('API-CLIENT: Cached client IP expired or not set');
+  log('Cached client IP expired or not set', LogLevel.DEBUG);
   return null;
 }
 
@@ -101,7 +162,7 @@ export function getCachedClientIp(): string | null {
  * @returns Configured axios instance
  */
 export function createApiClient(headers?: any, options: { cacheAware?: boolean } = {}): AxiosInstance {
-  console.log('API-CLIENT: Creating API client instance');
+  log('Creating API client instance', LogLevel.INFO);
 
   let clientIp: string | null = null;
 
@@ -140,9 +201,9 @@ export function createApiClient(headers?: any, options: { cacheAware?: boolean }
   });
 
   if (clientIp) {
-    console.log(`API-CLIENT: Created client with IP headers set to ${clientIp}`);
+    log(`Created client with IP headers set to ${clientIp}`, LogLevel.INFO);
   } else {
-    console.log('API-CLIENT: Created client without IP headers (will be resolved later for client-side requests)');
+    log('Created client without IP headers (will be resolved later for client-side requests)', LogLevel.INFO);
   }
 
   // Add request interceptor to include client IP in all requests
@@ -154,20 +215,22 @@ export function createApiClient(headers?: any, options: { cacheAware?: boolean }
 
     // For client-side requests, fetch the IP from our client-info endpoint
     try {
-      console.log('API-CLIENT: Attempting to fetch client IP for client-side request');
+      log('Attempting to fetch client IP for client-side request', LogLevel.DEBUG);
 
       // Check if we already have client info headers
       if (config.headers && (config.headers['X-Client-IP'] || config.headers['X-Forwarded-For'])) {
-        console.log('API-CLIENT: Request already has client IP headers');
+        log('Request already has client IP headers', LogLevel.DEBUG);
         return config;
       }
 
       // Fetch client IP from our dedicated endpoint
       const response = await fetch('/api/client-info');
-      if (!response.ok) throw new Error('Failed to fetch client info');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch client info: ${response.status} ${response.statusText}`);
+      }
 
       const clientInfo = await response.json();
-      console.log(`API-CLIENT: Received client info: IP=${clientInfo.ip}, Source=${clientInfo.source}`);
+      log(`Received client info: IP=${clientInfo.ip}, Source=${clientInfo.source}`, LogLevel.DEBUG);
 
       // Add client IP to request headers
       if (clientInfo.ip) {
@@ -176,20 +239,26 @@ export function createApiClient(headers?: any, options: { cacheAware?: boolean }
         }
         config.headers['X-Forwarded-For'] = clientInfo.ip;
         config.headers['X-Client-IP'] = clientInfo.ip;
-        console.log(`API-CLIENT: Added client IP ${clientInfo.ip} to request headers`);
+        log(`Added client IP ${clientInfo.ip} to request headers`, LogLevel.DEBUG);
       }
     } catch (error) {
-      console.error('API-CLIENT: Error fetching client IP:', error);
+      log(`Error fetching client IP: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
       // Continue with request even if IP fetch fails
     }
 
     return config;
   });
 
-  // Add request logging in development
+  // Add request logging for all log levels
   apiClient.interceptors.request.use(request => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('API-CLIENT: Backend API Request:', {
+    // For INFO level, log minimal information
+    if (currentLogLevel >= LogLevel.INFO) {
+      log(`Request: ${request.method} ${request.url}`, LogLevel.INFO);
+    }
+
+    // For DEBUG level, log more detailed information
+    if (currentLogLevel >= LogLevel.DEBUG) {
+      log('Request details:', LogLevel.DEBUG, {
         url: request.url,
         method: request.method,
         params: request.params,
@@ -201,18 +270,25 @@ export function createApiClient(headers?: any, options: { cacheAware?: boolean }
         }
       });
     }
+
     return request;
   });
 
-  // Add response logging in development
+  // Add response logging
   apiClient.interceptors.response.use(
     response => {
-      if (process.env.NODE_ENV === 'development') {
-        // Log cache status headers if present
+      // For INFO level, log minimal information
+      if (currentLogLevel >= LogLevel.INFO) {
+        const cacheStatus = response.headers['x-cache-status'];
+        log(`Response: ${response.status} ${response.statusText}${cacheStatus ? ` (Cache: ${cacheStatus})` : ''}`, LogLevel.INFO);
+      }
+
+      // For DEBUG level, log more detailed information
+      if (currentLogLevel >= LogLevel.DEBUG) {
         const cacheStatus = response.headers['x-cache-status'];
         const cacheAge = response.headers['x-cache-age'];
 
-        console.log('API-CLIENT: Backend API Response:', {
+        log('Response details:', LogLevel.DEBUG, {
           status: response.status,
           dataLength: response.data ?
             (typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length) : 0,
@@ -220,14 +296,17 @@ export function createApiClient(headers?: any, options: { cacheAware?: boolean }
           cacheAge: cacheAge || 'N/A'
         });
       }
+
       return response;
     },
     error => {
-      console.error('API-CLIENT: Backend API Error:', {
+      // Always log errors at ERROR level
+      log('API Error:', LogLevel.ERROR, {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
+
       return Promise.reject(error);
     }
   );
@@ -249,19 +328,20 @@ export const cacheAwareApiClient = createApiClient(undefined, { cacheAware: true
  * @param headers - Optional request headers
  * @returns Response data
  */
-export async function fetchFromBackend(
+export async function fetchFromBackend<T = any>(
   endpoint: string,
   params: any = {},
   options: { cacheAware?: boolean } = {},
   headers?: any
-) {
+): Promise<T> {
   try {
     // Create a client instance with provided headers (useful for server-side requests)
     const client = headers ?
       createApiClient(headers, options) :
       options.cacheAware ? cacheAwareApiClient : backendApiClient;
 
-    console.log(`API-CLIENT: Fetching from ${endpoint} with params:`, params);
+    log(`Fetching from ${endpoint}`, LogLevel.INFO);
+    log(`Request params:`, LogLevel.DEBUG, params);
 
     // Set custom headers for cache awareness if needed
     const requestConfig: AxiosRequestConfig = { params };
@@ -272,9 +352,14 @@ export async function fetchFromBackend(
     }
 
     const response = await client.get(endpoint, requestConfig);
+
+    // Log response data at debug level
+    log(`Response received from ${endpoint}`, LogLevel.INFO);
+    log(`Response data:`, LogLevel.DEBUG, response.data);
+
     return response.data;
   } catch (error) {
-    console.error(`API-CLIENT: Error fetching from ${endpoint}:`, error);
+    log(`Error fetching from ${endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     throw error;
   }
 }
@@ -287,16 +372,29 @@ export async function fetchFromBackend(
  * @param headers - Optional request headers
  * @returns Response data
  */
-export async function postToBackend(endpoint: string, data: any = {}, params: any = {}, headers?: any) {
+export async function postToBackend<T = any>(
+  endpoint: string,
+  data: any = {},
+  params: any = {},
+  headers?: any
+): Promise<T> {
   try {
     // Create a client instance with provided headers (useful for server-side requests)
     const client = headers ? createApiClient(headers) : backendApiClient;
 
-    console.log(`API-CLIENT: Posting to ${endpoint} with data:`, data);
+    log(`Posting to ${endpoint}`, LogLevel.INFO);
+    log(`Request data:`, LogLevel.DEBUG, data);
+    log(`Request params:`, LogLevel.DEBUG, params);
+
     const response = await client.post(endpoint, data, { params });
+
+    // Log response data at debug level
+    log(`Response received from ${endpoint}`, LogLevel.INFO);
+    log(`Response data:`, LogLevel.DEBUG, response.data);
+
     return response.data;
   } catch (error) {
-    console.error(`API-CLIENT: Error posting to ${endpoint}:`, error);
+    log(`Error posting to ${endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`, LogLevel.ERROR);
     throw error;
   }
 }
