@@ -8,7 +8,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.2.0
+ * @version 2.2.1
  * @lastModified 2025-05-07
  */
 
@@ -290,6 +290,10 @@ function renderResultsPageSuggestions(data, container, query) {
         // Track click for analytics (using SessionManager)
         trackSuggestionClick(text, type, url, title);
 
+        // Hide suggestions
+        container.innerHTML = "";
+        container.hidden = true;
+
         // Handle staff and program items with URLs
         if ((type === "staff" || type === "program") && url && url !== "#") {
           // If click was on a link, let it handle navigation
@@ -308,10 +312,6 @@ function renderResultsPageSuggestions(data, container, query) {
           // Otherwise open in new tab and continue with search
           window.open(url, "_blank", "noopener,noreferrer");
         }
-
-        // Hide suggestions
-        container.innerHTML = "";
-        container.hidden = true;
 
         // Perform search and update URL
         const resultsContainer = document.getElementById("results");
