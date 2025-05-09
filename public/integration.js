@@ -829,7 +829,7 @@
 
       // Update results container
       container.innerHTML = `
-        <div class="funnelback-search-container">
+        <div id="funnelback-search-container-response" class="funnelback-search-container">
           ${html}
         </div>
       `;
