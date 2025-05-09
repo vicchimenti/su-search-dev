@@ -6,8 +6,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.1.0
- * @lastModified 2025-05-05
+ * @version 2.1.1
+ * @lastModified 2025-05-09
  */
 
 (function () {

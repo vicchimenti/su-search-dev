@@ -12,9 +12,9 @@
  * - IP resolution for accurate client tracking
  *
  * @author Victor Chimenti
- * @version 3.1.2
+ * @version 3.1.3
  * @license MIT
- * @lastModified 2025-05-05
+ * @lastModified 2025-05-09
  */
 
 class SearchManager {
@@ -556,7 +556,7 @@ class SearchManager {
     );
     if (resultsContainer) {
       resultsContainer.innerHTML = `
-        <div class="funnelback-search-container">
+        <div id="funnelback-search-container-response" class="funnelback-search-container">
           ${html || "No results found."}
         </div>
       `;
