@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.6.0
- * @lastModified 2025-04-28
+ * @version 3.6.1
+ * @lastModified 2025-05-09
  */
 
 class TabsManager {
@@ -370,7 +370,7 @@ class TabsManager {
 
       // Update results container
       container.innerHTML = `
-        <div class="funnelback-search-container">
+        <div id="funnelback-search-container-response" class="funnelback-search-container">
           ${response || "No results found."}
         </div>
       `;
@@ -440,7 +440,7 @@ class TabsManager {
         if (container.isConnected) {
           // Update results container
           container.innerHTML = `
-            <div class="funnelback-search-container">
+            <div id="funnelback-search-container-response" class="funnelback-search-container">
               ${response || "No results found."}
             </div>
           `;
