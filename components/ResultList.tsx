@@ -5,7 +5,9 @@
  * with support for result tracking, pagination, and facet filtering.
  *
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.1.0
+ * @license MIT
+ * @lastModified 2025-05-09
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -28,41 +30,41 @@ export default function ResultsList({
   onResultClick
 }: ResultsListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   // Update container with HTML content
   useEffect(() => {
     if (containerRef.current && html) {
       containerRef.current.innerHTML = html;
-      
+
       // Add click tracking to results
       attachClickHandlers();
     }
   }, [html]);
-  
+
   // Attach click handlers to results
   const attachClickHandlers = () => {
     if (!containerRef.current || !onResultClick) return;
-    
+
     // Find all result links
     const resultLinks = containerRef.current.querySelectorAll(
       '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
     );
-    
+
     resultLinks.forEach((link, index) => {
-      link.addEventListener('click', function(e) {
+      link.addEventListener('click', function (e) {
         // Don't prevent default navigation
         const linkElement = e.currentTarget as HTMLAnchorElement;
-        
+
         // Get link details
         const url = linkElement.getAttribute('data-live-url') || linkElement.getAttribute('href') || '';
         const title = linkElement.textContent?.trim() || '';
-        
+
         // Track click
         onResultClick(url, title, index + 1);
       });
     });
   };
-  
+
   // Render loading state
   if (isLoading) {
     return (
@@ -72,7 +74,7 @@ export default function ResultsList({
       </div>
     );
   }
-  
+
   // Render error state
   if (error) {
     return (
@@ -82,7 +84,7 @@ export default function ResultsList({
       </div>
     );
   }
-  
+
   // Render empty state
   if (!html) {
     return (
@@ -91,10 +93,10 @@ export default function ResultsList({
       </div>
     );
   }
-  
+
   return (
     <div className="search-results-container">
-      <div ref={containerRef} className="funnelback-search-container"></div>
+      <div id="funnelback-search-container-response" ref={containerRef} className="funnelback-search-container"></div>
     </div>
   );
 }
