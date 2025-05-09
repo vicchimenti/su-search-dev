@@ -558,7 +558,7 @@ async function performSearch(query, container) {
 
       // Update results container
       container.innerHTML = `
-        <div class="funnelback-search-container">
+        <div id="funnelback-search-container-response" class="funnelback-search-container">
           ${html}
           <div class="search-performance-info" style="font-size: 12px; color: #666; margin-top: 10px; text-align: right;">
             Results loaded in ${totalTime}ms via cache
@@ -604,7 +604,7 @@ async function performSearch(query, container) {
 
       // Update results container
       container.innerHTML = `
-        <div class="funnelback-search-container">
+        <div id="funnelback-search-container-response" class="funnelback-search-container">
           ${html}
         </div>
       `;
