@@ -14,7 +14,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.3.0
+ * @version 1.3.1
  * @lastModified 2025-05-10
  */
 
@@ -30,6 +30,7 @@ class FacetsManager {
     // Bind methods to maintain context
     this.handleFacetClick = this.handleFacetClick.bind(this);
     this.handleClearFacetClick = this.handleClearFacetClick.bind(this);
+    this.handleClick = this.handleClick.bind(this);
 
     this.initialize();
   }
@@ -43,28 +44,34 @@ class FacetsManager {
     }
 
     // Set up event delegation for facets
-    this.resultsContainer.addEventListener("click", (e) => {
-      // Handle facet selection
-      if (
-        e.target.closest(
-          ".facet-group__list a:not(.facet-group__clear):not(.facet-group__show-more)"
-        )
-      ) {
-        e.preventDefault();
-        this.handleFacetClick(e);
-      }
+    this.resultsContainer.addEventListener("click", this.handleClick);
+  }
 
-      // Handle clear facet
-      else if (
-        e.target.closest("a.facet-group__clear, .facet-breadcrumb__link")
-      ) {
-        e.preventDefault();
-        this.handleClearFacetClick(e);
-      }
+  /**
+   * Main click handler that delegates to appropriate functions.
+   * @param {Event} e - The click event
+   */
+  handleClick(e) {
+    // Handle facet selection
+    if (
+      e.target.closest(
+        ".facet-group__list a:not(.facet-group__clear):not(.facet-group__show-more)"
+      )
+    ) {
+      e.preventDefault();
+      this.handleFacetClick(e);
+    }
 
-      // Note: Collapse and show more functionality is now handled by CollapseManager
-      // We've removed these handlers to avoid conflicts
-    });
+    // Handle clear facet
+    else if (
+      e.target.closest("a.facet-group__clear, .facet-breadcrumb__link")
+    ) {
+      e.preventDefault();
+      this.handleClearFacetClick(e);
+    }
+
+    // Note: Collapse and show more functionality is now handled by CollapseManager
+    // We've removed these handlers to avoid conflicts
   }
 
   /**
