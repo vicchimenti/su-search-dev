@@ -14,7 +14,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.3.1
+ * @version 1.4.0
  * @lastModified 2025-05-10
  */
 
@@ -99,6 +99,9 @@ class FacetsManager {
           .querySelector(".facet-group__list-link-text")
           ?.textContent.trim() || link.textContent.trim();
 
+      // Track facet selection directly - ADDED
+      this.trackFacetInteraction(facetCategory, facetValue, "select");
+
       // Fetch results using the search endpoint via core manager
       // This uses SessionService through the core manager
       const response = await this.core.fetchFromProxy(href, "search");
@@ -131,6 +134,12 @@ class FacetsManager {
       const href = link.getAttribute("href");
       if (!href) return;
 
+      // Determine facet category for analytics
+      const facetCategory = this.getFacetCategory(link);
+
+      // Track facet clearing directly - ADDED
+      this.trackFacetInteraction(facetCategory, "all", "clear");
+
       // Fetch results using the search endpoint via core manager
       // This uses SessionService through the core manager
       const response = await this.core.fetchFromProxy(href, "search");
@@ -143,6 +152,76 @@ class FacetsManager {
       // Remove loading state
       this.resultsContainer.classList.remove("loading");
     }
+  }
+
+  /**
+   * Track facet interaction for analytics
+   * 
+   * @param {string} facetName - The name of the facet
+   * @param {string} facetValue - The value of the facet
+   * @param {string} action - The action (select or clear)
+   */
+  trackFacetInteraction(facetName, facetValue, action) {
+    try {
+      // Extract query from URL or core
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get("query") || this.core.originalQuery || "";
+
+      // Create properly formatted data for supplement endpoint
+      const analyticsData = {
+        type: "facet", // This is used by core-search-manager for routing
+        query: query, // Use "query" for supplement endpoint
+        enrichmentData: {
+          actionType: "facet",
+          facetName: this.sanitizeText(facetName),
+          facetValue: this.sanitizeText(facetValue),
+          action: action,
+          timestamp: Date.now()
+        }
+      };
+
+      // Send analytics data through core manager
+      this.core.sendAnalyticsData(analyticsData);
+    } catch (error) {
+      // Silent error handling
+    }
+  }
+
+  /**
+   * Sanitize text for analytics purposes
+   * 
+   * @param {string} text - The text to sanitize
+   * @returns {string} Sanitized text
+   */
+  sanitizeText(text) {
+    if (typeof text !== "string") {
+      return "unknown";
+    }
+
+    // First, remove any surrounding whitespace
+    let sanitized = text.trim();
+
+    // Remove common counter patterns that might be in the text
+    // Remove " (26)" or "(26)" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, "");
+    // Remove " [26]" or "[26]" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, "");
+    // Remove any number in parentheses anywhere
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, "");
+
+    // Replace line breaks, tabs, and control characters with spaces
+    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, " ");
+
+    // Remove any HTML tags that might be present
+    sanitized = sanitized.replace(/<[^>]*>/g, "");
+
+    // Normalize multiple spaces to a single space
+    sanitized = sanitized.replace(/\s+/g, " ");
+
+    // Final trim to remove any leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    return sanitized || "unknown";
   }
 
   /**
