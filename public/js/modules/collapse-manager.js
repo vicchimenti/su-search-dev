@@ -16,7 +16,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.0.1
+ * @version 1.2.0
  * @lastModified 2025-05-10
  */
 
@@ -294,12 +294,12 @@ class CollapseManager {
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get("query") || this.core.originalQuery || "";
 
-      // Create properly formatted data for supplement endpoint
+      // Create properly formatted data for supplement endpoint using standard type
       const analyticsData = {
-        type: "facet-ui", // This is used by core-search-manager for routing
+        type: "tab", // Changed to a standard type recognized by core manager
         query: query, // Use "query" for supplement endpoint
         enrichmentData: {
-          actionType: "facet-ui",
+          actionType: "ui-interaction", // More generic action type
           elementType: "facet-group",
           action: action,
           elementName: facetName,
@@ -350,12 +350,12 @@ class CollapseManager {
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get("query") || this.core.originalQuery || "";
 
-      // Create properly formatted data for supplement endpoint
+      // Create properly formatted data for supplement endpoint using standard type
       const analyticsData = {
-        type: "facet-ui", // This is used by core-search-manager for routing
+        type: "tab", // Changed to a standard type recognized by core manager
         query: query, // Use "query" for supplement endpoint
         enrichmentData: {
-          actionType: "facet-ui",
+          actionType: "ui-interaction", // More generic action type
           elementType: "show-more",
           action: "click",
           elementName: facetName,
@@ -396,12 +396,12 @@ class CollapseManager {
       const urlParams = new URLSearchParams(window.location.search);
       const query = urlParams.get("query") || this.core.originalQuery || "";
 
-      // Create properly formatted data for supplement endpoint
+      // Create properly formatted data for supplement endpoint using standard type
       const analyticsData = {
-        type: "ui", // This is used by core-search-manager for routing
+        type: "tab", // Changed to a standard type recognized by core manager
         query: query, // Use "query" for supplement endpoint
         enrichmentData: {
-          actionType: "ui",
+          actionType: "ui-interaction", // More generic action type
           elementType: "tab-group-filters",
           action: action,
           timestamp: now
