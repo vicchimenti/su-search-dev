@@ -27,10 +27,10 @@ class CollapseManager {
   constructor(core) {
     this.core = core;
     this.resultsContainer = document.getElementById("results");
-    
+
     // Transition timing
     this.transitionLength = 450; // milliseconds
-    
+
     // Initialize collapse functionality
     this.initialize();
   }
@@ -55,7 +55,7 @@ class CollapseManager {
    */
   initializeExistingElements() {
     if (!this.resultsContainer) return;
-    
+
     // Initialize facet group controls
     const facetButtons = this.resultsContainer.querySelectorAll(
       '[data-component="facet-group-control"]:not([data-collapse-initialized])'
@@ -63,7 +63,7 @@ class CollapseManager {
     facetButtons.forEach(button => {
       this.initializeCollapse(button);
     });
-    
+
     // Initialize collapse-all buttons
     const collapseAllButtons = this.resultsContainer.querySelectorAll(
       '[data-component="collapse-all"]:not([data-collapse-initialized])'
@@ -71,7 +71,7 @@ class CollapseManager {
     collapseAllButtons.forEach(button => {
       this.initializeCollapse(button);
     });
-    
+
     // Initialize show more buttons
     const showMoreButtons = this.resultsContainer.querySelectorAll(
       '[data-component="facet-group-show-more-button"]:not([data-collapse-initialized])'
@@ -79,7 +79,7 @@ class CollapseManager {
     showMoreButtons.forEach(button => {
       this.initializeShowMore(button);
     });
-    
+
     // Initialize tab groups
     this.addToggleButtonsToTabGroups();
   }
@@ -93,9 +93,9 @@ class CollapseManager {
     if (!button || button.hasAttribute('data-collapse-initialized')) {
       return;
     }
-    
+
     button.setAttribute('data-collapse-initialized', 'true');
-    
+
     // Find associated content
     let content;
     if (button.getAttribute('data-component') === 'collapse-all') {
@@ -103,24 +103,24 @@ class CollapseManager {
     } else {
       content = button.nextElementSibling;
     }
-    
+
     if (!content) {
       console.warn('No content found for button:', button);
       return;
     }
-    
+
     // Set up button as a controller for the content
     button.setAttribute('aria-controls', content.id || `collapse-content-${Date.now()}`);
-    
+
     // Set initial state based on default setting
     const openByDefault = button.classList.contains('facet-group__title--open');
-    
+
     if (openByDefault) {
       this.openElement(button, content);
     } else {
       this.closeElement(button, content);
     }
-    
+
     // Add click event listener
     button.addEventListener('click', () => {
       if (button.getAttribute('aria-expanded') === 'true') {
@@ -140,9 +140,9 @@ class CollapseManager {
     if (!button || button.hasAttribute('data-collapse-initialized')) {
       return;
     }
-    
+
     button.setAttribute('data-collapse-initialized', 'true');
-    
+
     const facetGroup = button.closest('.facet-group__list');
     if (!facetGroup) {
       console.warn('No parent facet group found for show more button');
@@ -151,12 +151,12 @@ class CollapseManager {
 
     button.addEventListener('click', (e) => {
       e.preventDefault();
-      
+
       const hiddenItems = facetGroup.querySelectorAll('.facet-group__list-item--hidden');
       hiddenItems.forEach(item => {
         item.classList.remove('facet-group__list-item--hidden');
       });
-      
+
       button.style.display = 'none';
     });
   }
@@ -186,7 +186,7 @@ class CollapseManager {
     toggleButton.type = 'button';
     toggleButton.className = 'tab-group__toggle';
     toggleButton.setAttribute('aria-expanded', 'true');
-    
+
     toggleButton.innerHTML = `
       <svg class="tab-group__icon tab-group__icon--closed">
         <use href="#add"></use>
@@ -210,10 +210,10 @@ class CollapseManager {
     tabListNav.parentNode.insertBefore(toggleButton, tabListNav);
     toggleButton.addEventListener('click', () => {
       const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
-      
+
       toggleButton.setAttribute('aria-expanded', (!isExpanded).toString());
       toggleButton.classList.toggle('tab-group__toggle--collapsed');
-      
+
       if (isExpanded) {
         tabListNav.style.display = 'none';
         tabListNav.setAttribute('aria-hidden', 'true');
@@ -274,13 +274,13 @@ class CollapseManager {
    */
   transitionItemOpen(button, content) {
     let called = false;
-    
+
     // Set initial state
     content.style.display = 'inherit';
-    
+
     // Open immediately for ARIA purposes
     this.openElement(button, content);
-    
+
     // Add expanding class and set height for animation
     content.classList.add('facet-group__list--expanding');
     content.style.height = `${content.scrollHeight}px`;
@@ -312,16 +312,16 @@ class CollapseManager {
    */
   transitionItemClosed(button, content) {
     let called = false;
-    
+
     // Set height for animation
     content.style.height = `${content.scrollHeight}px`;
-    
+
     // Close immediately for ARIA purposes
     this.closeElement(button, content);
-    
+
     // Need to set display back for animation
     content.style.display = '';
-    
+
     // Small delay before starting animation to ensure height is applied
     setTimeout(() => {
       content.classList.add('facet-group__list--collapsing');
@@ -356,7 +356,7 @@ class CollapseManager {
    */
   handleDomChanges(addedNodes) {
     if (!addedNodes || addedNodes.length === 0) return;
-    
+
     addedNodes.forEach(node => {
       if (node.nodeType === Node.ELEMENT_NODE) {
         // Handle tab groups
@@ -370,7 +370,7 @@ class CollapseManager {
         facetButtons.forEach(button => {
           this.initializeCollapse(button);
         });
-        
+
         // Handle collapse-all buttons
         const collapseAllButtons = node.querySelectorAll('[data-component="collapse-all"]:not([data-collapse-initialized])');
         collapseAllButtons.forEach(button => {
