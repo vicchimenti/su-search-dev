@@ -6,8 +6,8 @@
  * 
  * @license MIT
  * @author Victor Chimenti
- * @version 1.0.1
- * @lastUpdated 2025-04-28
+ * @version 1.1.0
+ * @lastUpdated 2025-05-10
  */
 
 // Import core manager
@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
       'facets',     // Faceted search
       'pagination', // Page navigation
       'spelling',   // Spelling suggestions
-      'analytics'   // Click tracking and analytics
+      'analytics',  // Click tracking and analytics
+      'collapse'    // Collapsible elements management
     ],
     // Optional overrides for default settings
     defaultResultsPerPage: 10,
