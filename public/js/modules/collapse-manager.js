@@ -12,10 +12,11 @@
  * - Supports animated transitions
  * - Maintains ARIA attributes for accessibility
  * - Handles dynamic content updates
+ * - Tracks collapse interactions for analytics
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.0.0
+ * @version 1.0.1
  * @lastModified 2025-05-10
  */
 
@@ -30,6 +31,11 @@ class CollapseManager {
 
     // Transition timing
     this.transitionLength = 450; // milliseconds
+
+    // Track interactions - avoid duplicate events
+    this.lastTrackedEvent = null;
+    this.lastTrackedTime = 0;
+    this.trackingDebounceTime = 300; // milliseconds
 
     // Initialize collapse functionality
     this.initialize();
@@ -109,8 +115,13 @@ class CollapseManager {
       return;
     }
 
+    // Ensure the content has an ID for aria-controls
+    if (!content.id) {
+      content.id = `collapse-content-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+
     // Set up button as a controller for the content
-    button.setAttribute('aria-controls', content.id || `collapse-content-${Date.now()}`);
+    button.setAttribute('aria-controls', content.id);
 
     // Set initial state based on default setting
     const openByDefault = button.classList.contains('facet-group__title--open');
@@ -122,11 +133,26 @@ class CollapseManager {
     }
 
     // Add click event listener
-    button.addEventListener('click', () => {
-      if (button.getAttribute('aria-expanded') === 'true') {
+    button.addEventListener('click', (e) => {
+      // Prevent default if it's a link
+      if (button.tagName === 'A') {
+        e.preventDefault();
+      }
+
+      // Get current state (expanded or collapsed)
+      const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+      // Toggle state with animation
+      if (isExpanded) {
         this.transitionItemClosed(button, content);
+
+        // Track collapse event
+        this.trackCollapseEvent(button, 'collapse');
       } else {
         this.transitionItemOpen(button, content);
+
+        // Track expand event
+        this.trackCollapseEvent(button, 'expand');
       }
     });
   }
@@ -158,6 +184,9 @@ class CollapseManager {
       });
 
       button.style.display = 'none';
+
+      // Track show more event
+      this.trackShowMoreEvent(button);
     });
   }
 
@@ -217,13 +246,210 @@ class CollapseManager {
       if (isExpanded) {
         tabListNav.style.display = 'none';
         tabListNav.setAttribute('aria-hidden', 'true');
+
+        // Track collapse event
+        this.trackTabGroupEvent(toggleButton, 'collapse');
       } else {
         tabListNav.style.display = '';
         tabListNav.setAttribute('aria-hidden', 'false');
+
+        // Track expand event
+        this.trackTabGroupEvent(toggleButton, 'expand');
       }
     });
 
     tabGroup.setAttribute('data-toggle-initialized', 'true');
+  }
+
+  /**
+   * Track a facet collapse/expand event for analytics
+   * 
+   * @param {HTMLElement} button - The button that was clicked
+   * @param {string} action - The action: 'expand' or 'collapse'
+   */
+  trackCollapseEvent(button, action) {
+    try {
+      // Get facet name
+      let facetName = 'unknown';
+
+      if (button.textContent) {
+        facetName = this.sanitizeText(button.textContent);
+      }
+
+      // Create event ID to detect duplicates
+      const now = Date.now();
+      const eventId = `${facetName}-${action}-${now}`;
+
+      // Debounce to prevent duplicate events
+      if (this.lastTrackedEvent === eventId &&
+        now - this.lastTrackedTime < this.trackingDebounceTime) {
+        return;
+      }
+
+      // Update tracking state
+      this.lastTrackedEvent = eventId;
+      this.lastTrackedTime = now;
+
+      // Extract query from URL or input field
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get("query") || this.core.originalQuery || "";
+
+      // Create properly formatted data for supplement endpoint
+      const analyticsData = {
+        type: "facet-ui", // This is used by core-search-manager for routing
+        query: query, // Use "query" for supplement endpoint
+        enrichmentData: {
+          actionType: "facet-ui",
+          elementType: "facet-group",
+          action: action,
+          elementName: facetName,
+          timestamp: now
+        }
+      };
+
+      // Send through core manager
+      this.core.sendAnalyticsData(analyticsData);
+    } catch (error) {
+      // Silent error handling
+    }
+  }
+
+  /**
+   * Track a show more button click for analytics
+   * 
+   * @param {HTMLElement} button - The button that was clicked
+   */
+  trackShowMoreEvent(button) {
+    try {
+      // Try to determine facet group name
+      let facetName = 'unknown';
+      const facetGroup = button.closest('.facet-group');
+
+      if (facetGroup) {
+        const heading = facetGroup.querySelector('.facet-group__title');
+        if (heading && heading.textContent) {
+          facetName = this.sanitizeText(heading.textContent);
+        }
+      }
+
+      // Create event ID to detect duplicates
+      const now = Date.now();
+      const eventId = `${facetName}-show-more-${now}`;
+
+      // Debounce to prevent duplicate events
+      if (this.lastTrackedEvent === eventId &&
+        now - this.lastTrackedTime < this.trackingDebounceTime) {
+        return;
+      }
+
+      // Update tracking state
+      this.lastTrackedEvent = eventId;
+      this.lastTrackedTime = now;
+
+      // Extract query from URL or input field
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get("query") || this.core.originalQuery || "";
+
+      // Create properly formatted data for supplement endpoint
+      const analyticsData = {
+        type: "facet-ui", // This is used by core-search-manager for routing
+        query: query, // Use "query" for supplement endpoint
+        enrichmentData: {
+          actionType: "facet-ui",
+          elementType: "show-more",
+          action: "click",
+          elementName: facetName,
+          timestamp: now
+        }
+      };
+
+      // Send through core manager
+      this.core.sendAnalyticsData(analyticsData);
+    } catch (error) {
+      // Silent error handling
+    }
+  }
+
+  /**
+   * Track a tab group toggle event for analytics
+   * 
+   * @param {HTMLElement} button - The button that was clicked
+   * @param {string} action - The action: 'expand' or 'collapse'
+   */
+  trackTabGroupEvent(button, action) {
+    try {
+      // Create event ID to detect duplicates
+      const now = Date.now();
+      const eventId = `tab-group-${action}-${now}`;
+
+      // Debounce to prevent duplicate events
+      if (this.lastTrackedEvent === eventId &&
+        now - this.lastTrackedTime < this.trackingDebounceTime) {
+        return;
+      }
+
+      // Update tracking state
+      this.lastTrackedEvent = eventId;
+      this.lastTrackedTime = now;
+
+      // Extract query from URL or input field
+      const urlParams = new URLSearchParams(window.location.search);
+      const query = urlParams.get("query") || this.core.originalQuery || "";
+
+      // Create properly formatted data for supplement endpoint
+      const analyticsData = {
+        type: "ui", // This is used by core-search-manager for routing
+        query: query, // Use "query" for supplement endpoint
+        enrichmentData: {
+          actionType: "ui",
+          elementType: "tab-group-filters",
+          action: action,
+          timestamp: now
+        }
+      };
+
+      // Send through core manager
+      this.core.sendAnalyticsData(analyticsData);
+    } catch (error) {
+      // Silent error handling
+    }
+  }
+
+  /**
+   * Sanitize text for analytics purposes
+   * 
+   * @param {string} text - The text to sanitize
+   * @returns {string} Sanitized text
+   */
+  sanitizeText(text) {
+    if (typeof text !== "string") {
+      return "unknown";
+    }
+
+    // First, remove any surrounding whitespace
+    let sanitized = text.trim();
+
+    // Remove common counter patterns that might be in the text
+    // Remove " (26)" or "(26)" at the end
+    sanitized = sanitized.replace(/\s*\(\d+\)$/g, "");
+    // Remove " [26]" or "[26]" at the end
+    sanitized = sanitized.replace(/\s*\[\d+\]$/g, "");
+    // Remove any number in parentheses anywhere
+    sanitized = sanitized.replace(/\s*\(\d+\)/g, "");
+
+    // Replace line breaks, tabs, and control characters with spaces
+    sanitized = sanitized.replace(/[\r\n\t\f\v]+/g, " ");
+
+    // Remove any HTML tags that might be present
+    sanitized = sanitized.replace(/<[^>]*>/g, "");
+
+    // Normalize multiple spaces to a single space
+    sanitized = sanitized.replace(/\s+/g, " ");
+
+    // Final trim to remove any leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    return sanitized || "unknown";
   }
 
   /**
