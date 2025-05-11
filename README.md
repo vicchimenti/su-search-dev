@@ -92,7 +92,7 @@ This structure allows for clear separation between development and production en
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/seattleu/su-search-dev.git
+   git clone https://github.com/vicchimenti/su-search-dev.git
    cd su-search-dev
    ```
 
