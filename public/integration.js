@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.6.0
+ * @version 2.6.1
  * @lastModified 2025-05-07
  */
 
@@ -660,6 +660,27 @@
 
         // Normalize the query
         const normalizedQuery = normalizeQuery(query);
+
+        // KEY ADDITION: Update core.originalQuery to ensure analytics work properly
+        // Only set if SearchManager exists and originalQuery is accessible
+        if (window.SearchManager && typeof window.SearchManager === "object") {
+          // First try to use setter method if it exists
+          if (typeof window.SearchManager.setOriginalQuery === "function") {
+            window.SearchManager.setOriginalQuery(normalizedQuery);
+            log(
+              "Updated SearchManager.originalQuery via setter",
+              LOG_LEVELS.DEBUG
+            );
+          }
+          // Otherwise set directly if property exists or can be created
+          else {
+            window.SearchManager.originalQuery = normalizedQuery;
+            log(
+              "Updated SearchManager.originalQuery directly",
+              LOG_LEVELS.DEBUG
+            );
+          }
+        }
 
         // Perform search
         performSearch(normalizedQuery, component.container);
