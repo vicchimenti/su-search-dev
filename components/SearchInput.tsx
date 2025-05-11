@@ -5,7 +5,7 @@
  * as the user types. It supports three types of suggestions: general,
  * staff/faculty, and programs.
  *
- * @author Seattle University
+ * @author Victor Chimenti
  * @version 1.0.0
  */
 
