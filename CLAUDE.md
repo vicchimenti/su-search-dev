@@ -9,8 +9,10 @@ Seattle University Search API is a Next.js-based application that provides enhan
 - Real-time search suggestions in a three-column layout (general, staff/faculty, programs)
 - Tab-based navigation between different result categories
 - Redis-based caching with in-memory fallback
-- Session-based analytics tracking
+- Session-based analytics tracking for search interactions and facet usage
+- Collapsible result sections for better organization
 - IP resolution from various headers for analytics
+- Consistent query storage across search components
 
 The application connects to Funnelback backend search services through a proxy while adding enhanced functionality and a modern user interface.
 
@@ -83,9 +85,16 @@ The application follows a client-server architecture:
 
 ### Client-side JavaScript
 
-- `/public/integration.js`: Frontend search integration script for the Seattle University website
+- `/public/integration.js`: Frontend search integration script for the Seattle University website with consistent query storage
 - `/public/js/SessionService.js`: Session ID management for analytics tracking
-- `/public/js/modules/`: Various search manager modules (analytics, facets, pagination, etc.)
+- `/public/js/modules/`: Various search manager modules:
+  - `analytics-manager.js`: Tracks search interactions and user behavior
+  - `collapse-manager.js`: Manages collapsible result sections 
+  - `core-search-manager.js`: Core search functionality with collapse integration
+  - `facets-manager.js`: Handles facet interactions and tracking
+  - `pagination-manager.js`: Manages results pagination
+  - `spelling-manager.js`: Handles spelling suggestions
+  - `tabs-manager.js`: Manages tab-based content navigation
 
 ## Caching Strategy
 
