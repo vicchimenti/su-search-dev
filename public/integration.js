@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.6.1
- * @lastModified 2025-05-07
+ * @version 2.7.1
+ * @lastModified 2025-05-12
  */
 
 (function () {
@@ -802,6 +802,7 @@
       // Prepare URL with parameters
       const params = new URLSearchParams({
         query,
+        form: 'partial',
         collection: config.collection,
         profile: config.profile,
       });
