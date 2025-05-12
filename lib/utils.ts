@@ -5,7 +5,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.4.1
+ * @version 2.4.2
  * @lastModified 2025-05-12
  */
 
@@ -142,10 +142,10 @@ export function isTabRequest(url: string): boolean {
             hasNonDefaultProfile
         );
 
-        // For debugging - only log if explicitly enabled via searchConfig
+        // For debugging - only log when enabled via debug flag
         if (typeof window !== 'undefined' &&
-            window.searchConfig &&
-            window.searchConfig.enableTabDebug) {
+            // Handle TypeScript typings for window.searchConfig
+            (window as any).searchConfig?.enableTabDebug) {
             console.log(`[TAB DEBUG] URL check:`, {
                 url: url.substring(0, 100),
                 hasFormPartial,
