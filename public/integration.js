@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.7.1
+ * @version 2.7.2
  * @lastModified 2025-05-12
  */
 
@@ -335,8 +335,7 @@
         const prepared =
           window.SessionService.prepareForSearchRedirect(normalizedQuery);
         log(
-          `SessionService prepared for redirect: ${
-            prepared ? "success" : "failed"
+          `SessionService prepared for redirect: ${prepared ? "success" : "failed"
           }`,
           LOG_LEVELS.INFO
         );
@@ -807,6 +806,8 @@
         profile: config.profile,
       });
 
+      log(`Performing search with params: ${params}`, LOG_LEVELS.INFO);
+
       // Get session ID directly from SessionService if available
       if (window.SessionService) {
         const sessionId = window.SessionService.getSessionId();
@@ -855,6 +856,8 @@
           ${html}
         </div>
       `;
+
+      console.log('Search response received, length:', html.length, 'starts with:', html.substring(0, 100), LOG_LEVELS.DEBUG)
 
       // Attach click handlers for tracking
       attachResultClickHandlers(container, query);
@@ -1017,8 +1020,7 @@
         });
         const sent = navigator.sendBeacon(endpoint, blob);
         log(
-          `Suggestion click tracking sent via sendBeacon: ${
-            sent ? "success" : "failed"
+          `Suggestion click tracking sent via sendBeacon: ${sent ? "success" : "failed"
           }`,
           LOG_LEVELS.DEBUG
         );
@@ -1091,8 +1093,7 @@
         });
         const sent = navigator.sendBeacon(endpoint, blob);
         log(
-          `Tab change tracking sent via sendBeacon: ${
-            sent ? "success" : "failed"
+          `Tab change tracking sent via sendBeacon: ${sent ? "success" : "failed"
           }`,
           LOG_LEVELS.DEBUG
         );
@@ -1161,7 +1162,7 @@
       rect.top >= 0 &&
       rect.left >= 0 &&
       rect.bottom <=
-        (window.innerHeight || document.documentElement.clientHeight) &&
+      (window.innerHeight || document.documentElement.clientHeight) &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth);
     return isVisible;
   }
