@@ -13,7 +13,7 @@
  * - Reconnection capability after inactivity periods
  *
  * @author Victor Chimenti
- * @version 3.3.3
+ * @version 3.3.4
  * @license MIT
  * @lastModified 2025-05-13
  * 
@@ -84,7 +84,7 @@ class SearchManager {
     };
 
     // Initialize if on search page
-    if (window.location.pathname.includes("search")) {
+    if (window.location.pathname.includes("search-test")) {
       this.initialize();
       this.isInitialized = true;
     }
