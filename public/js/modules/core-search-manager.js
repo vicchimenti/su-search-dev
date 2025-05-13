@@ -10,11 +10,12 @@
  * - Optimized performance through targeted updates
  * - Comprehensive analytics tracking
  * - IP resolution for accurate client tracking
+ * - Reconnection capability after inactivity periods
  *
  * @author Victor Chimenti
- * @version 3.2.1
+ * @version 3.3.0
  * @license MIT
- * @lastModified 2025-05-10
+ * @lastModified 2025-05-13
  * 
  */
 class SearchManager {
@@ -38,6 +39,13 @@ class SearchManager {
         supplement: "/analytics/supplement",
         session: "/analytics/",
       },
+      // Reconnection configuration
+      reconnection: {
+        enabled: true,
+        inactivityThreshold: 10 * 60 * 1000, // 10 minutes in milliseconds
+        maxRetries: 3,
+        retryDelay: 1000, // 1 second between retries
+      },
     };
 
     // Module registry
@@ -49,6 +57,9 @@ class SearchManager {
     this.originalQuery = null;
     this.isInitialized = false;
     this.lastIpCheckTime = 0;
+    this.lastActivityTime = Date.now(); // Track user activity for reconnection
+    this.reconnectionAttempts = 0;
+    this.connectionState = "active"; // active, reconnecting, failed
   }
 
   /**
@@ -65,6 +76,11 @@ class SearchManager {
     this.config = {
       ...this.config,
       ...options,
+      // Merge nested reconnection config if provided
+      reconnection: {
+        ...this.config.reconnection,
+        ...(options.reconnection || {}),
+      },
     };
 
     // Initialize if on search page
@@ -95,8 +111,208 @@ class SearchManager {
     // Start observing for DOM changes
     this.startObserving();
 
+    // Set up activity tracking
+    this.setupActivityTracking();
+
     // Single initialization message for production
     console.log("Seattle University Search initialized");
+  }
+
+  /**
+   * Set up event listeners to track user activity
+   */
+  setupActivityTracking() {
+    if (typeof window === "undefined" || !this.config.reconnection.enabled) {
+      return;
+    }
+
+    // Track user activity to detect when user returns after inactivity
+    const activityEvents = [
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "click",
+      "focus",
+    ];
+
+    // Use event delegation on document to catch all activity
+    activityEvents.forEach((eventType) => {
+      document.addEventListener(
+        eventType,
+        this.handleUserActivity.bind(this),
+        { passive: true }
+      );
+    });
+
+    // Handle activity specifically on search inputs for more targeted tracking
+    const searchInputs = document.querySelectorAll(
+      this.config.searchInputSelector + ", #search-input"
+    );
+    searchInputs.forEach((input) => {
+      input.addEventListener("focus", this.handleSearchInputFocus.bind(this));
+      input.addEventListener("input", this.handleUserActivity.bind(this));
+    });
+
+    // Set the initial activity time
+    this.updateActivityTimestamp();
+
+    console.log("Activity tracking initialized for reconnection support");
+  }
+
+  /**
+   * Handle user activity events
+   * @param {Event} event - The activity event
+   */
+  handleUserActivity(event) {
+    this.updateActivityTimestamp();
+
+    // Check connection state when user becomes active
+    if (this.shouldCheckConnection()) {
+      this.verifyAndRefreshConnection();
+    }
+  }
+
+  /**
+   * Handle search input focus specifically
+   * Always check connection on search input focus
+   * @param {Event} event - The focus event
+   */
+  handleSearchInputFocus(event) {
+    this.updateActivityTimestamp();
+
+    // Always verify connection when focusing search
+    this.verifyAndRefreshConnection();
+  }
+
+  /**
+   * Update the activity timestamp
+   */
+  updateActivityTimestamp() {
+    this.lastActivityTime = Date.now();
+  }
+
+  /**
+   * Determine if we should check connection state
+   * @returns {boolean} Whether to check connection
+   */
+  shouldCheckConnection() {
+    // If reconnection is disabled, never check
+    if (!this.config.reconnection.enabled) {
+      return false;
+    }
+
+    // If already reconnecting or failed, don't check again
+    if (this.connectionState === "reconnecting" ||
+      this.connectionState === "failed") {
+      return false;
+    }
+
+    // Get elapsed time since last check
+    const timeSinceIpCheck = Date.now() - this.lastIpCheckTime;
+    const inactivityThreshold = this.config.reconnection.inactivityThreshold;
+
+    // Check connection if we've been inactive for the threshold period
+    return timeSinceIpCheck > inactivityThreshold;
+  }
+
+  /**
+   * Verify connection state and refresh if necessary
+   * @returns {Promise<boolean>} Whether connection is verified
+   */
+  async verifyAndRefreshConnection() {
+    try {
+      // Update state to reconnecting
+      this.connectionState = "reconnecting";
+      console.log("[RECONNECT] Verifying connection state...");
+
+      // Reset the IP check timestamp regardless of outcome
+      this.lastIpCheckTime = Date.now();
+
+      // Refresh session info - will throw an error if connection issue
+      await this.refreshSessionIpInfo();
+
+      // If we get here, connection is good
+      this.connectionState = "active";
+      this.reconnectionAttempts = 0;
+      console.log("[RECONNECT] Connection verified successfully");
+      return true;
+    } catch (error) {
+      // If here, connection verification failed
+      console.error("[RECONNECT] Connection verification failed:", error);
+      this.connectionState = "failed";
+
+      // Try to recover with retry logic
+      return this.performReconnection();
+    }
+  }
+
+  /**
+   * Perform reconnection after failure
+   * @returns {Promise<boolean>} Whether reconnection succeeded
+   */
+  async performReconnection() {
+    if (this.reconnectionAttempts >= this.config.reconnection.maxRetries) {
+      console.error("[RECONNECT] Max reconnection attempts reached");
+      return false;
+    }
+
+    try {
+      // Increment attempts
+      this.reconnectionAttempts++;
+
+      // Wait before retry
+      await new Promise(resolve =>
+        setTimeout(resolve, this.config.reconnection.retryDelay)
+      );
+
+      console.log(
+        `[RECONNECT] Attempt ${this.reconnectionAttempts} of ${this.config.reconnection.maxRetries}...`
+      );
+
+      // Try to reconnect by forcing a complete session refresh
+      // but preserve the original session ID for analytics continuity
+      const originalSessionId = this.sessionId;
+
+      // Force refresh all connection state
+      if (window.SessionService) {
+        // Reinitialize SessionService but keep same ID
+        await window.SessionService.initialize(originalSessionId);
+
+        // Get refreshed session data
+        this.sessionId = window.SessionService.getSessionId() || originalSessionId;
+        this.clientIp = window.SessionService.getSessionIp();
+      } else {
+        // If no SessionService, try direct fetch
+        try {
+          const clientInfo = await this.fetchClientIp();
+          if (clientInfo && clientInfo.ip) {
+            this.clientIp = clientInfo.ip;
+          }
+        } catch (ipError) {
+          // Silent error handling
+        }
+      }
+
+      // Update timestamp
+      this.lastIpCheckTime = Date.now();
+
+      // Update connection state
+      this.connectionState = "active";
+      console.log("[RECONNECT] Successfully reconnected");
+      return true;
+    } catch (error) {
+      console.error("[RECONNECT] Reconnection attempt failed:", error);
+
+      // Retry recursively if attempts remain
+      if (this.reconnectionAttempts < this.config.reconnection.maxRetries) {
+        return this.performReconnection();
+      }
+
+      // Max retries reached
+      this.connectionState = "failed";
+      return false;
+    }
   }
 
   /**
@@ -144,6 +360,9 @@ class SearchManager {
 
       // Update last IP check time
       this.lastIpCheckTime = Date.now();
+
+      // Also update last activity time
+      this.lastActivityTime = Date.now();
     } catch (error) {
       // Fallback to basic session ID for graceful degradation
       this.sessionId = this.generateSessionId();
@@ -176,7 +395,9 @@ class SearchManager {
         }
       }
     } catch (error) {
-      // Silent error handling
+      // Rethrow to signal connection issues
+      console.error("[RECONNECT] Error refreshing session info:", error);
+      throw error;
     }
   }
 
@@ -511,7 +732,26 @@ class SearchManager {
 
       return await response.text();
     } catch (error) {
-      // Silent error handling
+      // Check if this is a connection issue that might benefit from reconnection
+      if (this.config.reconnection.enabled) {
+        console.warn(`[RECONNECT] Error during fetch (${type}): ${error.message}`);
+
+        // Try to reconnect if this might be a session timeout issue
+        const reconnected = await this.verifyAndRefreshConnection();
+
+        if (reconnected) {
+          // Retry the fetch after reconnection
+          try {
+            console.log(`[RECONNECT] Retrying ${type} fetch after reconnection`);
+            // Recursively call this method again now that we've reconnected
+            return await this.fetchFromProxy(url, type);
+          } catch (retryError) {
+            console.error(`[RECONNECT] Retry failed: ${retryError.message}`);
+          }
+        }
+      }
+
+      // If reconnection disabled, failed, or retry failed, return error message
       return `<p>Error fetching ${type} request. Please try again later.</p>`;
     }
   }
@@ -521,13 +761,59 @@ class SearchManager {
    * @returns {Promise<void>}
    */
   async checkAndRefreshIdentifiers() {
+    // Always update activity timestamp when checking identifiers
+    this.updateActivityTimestamp();
+
+    // If reconnection is enabled, check connection state based on inactivity
+    if (this.config.reconnection.enabled) {
+      const now = Date.now();
+      const inactivityPeriod = now - this.lastActivityTime;
+      const checkThreshold = this.config.reconnection.inactivityThreshold;
+
+      // Check if we need to verify connection due to inactivity
+      if (inactivityPeriod > checkThreshold) {
+        console.log(
+          `[RECONNECT] Detected ${Math.round(inactivityPeriod / 1000)}s inactivity period, verifying connection`
+        );
+
+        try {
+          // Try to verify and refresh the connection
+          await this.verifyAndRefreshConnection();
+        } catch (error) {
+          // Connection refresh failed, but we'll continue anyway
+          console.error("[RECONNECT] Failed to refresh connection:", error);
+        }
+
+        // Update activity time even if verification failed
+        this.updateActivityTimestamp();
+        return;
+      }
+    }
+
     // Check if we need to refresh IP information (once per hour)
+    // This is the original behavior, maintained for compatibility
     const now = Date.now();
     const timeSinceLastCheck = now - this.lastIpCheckTime;
 
     if (this.config.enableIpTracking && timeSinceLastCheck > 60 * 60 * 1000) {
       await this.refreshSessionIpInfo();
     }
+  }
+
+  /**
+   * Get the connection state
+   * @returns {string} Current connection state
+   */
+  getConnectionState() {
+    return this.connectionState;
+  }
+
+  /**
+   * Reset reconnection attempts counter
+   */
+  resetReconnectionAttempts() {
+    this.reconnectionAttempts = 0;
+    this.connectionState = "active";
   }
 
   /**
@@ -563,7 +849,7 @@ class SearchManager {
 
       // Scroll to results if not in viewport and page is not already at the top
       if (!this.isElementInViewport(resultsContainer) && window.scrollY > 0) {
-        resultsContainer.scrollIntoView({
+        resultsContainer.scrollInView({
           behavior: "smooth",
           block: "start",
         });
@@ -859,6 +1145,30 @@ class SearchManager {
     // Disconnect observer
     if (this.observer) {
       this.observer.disconnect();
+    }
+
+    // Clean up activity tracking
+    if (typeof window !== "undefined" && this.config.reconnection.enabled) {
+      const activityEvents = [
+        "mousedown",
+        "keydown",
+        "scroll",
+        "touchstart",
+        "click",
+        "focus",
+      ];
+
+      activityEvents.forEach((eventType) => {
+        document.removeEventListener(eventType, this.handleUserActivity);
+      });
+
+      const searchInputs = document.querySelectorAll(
+        this.config.searchInputSelector + ", #search-input"
+      );
+      searchInputs.forEach((input) => {
+        input.removeEventListener("focus", this.handleSearchInputFocus);
+        input.removeEventListener("input", this.handleUserActivity);
+      });
     }
 
     // Destroy all modules
