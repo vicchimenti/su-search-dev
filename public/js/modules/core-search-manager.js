@@ -13,7 +13,7 @@
  * - Reconnection capability after inactivity periods
  *
  * @author Victor Chimenti
- * @version 3.3.2
+ * @version 3.3.3
  * @license MIT
  * @lastModified 2025-05-13
  * 
@@ -879,7 +879,6 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
-
       // Skip analytics if in failed connection state to avoid errors
       if (this.connectionState === "failed") {
         console.log("[RECONNECT] Skipping analytics in failed connection state");
