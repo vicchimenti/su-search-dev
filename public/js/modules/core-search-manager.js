@@ -13,7 +13,7 @@
  * - Reconnection capability after inactivity periods
  *
  * @author Victor Chimenti
- * @version 3.3.0
+ * @version 3.3.1
  * @license MIT
  * @lastModified 2025-05-13
  * 
@@ -849,7 +849,7 @@ class SearchManager {
 
       // Scroll to results if not in viewport and page is not already at the top
       if (!this.isElementInViewport(resultsContainer) && window.scrollY > 0) {
-        resultsContainer.scrollInView({
+        resultsContainer.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
