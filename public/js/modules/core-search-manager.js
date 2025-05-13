@@ -13,7 +13,7 @@
  * - Reconnection capability after inactivity periods
  *
  * @author Victor Chimenti
- * @version 3.3.1
+ * @version 3.3.2
  * @license MIT
  * @lastModified 2025-05-13
  * 
@@ -879,6 +879,19 @@ class SearchManager {
    */
   sendAnalyticsData(data) {
     try {
+
+      // Skip analytics if in failed connection state to avoid errors
+      if (this.connectionState === "failed") {
+        console.log("[RECONNECT] Skipping analytics in failed connection state");
+        return;
+      }
+
+      // Skip if data is null or undefined
+      if (!data) {
+        console.warn("[ANALYTICS] No data provided");
+        return;
+      }
+
       // Ensure we have the latest session ID and client IP
       // No await here as we don't want to block analytics
       this.checkAndRefreshIdentifiers().catch(() => {
