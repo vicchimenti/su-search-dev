@@ -6,8 +6,8 @@
  * support for tab content caching and tiered TTL for popular queries.
  *
  * @author Victor Chimenti
- * @version 2.2.0
- * @lastModified 2025-05-07
+ * @version 2.2.1
+ * @lastModified 2025-09-02
  */
 
 import Redis from 'ioredis';
@@ -27,10 +27,11 @@ let currentLogLevel = process.env.CACHE_LOG_LEVEL
   : DEFAULT_LOG_LEVEL;
 
 // Initialize Redis client
-const redisClient = process.env.front_dev_REDIS_URL
-  ? new Redis(process.env.front_dev_REDIS_URL)
-  : process.env.REDIS_URL
-    ? new Redis(process.env.REDIS_URL)
+// Updated code to use Fall_0925 variables only
+const redisClient = process.env.Fall_0925_KV_URL
+  ? new Redis(process.env.Fall_0925_KV_URL)
+  : process.env.Fall_0925_REDIS_URL
+    ? new Redis(process.env.Fall_0925_REDIS_URL)
     : null;
 
 // Fallback in-memory cache for local development
