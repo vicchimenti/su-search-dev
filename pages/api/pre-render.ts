@@ -22,7 +22,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.0.1
+ * @version 1.0.2
  * @lastModified 2025-09-04
  */
 
@@ -138,7 +138,7 @@ export default async function handler(
     const apiClient = createApiClient(req.headers, { cacheAware: true });
     
     // Prepare search parameters matching existing API format
-    const searchParams = {
+    const searchParams: Record<string, string> = {
       query: normalizedQuery,
       collection: collection,
       profile: profile,
