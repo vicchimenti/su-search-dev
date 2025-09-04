@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 2.7.2
- * @lastModified 2025-05-12
+ * @version 3.0.1
+ * @lastModified 2025-09-04
  */
 
 (function () {
@@ -308,14 +308,31 @@
     return components;
   }
 
-  /**
-   * Set up header search integration
+/**
+   * Set up header search functionality with smart pre-rendering enhancement
+   * 
+   * This function configures header search forms to handle user submissions
+   * and redirect to the search results page. Enhanced with smart pre-rendering
+   * to provide near-instantaneous search results by triggering background
+   * caching during form submission.
+   * 
+   * Features:
+   * - Form submission handling and validation
+   * - SessionService integration for redirect optimization
+   * - Smart pre-rendering trigger for instant results
+   * - Graceful fallback when pre-rendering unavailable
+   * - Suggestions integration for header search forms
+   * 
    * @param {Object} component - Header search component references
+   * @param {HTMLInputElement} component.input - Search input element
+   * @param {HTMLFormElement} component.form - Search form element  
+   * @param {HTMLElement} component.button - Submit button element
+   * @param {HTMLElement} component.suggestionsContainer - Suggestions container
    */
   function setupHeaderSearch(component) {
     log("Setting up header search integration", LOG_LEVELS.INFO);
 
-    // Intercept form submission
+    // Intercept form submission for enhanced redirect with pre-rendering
     component.form.addEventListener("submit", function (e) {
       e.preventDefault();
 
@@ -324,37 +341,51 @@
 
       log(`Header search form submitted with query: ${query}`, LOG_LEVELS.INFO);
 
-      // Normalize the query
+      // Normalize the query for consistent processing
       const normalizedQuery = normalizeQuery(query);
 
-      // Use SessionService to prepare for redirect if available
-      if (
-        window.SessionService &&
-        window.SessionService.prepareForSearchRedirect
-      ) {
-        const prepared =
-          window.SessionService.prepareForSearchRedirect(normalizedQuery);
-        log(
-          `SessionService prepared for redirect: ${prepared ? "success" : "failed"
-          }`,
-          LOG_LEVELS.INFO
-        );
-      } else {
-        log(
-          "SessionService not available for redirect preparation",
-          LOG_LEVELS.WARN
-        );
+      // Get established session ID from SessionService for continuity
+      let sessionId = null;
+      if (window.SessionService) {
+        sessionId = window.SessionService.getSessionId();
+        if (window.SessionService._maskString && sessionId) {
+          const maskedId = window.SessionService._maskString(sessionId);
+          log(`Using session ID for pre-render: ${maskedId}`, LOG_LEVELS.DEBUG);
+        }
       }
 
-      // Navigate to search page with query
-      const redirectUrl = `/search-test/?query=${encodeURIComponent(
-        normalizedQuery
-      )}`;
+      // This initiates background caching for instant results on the search page
+      fetch('/api/pre-render', { 
+        method: 'POST', 
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          query: normalizedQuery,
+          sessionId: sessionId
+        })
+      }).then(response => {
+        if (response.ok) {
+          log(`Pre-render request accepted for: ${normalizedQuery}`, LOG_LEVELS.INFO);
+        } else {
+          log(`Pre-render request failed with status: ${response.status}`, LOG_LEVELS.WARN);
+        }
+      }).catch(error => {
+        // Silent failure - pre-rendering is best effort and never blocks user experience
+        log(`Pre-render error (non-blocking): ${error.message}`, LOG_LEVELS.DEBUG);
+      });
+
+      if (window.SessionService && window.SessionService.prepareForSearchRedirect) {
+        const prepared = window.SessionService.prepareForSearchRedirect(normalizedQuery);
+        log(`SessionService prepared for redirect: ${prepared ? "success" : "failed"}`, LOG_LEVELS.INFO);
+      } else {
+        log("SessionService not available for redirect preparation", LOG_LEVELS.WARN);
+      }
+
+      const redirectUrl = `/search-test/?query=${encodeURIComponent(normalizedQuery)}`;
       log(`Redirecting to: ${redirectUrl}`, LOG_LEVELS.INFO);
       window.location.href = redirectUrl;
     });
 
-    // Set up suggestions
     if (component.suggestionsContainer) {
       // Create debounced function for input handling
       const handleInput = debounce(async function () {
@@ -371,7 +402,6 @@
 
       component.input.addEventListener("input", handleInput);
 
-      // Add prefetch functionality
       const handlePrefetch = debounce(async function () {
         const query = component.input.value.trim();
 
@@ -391,7 +421,6 @@
       component.input.addEventListener("input", handlePrefetch);
     }
 
-    // Handle clicks outside
     document.addEventListener("click", function (e) {
       if (
         component.suggestionsContainer &&
