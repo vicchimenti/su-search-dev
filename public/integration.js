@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.0.1
- * @lastModified 2025-09-04
+ * @version 3.1.0
+ * @lastModified 2025-09-08
  */
 
 (function () {
@@ -308,27 +308,27 @@
     return components;
   }
 
-/**
-   * Set up header search functionality with smart pre-rendering enhancement
-   * 
-   * This function configures header search forms to handle user submissions
-   * and redirect to the search results page. Enhanced with smart pre-rendering
-   * to provide near-instantaneous search results by triggering background
-   * caching during form submission.
-   * 
-   * Features:
-   * - Form submission handling and validation
-   * - SessionService integration for redirect optimization
-   * - Smart pre-rendering trigger for instant results
-   * - Graceful fallback when pre-rendering unavailable
-   * - Suggestions integration for header search forms
-   * 
-   * @param {Object} component - Header search component references
-   * @param {HTMLInputElement} component.input - Search input element
-   * @param {HTMLFormElement} component.form - Search form element  
-   * @param {HTMLElement} component.button - Submit button element
-   * @param {HTMLElement} component.suggestionsContainer - Suggestions container
-   */
+  /**
+     * Set up header search functionality with smart pre-rendering enhancement
+     * 
+     * This function configures header search forms to handle user submissions
+     * and redirect to the search results page. Enhanced with smart pre-rendering
+     * to provide near-instantaneous search results by triggering background
+     * caching during form submission.
+     * 
+     * Features:
+     * - Form submission handling and validation
+     * - SessionService integration for redirect optimization
+     * - Smart pre-rendering trigger for instant results
+     * - Graceful fallback when pre-rendering unavailable
+     * - Suggestions integration for header search forms
+     * 
+     * @param {Object} component - Header search component references
+     * @param {HTMLInputElement} component.input - Search input element
+     * @param {HTMLFormElement} component.form - Search form element  
+     * @param {HTMLElement} component.button - Submit button element
+     * @param {HTMLElement} component.suggestionsContainer - Suggestions container
+     */
   function setupHeaderSearch(component) {
     log("Setting up header search integration", LOG_LEVELS.INFO);
 
@@ -355,11 +355,11 @@
       }
 
       // This initiates background caching for instant results on the search page
-      fetch('/api/pre-render', { 
-        method: 'POST', 
+      fetch('/api/pre-render', {
+        method: 'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           query: normalizedQuery,
           sessionId: sessionId
         })
@@ -814,8 +814,33 @@
       }
     }
 
-    // Perform search
-    performSearch(normalizedQuery, component.container);
+    // commented out 20250908 - handled in pre-rendering block below
+    // Perform standard search
+    // performSearch(normalizedQuery, component.container);
+
+
+    // Check for pre-rendered content first, then fall back to standard search
+    if (window.checkForPreRenderedContent) {
+      log(`[INTEGRATION-PRERENDER] Checking for pre-rendered content: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+
+      window.checkForPreRenderedContent(normalizedQuery)
+        .then(preRenderedHtml => {
+          if (preRenderedHtml && window.displayPreRenderedResults) {
+            log(`[INTEGRATION-PRERENDER] Using pre-rendered content for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+            window.displayPreRenderedResults(preRenderedHtml, normalizedQuery);
+          } else {
+            log(`[INTEGRATION-PRERENDER] No pre-rendered content, using standard search for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+            performSearch(normalizedQuery, component.container);
+          }
+        })
+        .catch(error => {
+          log(`[INTEGRATION-PRERENDER] Pre-render check failed, using standard search: ${error.message}`, LOG_LEVELS.INFO);
+          performSearch(normalizedQuery, component.container);
+        });
+    } else {
+      log(`[INTEGRATION-PRERENDER] Pre-render functions not available, using standard search`, LOG_LEVELS.INFO);
+      performSearch(normalizedQuery, component.container);
+    }
   }
 
   /**
