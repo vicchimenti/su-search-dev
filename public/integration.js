@@ -355,7 +355,7 @@
       }
 
       // This initiates background caching for instant results on the search page
-      fetch('/api/pre-render', {
+      fetch(`${config.apiBaseUrl}/api/pre-render`, {
         method: 'POST',
         keepalive: true,
         headers: { 'Content-Type': 'application/json' },
