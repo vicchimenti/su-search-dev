@@ -6,8 +6,8 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.0
- * @lastModified 2025-05-06
+ * @version 3.1.1
+ * @lastModified 2025-09-08
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -91,7 +91,7 @@ export default async function handler(
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', 'https://www.seattleu.edu');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Cache-Only');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Cache-Only, X-Requested-With');
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
