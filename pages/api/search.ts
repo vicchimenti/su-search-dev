@@ -6,7 +6,7 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.4
+ * @version 3.1.5
  * @lastModified 2025-09-08
  */
 
@@ -261,13 +261,17 @@ export default async function handler(
       if (cachedResult) {
         console.log(`[SEARCH-API] Cache HIT for search: ${query}`);
 
-        // Add cache status headers - non-intrusive enhancement
-        addCacheHeaders(res, 'HIT', 'search');
-
         // Handle cache-check-only requests
         if (cacheCheckOnly) {
+          // Set headers before responding
+          res.setHeader('X-Cache-Status', 'HIT');
+          res.setHeader('X-Cache-Type', 'search');
           return res.status(200).json({ cacheStatus: 'HIT' });
         }
+
+        // Set headers immediately before sending response
+        res.setHeader('X-Cache-Status', 'HIT');
+        res.setHeader('X-Cache-Type', 'search');
 
         // Return cached search results as-is to preserve the exact HTML structure
         return res.status(200).send(cachedResult);
