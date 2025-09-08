@@ -6,7 +6,7 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.2
+ * @version 3.1.3
  * @lastModified 2025-09-08
  */
 
@@ -62,6 +62,7 @@ function addCacheHeaders(
   type: 'search' | 'tab',
   metadata: any = {}
 ): void {
+  console.log('[addCacheHeaders] Called with:', { status, type, metadata });
   // Add standard cache headers
   res.setHeader('X-Cache-Status', status);
   res.setHeader('X-Cache-Type', type);
