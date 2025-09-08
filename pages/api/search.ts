@@ -6,7 +6,7 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.3
+ * @version 3.1.4
  * @lastModified 2025-09-08
  */
 
@@ -62,26 +62,46 @@ function addCacheHeaders(
   type: 'search' | 'tab',
   metadata: any = {}
 ): void {
-  console.log('[addCacheHeaders] Called with:', { status, type, metadata });
-  // Add standard cache headers
-  res.setHeader('X-Cache-Status', status);
-  res.setHeader('X-Cache-Type', type);
+  console.log('[addCacheHeaders] Function called with:', { status, type, metadata });
+  console.log('[addCacheHeaders] Response headersSent?', res.headersSent);
+  console.log('[addCacheHeaders] Response finished?', res.finished);
 
-  // Add additional metadata if available
-  if (metadata.tabId) {
-    res.setHeader('X-Cache-Tab-ID', metadata.tabId);
-  }
+  try {
+    // Add standard cache headers
+    res.setHeader('X-Cache-Status', status);
+    console.log('[addCacheHeaders] Set X-Cache-Status to:', status);
 
-  if (metadata.age) {
-    res.setHeader('X-Cache-Age', metadata.age.toString());
-  }
+    res.setHeader('X-Cache-Type', type);
+    console.log('[addCacheHeaders] Set X-Cache-Type to:', type);
 
-  if (metadata.ttl) {
-    res.setHeader('X-Cache-TTL', metadata.ttl.toString());
-  }
+    // Add additional metadata if available
+    if (metadata.tabId) {
+      res.setHeader('X-Cache-Tab-ID', metadata.tabId);
+      console.log('[addCacheHeaders] Set X-Cache-Tab-ID to:', metadata.tabId);
+    }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[SEARCH-API] Cache ${status} for ${type}${metadata.tabId ? ` (tab: ${metadata.tabId})` : ''}`);
+    if (metadata.age) {
+      res.setHeader('X-Cache-Age', metadata.age.toString());
+      console.log('[addCacheHeaders] Set X-Cache-Age to:', metadata.age);
+    }
+
+    if (metadata.ttl) {
+      res.setHeader('X-Cache-TTL', metadata.ttl.toString());
+      console.log('[addCacheHeaders] Set X-Cache-TTL to:', metadata.ttl);
+    }
+
+    // Verify headers were set
+    const setHeaders = {
+      'X-Cache-Status': res.getHeader('X-Cache-Status'),
+      'X-Cache-Type': res.getHeader('X-Cache-Type'),
+      'X-Cache-Tab-ID': res.getHeader('X-Cache-Tab-ID'),
+      'X-Cache-Age': res.getHeader('X-Cache-Age'),
+      'X-Cache-TTL': res.getHeader('X-Cache-TTL')
+    };
+    console.log('[addCacheHeaders] Headers after setting:', setHeaders);
+
+  } catch (error) {
+    console.error('[addCacheHeaders] Error setting headers:', error);
   }
 }
 
