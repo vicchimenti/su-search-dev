@@ -6,7 +6,7 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.1
+ * @version 3.1.2
  * @lastModified 2025-09-08
  */
 
@@ -109,7 +109,14 @@ export default async function handler(
   const fullUrl = req.url || '';
   console.log(`[SEARCH-API] Received request: ${fullUrl}`);
 
+  console.log('[CACHE-DEBUG] Starting cache operations');
+  // Resolve client IP information
+  console.log(`[CACHE-DEBUG] Resolving client IP information`);
+  const clientInfo = await getClientInfo(req.headers);
+  console.log(`[CACHE-DEBUG] Resolved client IP: ${clientInfo.ip} (${clientInfo.source})`);
+
   const { query, collection, profile, form, sessionId } = req.query;
+  console.log('[CACHE-DEBUG] Query params:', { query, collection, profile, form });
 
   // Basic validation
   if (!query) {
@@ -219,12 +226,16 @@ export default async function handler(
         return res.status(404).json({ cacheStatus: 'MISS', tabId });
       }
     } else {
+
+      console.log('[CACHE-DEBUG] Starting cache check for query:', query);
       // For non-tab requests, use general search cache
       const cachedResult = await getCachedSearchResults(
         query as string,
         collection as string || 'seattleu~sp-search',
         profile as string || '_default'
       );
+
+      console.log('[CACHE-DEBUG] Cache result:', cachedResult ? 'HIT' : 'MISS');
 
       if (cachedResult) {
         console.log(`[SEARCH-API] Cache HIT for search: ${query}`);
