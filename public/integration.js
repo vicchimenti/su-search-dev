@@ -7,7 +7,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.1.0
+ * @version 3.1.1
  * @lastModified 2025-09-08
  */
 
