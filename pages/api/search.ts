@@ -6,7 +6,7 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.1.5
+ * @version 3.2.0
  * @lastModified 2025-09-08
  */
 
@@ -45,64 +45,6 @@ interface SearchParams {
   form: string | string[];
   sessionId: string | string[];
   [key: string]: string | string[] | undefined;
-}
-
-/**
- * Add cache status headers to the response
- * This is non-intrusive and doesn't affect the response content
- * 
- * @param res - NextApiResponse object
- * @param status - Cache status (HIT or MISS)
- * @param type - Cache type (search or tab)
- * @param metadata - Additional metadata
- */
-function addCacheHeaders(
-  res: NextApiResponse,
-  status: 'HIT' | 'MISS',
-  type: 'search' | 'tab',
-  metadata: any = {}
-): void {
-  console.log('[addCacheHeaders] Function called with:', { status, type, metadata });
-  console.log('[addCacheHeaders] Response headersSent?', res.headersSent);
-  console.log('[addCacheHeaders] Response finished?', res.finished);
-
-  try {
-    // Add standard cache headers
-    res.setHeader('X-Cache-Status', status);
-    console.log('[addCacheHeaders] Set X-Cache-Status to:', status);
-
-    res.setHeader('X-Cache-Type', type);
-    console.log('[addCacheHeaders] Set X-Cache-Type to:', type);
-
-    // Add additional metadata if available
-    if (metadata.tabId) {
-      res.setHeader('X-Cache-Tab-ID', metadata.tabId);
-      console.log('[addCacheHeaders] Set X-Cache-Tab-ID to:', metadata.tabId);
-    }
-
-    if (metadata.age) {
-      res.setHeader('X-Cache-Age', metadata.age.toString());
-      console.log('[addCacheHeaders] Set X-Cache-Age to:', metadata.age);
-    }
-
-    if (metadata.ttl) {
-      res.setHeader('X-Cache-TTL', metadata.ttl.toString());
-      console.log('[addCacheHeaders] Set X-Cache-TTL to:', metadata.ttl);
-    }
-
-    // Verify headers were set
-    const setHeaders = {
-      'X-Cache-Status': res.getHeader('X-Cache-Status'),
-      'X-Cache-Type': res.getHeader('X-Cache-Type'),
-      'X-Cache-Tab-ID': res.getHeader('X-Cache-Tab-ID'),
-      'X-Cache-Age': res.getHeader('X-Cache-Age'),
-      'X-Cache-TTL': res.getHeader('X-Cache-TTL')
-    };
-    console.log('[addCacheHeaders] Headers after setting:', setHeaders);
-
-  } catch (error) {
-    console.error('[addCacheHeaders] Error setting headers:', error);
-  }
 }
 
 export default async function handler(
@@ -222,16 +164,18 @@ export default async function handler(
       if (cachedTabContent) {
         console.log(`[SEARCH-API] Cache HIT for tab '${tabId}'`);
 
-        // Add cache status headers - non-intrusive enhancement
-        addCacheHeaders(res, 'HIT', 'tab', {
-          tabId,
-          popular: isPopularTab
-        });
-
         // Handle cache-check-only requests
         if (cacheCheckOnly) {
+          res.setHeader('X-Cache-Status', 'HIT');
+          res.setHeader('X-Cache-Type', 'tab');
+          if (tabId) res.setHeader('X-Cache-Tab-ID', tabId);
           return res.status(200).json({ cacheStatus: 'HIT', tabId });
         }
+
+        // Set headers immediately before sending response
+        res.setHeader('X-Cache-Status', 'HIT');
+        res.setHeader('X-Cache-Type', 'tab');
+        if (tabId) res.setHeader('X-Cache-Tab-ID', tabId);
 
         // Return cached tab content as-is to preserve the exact HTML structure
         return res.status(200).send(cachedTabContent);
@@ -239,13 +183,19 @@ export default async function handler(
 
       console.log(`[SEARCH-API] Cache MISS for tab '${tabId}'`);
 
-      // Add cache status headers - non-intrusive enhancement
-      addCacheHeaders(res, 'MISS', 'tab', { tabId });
-
       // Handle cache-check-only requests
       if (cacheCheckOnly) {
+        res.setHeader('X-Cache-Status', 'MISS');
+        res.setHeader('X-Cache-Type', 'tab');
+        if (tabId) res.setHeader('X-Cache-Tab-ID', tabId);
         return res.status(404).json({ cacheStatus: 'MISS', tabId });
       }
+
+      // Set miss headers (will be sent with final response)
+      res.setHeader('X-Cache-Status', 'MISS');
+      res.setHeader('X-Cache-Type', 'tab');
+      if (tabId) res.setHeader('X-Cache-Tab-ID', tabId);
+
     } else {
 
       console.log('[CACHE-DEBUG] Starting cache check for query:', query);
@@ -279,13 +229,16 @@ export default async function handler(
 
       console.log(`[SEARCH-API] Cache MISS for search: ${query}`);
 
-      // Add cache status headers - non-intrusive enhancement
-      addCacheHeaders(res, 'MISS', 'search');
-
       // Handle cache-check-only requests
       if (cacheCheckOnly) {
+        res.setHeader('X-Cache-Status', 'MISS');
+        res.setHeader('X-Cache-Type', 'search');
         return res.status(404).json({ cacheStatus: 'MISS' });
       }
+
+      // Set miss headers (will be sent with final response)
+      res.setHeader('X-Cache-Status', 'MISS');
+      res.setHeader('X-Cache-Type', 'search');
     }
 
     // Cache miss - prepare parameters for backend API
@@ -351,6 +304,17 @@ export default async function handler(
     }
 
     // Return the result as-is to preserve the exact HTML structure
+    // Ensure cache headers are set if they weren't already
+    if (!res.getHeader('X-Cache-Status')) {
+      res.setHeader('X-Cache-Status', 'MISS');
+    }
+    if (!res.getHeader('X-Cache-Type')) {
+      res.setHeader('X-Cache-Type', tabRequestDetected ? 'tab' : 'search');
+    }
+    if (tabRequestDetected && tabId && !res.getHeader('X-Cache-Tab-ID')) {
+      res.setHeader('X-Cache-Tab-ID', tabId);
+    }
+
     res.status(200).send(result.data);
   } catch (error) {
     console.error('[SEARCH-API] Search API error:', error);
