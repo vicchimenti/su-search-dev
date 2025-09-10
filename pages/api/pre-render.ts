@@ -22,8 +22,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 1.0.2
- * @lastModified 2025-09-04
+ * @version 1.1.0
+ * @lastModified 2025-09-10
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -167,10 +167,10 @@ export default async function handler(
         
         if (response.status === 200 && response.data) {
           console.log(`[PRE-RENDER] Backend fetch successful for "${normalizedQuery}" in ${fetchTime}ms`);
-          
-          // Cache with extended TTL for pre-rendered content (2 hours)
+
+          // Cache with extended TTL for pre-rendered content (16 hours)
           // Using existing cache infrastructure for consistency
-          setCachedSearchResults(normalizedQuery, collection, profile, response.data, 7200)
+          setCachedSearchResults(normalizedQuery, collection, profile, response.data, 16 * 3600)
             .then(cacheSuccess => {
               const totalTime = Date.now() - startTime;
               if (cacheSuccess) {
