@@ -23,8 +23,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.0.0
- * @lastModified 2025-09-04
+ * @version 3.0.1
+ * @lastModified 2025-09-10
  */
 
 // Create a module-level session handler that serves as the single source of truth within this file
@@ -1093,13 +1093,13 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 // Make functions available globally
-window.performSearch = performSearch;
-window.fetchSuggestions = fetchSuggestions;
-window.trackResultClick = trackResultClick;
-window.trackSuggestionClick = trackSuggestionClick;
-window.getCacheMetrics = function () {
-  return CacheMonitor.getMetricsReport();
-};
+// window.performSearch = performSearch;
+// window.fetchSuggestions = fetchSuggestions;
+// window.trackResultClick = trackResultClick;
+// window.trackSuggestionClick = trackSuggestionClick;
+// window.getCacheMetrics = function () {
+//   return CacheMonitor.getMetricsReport();
+// };
 
 // Make pre-rendering functions available globally for debugging
 window.checkForPreRenderedContent = checkForPreRenderedContent;
