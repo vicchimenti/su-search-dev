@@ -159,10 +159,15 @@ const CacheMonitor = {
  * This function checks if search results were pre-rendered and cached
  * during the header form submission, enabling instant result display.
  * 
+ * Check for pre-rendered content in cache
+ * Enhanced with performance timing for optimization
+ * 
  * @param {string} query - The search query to check for
  * @returns {Promise<string|null>} Promise resolving to cached HTML or null if not found
  */
 async function checkForPreRenderedContent(query) {
+  const startTime = Date.now(); // ADD: Start timing
+
   if (!query || typeof query !== 'string') {
     return null;
   }
@@ -187,7 +192,7 @@ async function checkForPreRenderedContent(query) {
       params.append('sessionId', sessionId);
     }
 
-    console.log(`[PRE-RENDER-CHECK] Checking for cached results: "${query}"`);
+    console.log(`[PRE-RENDER-CHECK] Starting cache check for: "${query}"`); // ENHANCED: Better log
 
     // Use AbortController for timeout
     const controller = new AbortController();
@@ -210,33 +215,38 @@ async function checkForPreRenderedContent(query) {
 
       // Check if we got pre-rendered content from cache
       const cacheStatus = response.headers.get('X-Cache-Status');
+      const responseTime = Date.now() - startTime; // ADD: Calculate response time
 
       if (response.ok && cacheStatus === 'HIT') {
         const html = await response.text();
-        console.log(`[PRE-RENDER-CHECK] Cache HIT for "${query}"`);
+        const totalTime = Date.now() - startTime; // ADD: Total time including text parsing
+        console.log(`[PRE-RENDER-CHECK] Cache HIT for "${query}" in ${totalTime}ms (fetch: ${responseTime}ms)`); // ENHANCED: Show timing
         CacheMonitor.logPreRenderResult('hit');
         return html;
       } else {
-        console.log(`[PRE-RENDER-CHECK] Cache MISS for "${query}" (status: ${cacheStatus || 'unknown'})`);
+        const totalTime = Date.now() - startTime; // ADD: Track miss timing too
+        console.log(`[PRE-RENDER-CHECK] Cache MISS for "${query}" in ${totalTime}ms (status: ${cacheStatus || 'unknown'})`); // ENHANCED: Show timing
         CacheMonitor.logPreRenderResult('miss');
         return null;
       }
     } catch (fetchError) {
       // Clear timeout if we had an error
       clearTimeout(timeoutId);
+      const totalTime = Date.now() - startTime; // ADD: Track error timing
 
       // Handle abort (timeout)
       if (fetchError.name === 'AbortError') {
-        console.log(`[PRE-RENDER-CHECK] Timeout checking cache for "${query}"`);
+        console.log(`[PRE-RENDER-CHECK] Timeout checking cache for "${query}" after ${totalTime}ms`); // ENHANCED: Show timing
       } else {
-        console.log(`[PRE-RENDER-CHECK] Error checking cache for "${query}":`, fetchError.message);
+        console.log(`[PRE-RENDER-CHECK] Error checking cache for "${query}" after ${totalTime}ms:`, fetchError.message); // ENHANCED: Show timing
       }
 
       CacheMonitor.logPreRenderResult('miss');
       return null;
     }
   } catch (error) {
-    console.log(`[PRE-RENDER-CHECK] Exception checking for pre-rendered content:`, error.message);
+    const totalTime = Date.now() - startTime; // ADD: Track exception timing
+    console.log(`[PRE-RENDER-CHECK] Exception checking for pre-rendered content after ${totalTime}ms:`, error.message); // ENHANCED: Show timing
     CacheMonitor.logPreRenderResult('miss');
     return null;
   }
@@ -248,10 +258,15 @@ async function checkForPreRenderedContent(query) {
  * then ensures all existing functionality (analytics, click handlers, etc.) 
  * is properly initialized.
  * 
+ * Display pre-rendered search results instantly
+ * Enhanced with performance timing for optimization
+ * 
  * @param {string} html - The pre-rendered HTML content to display
  * @param {string} query - The search query for analytics and tracking
  */
 function displayPreRenderedResults(html, query) {
+  const startTime = Date.now(); // ADD: Start timing
+
   if (!html || typeof html !== 'string') {
     console.error('[PRE-RENDER-DISPLAY] Invalid HTML provided');
     return false;
@@ -261,25 +276,24 @@ function displayPreRenderedResults(html, query) {
     // Get results container
     const resultsContainer = document.getElementById('results');
     if (!resultsContainer) {
-      console.error('[PRE-RENDER-DISPLAY] Results container not found');
+      const totalTime = Date.now() - startTime; // ADD: Track error timing
+      console.error(`[PRE-RENDER-DISPLAY] Results container not found after ${totalTime}ms`); // ENHANCED: Show timing
       return false;
     }
 
-    // Calculate display time
-    const startTime = Date.now();
-
     // Display the pre-rendered content immediately
+    const domUpdateStart = Date.now(); // ADD: Track DOM update specifically
     resultsContainer.innerHTML = `
       <div id="funnelback-search-container-response" class="funnelback-search-container">
         ${html}
-        <div class="search-performance-info" style="font-size: 12px; color: #666; margin-top: 10px; text-align: right;">
-          Pre-rendered results displayed in ${Date.now() - startTime}ms
-        </div>
       </div>
     `;
+    const domUpdateTime = Date.now() - domUpdateStart; // ADD: DOM update timing
 
     // Attach click handlers for analytics tracking
+    const handlersStart = Date.now(); // ADD: Track handler attachment
     attachResultClickHandlers(resultsContainer, query);
+    const handlersTime = Date.now() - handlersStart; // ADD: Handler timing
 
     // Notify SearchManager about the new content if available
     if (window.SearchManager && typeof window.SearchManager.updateResults === 'function') {
@@ -287,15 +301,19 @@ function displayPreRenderedResults(html, query) {
     }
 
     // Scroll to results if not in viewport AND page is not already at the top
+    const scrollStart = Date.now(); // ADD: Track scroll timing
     if (!isElementInViewport(resultsContainer) && window.scrollY > 0) {
       resultsContainer.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    const scrollTime = Date.now() - scrollStart; // ADD: Scroll timing
 
-    console.log(`[PRE-RENDER-DISPLAY] Pre-rendered results displayed for "${query}"`);
+    const totalTime = Date.now() - startTime; // ADD: Total display time
+    console.log(`[PRE-RENDER-DISPLAY] Results displayed for "${query}" in ${totalTime}ms (DOM: ${domUpdateTime}ms, handlers: ${handlersTime}ms, scroll: ${scrollTime}ms)`); // ENHANCED: Detailed timing
     return true;
 
   } catch (error) {
-    console.error('[PRE-RENDER-DISPLAY] Error displaying pre-rendered results:', error);
+    const totalTime = Date.now() - startTime; // ADD: Track error timing
+    console.error(`[PRE-RENDER-DISPLAY] Error displaying pre-rendered results after ${totalTime}ms:`, error); // ENHANCED: Show timing
     return false;
   }
 }
