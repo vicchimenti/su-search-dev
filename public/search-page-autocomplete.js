@@ -23,7 +23,7 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.0.2
+ * @version 3.0.3
  * @lastModified 2025-09-10
  */
 
@@ -179,7 +179,7 @@ async function checkForPreRenderedContent(query) {
       query: query.trim(),
       collection: 'seattleu~sp-search',
       profile: '_default',
-      prerendered: 'true' // Signal that we're looking for pre-rendered content
+      form: 'partial'
     });
 
     // Only add session ID if it's available
@@ -210,7 +210,7 @@ async function checkForPreRenderedContent(query) {
 
       // Check if we got pre-rendered content from cache
       const cacheStatus = response.headers.get('X-Cache-Status');
-      
+
       if (response.ok && cacheStatus === 'HIT') {
         const html = await response.text();
         console.log(`[PRE-RENDER-CHECK] Cache HIT for "${query}"`);
@@ -1079,7 +1079,7 @@ document.addEventListener("DOMContentLoaded", function () {
   //           return; // Exit early - we're done!
   //         }
   //       }
-        
+
   //       console.log(`[SMART-PRERENDER] No pre-rendered content available, using standard search for: "${query}"`);
   //       // Fallback to existing search logic
   //       performSearch(query, document.getElementById('results'));
