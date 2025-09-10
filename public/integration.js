@@ -7,8 +7,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.1.1
- * @lastModified 2025-09-08
+ * @version 3.2.0
+ * @lastModified 2025-09-10
  */
 
 (function () {
@@ -766,11 +766,22 @@
   }
 
   /**
-   * Process URL parameters for initial search
+   * Process URL parameters for initial search with optimized pre-render flow
+   * 
+   * This function implements a priority-based search strategy:
+   * 1. Pre-render check (fastest - uses cached content from header form submission)
+   * 2. Cache-first fallback (medium - uses existing cache if pre-render unavailable) 
+   * 3. Standard search (slowest - fresh API call to backend)
+   * 
+   * Each path uses early exits to prevent redundant execution and optimize performance.
+   * Enhanced with comprehensive timing to identify bottlenecks and measure improvements.
+   * 
    * @param {Object} component - Results search component references
-   * @param {boolean} cacheFirst - Whether to attempt cache-first approach
+   * @param {boolean} cacheFirst - Whether to attempt cache-first approach (fallback only)
    */
   function processUrlParameters(component, cacheFirst = false) {
+    const overallStartTime = Date.now(); // Track total search time
+
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get("query");
 
@@ -780,67 +791,120 @@
     }
 
     log(
-      `Processing URL parameters with query: ${query}, cacheFirst: ${cacheFirst}`,
+      `[INTEGRATION-SEARCH] Starting search flow for: "${query}" (cacheFirst: ${cacheFirst})`,
       LOG_LEVELS.INFO
     );
 
-    // Set input value
+    // Set input value immediately
     if (component.input) {
       component.input.value = query;
     }
 
-    // Normalize the query
+    // Normalize the query for consistent processing
     const normalizedQuery = normalizeQuery(query);
 
-    // If cache-first is enabled and we have cached results, try to use them
-    if (
-      cacheFirst &&
-      window.SessionService &&
-      window.SessionService.getLastSearchQuery
-    ) {
-      const lastQuery = window.SessionService.getLastSearchQuery();
-
-      if (lastQuery === normalizedQuery) {
-        log(
-          `Cache-first approach possible for query: ${normalizedQuery}`,
-          LOG_LEVELS.INFO
-        );
-        // TODO: In Phase 4, implement cache check here
-      } else {
-        log(
-          `Cache-first approach not possible, query mismatch. URL: ${normalizedQuery}, Cached: ${lastQuery}`,
-          LOG_LEVELS.INFO
-        );
-      }
-    }
-
-    // commented out 20250908 - handled in pre-rendering block below
-    // Perform standard search
-    // performSearch(normalizedQuery, component.container);
-
-
-    // Check for pre-rendered content first, then fall back to standard search
+    // PRIORITY 1: Pre-render check (highest priority - fastest path)
     if (window.checkForPreRenderedContent) {
       log(`[INTEGRATION-PRERENDER] Checking for pre-rendered content: "${normalizedQuery}"`, LOG_LEVELS.INFO);
 
+      const preRenderStartTime = Date.now();
+
       window.checkForPreRenderedContent(normalizedQuery)
         .then(preRenderedHtml => {
+          const preRenderCheckTime = Date.now() - preRenderStartTime;
+
           if (preRenderedHtml && window.displayPreRenderedResults) {
-            log(`[INTEGRATION-PRERENDER] Using pre-rendered content for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
-            window.displayPreRenderedResults(preRenderedHtml, normalizedQuery);
+            log(`[INTEGRATION-PRERENDER] Pre-render SUCCESS in ${preRenderCheckTime}ms, displaying results`, LOG_LEVELS.INFO);
+
+            const displayStartTime = Date.now();
+            const displaySuccess = window.displayPreRenderedResults(preRenderedHtml, normalizedQuery);
+            const displayTime = Date.now() - displayStartTime;
+            const totalTime = Date.now() - overallStartTime;
+
+            if (displaySuccess) {
+              log(`[INTEGRATION-PRERENDER] Pre-render path completed successfully (total: ${totalTime}ms, check: ${preRenderCheckTime}ms, display: ${displayTime}ms)`, LOG_LEVELS.INFO);
+              return; // ✅ EARLY EXIT - Pre-render succeeded, no further processing needed
+            } else {
+              log(`[INTEGRATION-PRERENDER] Display failed, falling back to cache-first`, LOG_LEVELS.WARN);
+              // Fall through to cache-first logic
+            }
           } else {
-            log(`[INTEGRATION-PRERENDER] No pre-rendered content, using standard search for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
-            performSearch(normalizedQuery, component.container);
+            log(`[INTEGRATION-PRERENDER] No pre-rendered content available (${preRenderCheckTime}ms), trying cache-first approach`, LOG_LEVELS.INFO);
+            // Fall through to cache-first logic
           }
+
+          // PRIORITY 2: Cache-first fallback (only executes if pre-render failed)
+          if (cacheFirst && window.SessionService && window.SessionService.getLastSearchQuery) {
+            log(`[INTEGRATION-CACHE-FIRST] Attempting cache-first approach for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+
+            const cacheFirstStartTime = Date.now();
+            const lastQuery = window.SessionService.getLastSearchQuery();
+
+            if (lastQuery === normalizedQuery) {
+              log(`[INTEGRATION-CACHE-FIRST] Cache-first possible for query: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+              // TODO: In future, implement direct cache check here
+              // For now, fall through to standard search
+            } else {
+              const cacheFirstTime = Date.now() - cacheFirstStartTime;
+              log(`[INTEGRATION-CACHE-FIRST] Cache-first not possible, query mismatch (${cacheFirstTime}ms). URL: "${normalizedQuery}", Cached: "${lastQuery}"`, LOG_LEVELS.INFO);
+            }
+          }
+
+          // PRIORITY 3: Standard search (lowest priority - only if both pre-render and cache-first failed)
+          log(`[INTEGRATION-STANDARD] Using standard search for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+          const standardSearchStartTime = Date.now();
+
+          performSearch(normalizedQuery, component.container)
+            .then(() => {
+              const standardSearchTime = Date.now() - standardSearchStartTime;
+              const totalTime = Date.now() - overallStartTime;
+              log(`[INTEGRATION-STANDARD] Standard search completed (search: ${standardSearchTime}ms, total: ${totalTime}ms)`, LOG_LEVELS.INFO);
+            })
+            .catch(error => {
+              const standardSearchTime = Date.now() - standardSearchStartTime;
+              const totalTime = Date.now() - overallStartTime;
+              log(`[INTEGRATION-STANDARD] Standard search failed after ${standardSearchTime}ms (total: ${totalTime}ms): ${error.message}`, LOG_LEVELS.ERROR);
+            });
         })
         .catch(error => {
-          log(`[INTEGRATION-PRERENDER] Pre-render check failed, using standard search: ${error.message}`, LOG_LEVELS.INFO);
-          performSearch(normalizedQuery, component.container);
+          const preRenderTime = Date.now() - preRenderStartTime;
+          log(`[INTEGRATION-PRERENDER] Pre-render check failed after ${preRenderTime}ms: ${error.message}`, LOG_LEVELS.ERROR);
+
+          // FALLBACK: If pre-render completely fails, go directly to standard search
+          log(`[INTEGRATION-FALLBACK] Pre-render failed, using standard search for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+          const fallbackStartTime = Date.now();
+
+          performSearch(normalizedQuery, component.container)
+            .then(() => {
+              const fallbackTime = Date.now() - fallbackStartTime;
+              const totalTime = Date.now() - overallStartTime;
+              log(`[INTEGRATION-FALLBACK] Fallback search completed (search: ${fallbackTime}ms, total: ${totalTime}ms)`, LOG_LEVELS.INFO);
+            })
+            .catch(fallbackError => {
+              const fallbackTime = Date.now() - fallbackStartTime;
+              const totalTime = Date.now() - overallStartTime;
+              log(`[INTEGRATION-FALLBACK] Fallback search failed after ${fallbackTime}ms (total: ${totalTime}ms): ${fallbackError.message}`, LOG_LEVELS.ERROR);
+            });
         });
-    } else {
-      log(`[INTEGRATION-PRERENDER] Pre-render functions not available, using standard search`, LOG_LEVELS.INFO);
-      performSearch(normalizedQuery, component.container);
+
+      return; // ✅ EARLY EXIT - Pre-render logic is handling everything, no more code should run
     }
+
+    // FALLBACK: If pre-render functions not available, use standard search directly  
+    log(`[INTEGRATION-FALLBACK] Pre-render functions not available, using standard search for: "${normalizedQuery}"`, LOG_LEVELS.INFO);
+    const fallbackStartTime = Date.now();
+
+    performSearch(normalizedQuery, component.container)
+      .then(() => {
+        const fallbackTime = Date.now() - fallbackStartTime;
+        const totalTime = Date.now() - overallStartTime;
+        log(`[INTEGRATION-FALLBACK] Direct search completed (search: ${fallbackTime}ms, total: ${totalTime}ms)`, LOG_LEVELS.INFO);
+      })
+      .catch(error => {
+        const fallbackTime = Date.now() - fallbackStartTime;
+        const totalTime = Date.now() - overallStartTime;
+        log(`[INTEGRATION-FALLBACK] Direct search failed after ${fallbackTime}ms (total: ${totalTime}ms): ${error.message}`, LOG_LEVELS.ERROR);
+      });
   }
 
   /**
