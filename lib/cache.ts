@@ -6,8 +6,9 @@
  * support for tab content caching and tiered TTL for popular queries.
  *
  * @author Victor Chimenti
- * @version 2.2.1
- * @lastModified 2025-09-02
+ * @version 3.0.0
+ * @license MIT
+ * @lastModified 2025-09-10
  */
 
 import Redis from 'ioredis';
@@ -37,13 +38,13 @@ const redisClient = process.env.Fall_0925_KV_URL
 // Fallback in-memory cache for local development
 const memoryCache = new Map();
 
-// Default TTL values (in seconds)
-const DEFAULT_TTL = 3600; // 1 hour
-const TAB_CONTENT_TTL = 1800; // 30 minutes
-const POPULAR_TAB_TTL = 7200; // 2 hours
-const SEARCH_DEFAULT_TTL = 600; // 10 minutes
-const SEARCH_POPULAR_TTL = 1800; // 30 minutes
-const SEARCH_HIGH_VOLUME_TTL = 3600; // 1 hour
+// Updated for daily crawl schedule (12-20 hours)
+const DEFAULT_TTL = 12 * 3600; // 12 hours
+const TAB_CONTENT_TTL = 14 * 3600; // 14 hours
+const POPULAR_TAB_TTL = 20 * 3600; // 20 hours
+const SEARCH_DEFAULT_TTL = 12 * 3600; // 12 hours
+const SEARCH_POPULAR_TTL = 16 * 3600; // 16 hours
+const SEARCH_HIGH_VOLUME_TTL = 18 * 3600; // 18 hours
 
 // Simple metrics tracking - doesn't affect existing cache behavior
 interface CacheMetrics {
