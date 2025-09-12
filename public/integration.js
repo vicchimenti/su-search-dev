@@ -743,26 +743,6 @@
     const urlParams = new URLSearchParams(window.location.search);
     const queryParam = urlParams.get("query") || "";
     attachResultClickHandlers(component.container, queryParam);
-
-    // Check if this is a redirect from a prefetched query
-    if (window.SessionService) {
-      const lastQuery =
-        window.SessionService.getLastSearchQuery &&
-        window.SessionService.getLastSearchQuery();
-
-      if (lastQuery) {
-        log(
-          `Found last search query from SessionService: ${lastQuery}`,
-          LOG_LEVELS.INFO
-        );
-
-        // Clear after using to avoid stale data
-        if (window.SessionService.clearLastSearchQuery) {
-          window.SessionService.clearLastSearchQuery();
-          log("Cleared last search query from SessionService", LOG_LEVELS.INFO);
-        }
-      }
-    }
   }
 
   /**
