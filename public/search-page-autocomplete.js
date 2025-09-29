@@ -1078,46 +1078,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Process any URL parameters for initial search with smart pre-rendering
   const urlParams = new URLSearchParams(window.location.search);
   const query = urlParams.get("query");
-
-  // if (query && searchInput && document.getElementById('results')) {
-  //   // Set query in input field
-  //   searchInput.value = query;
-
-  //   console.log(`[SMART-PRERENDER] Processing initial search for: "${query}"`);
-
-  //   // NEW: Smart pre-rendering check - try to get pre-rendered content first
-  //   checkForPreRenderedContent(query)
-  //     .then(preRenderedHtml => {
-  //       if (preRenderedHtml) {
-  //         console.log(`[SMART-PRERENDER] Using pre-rendered content for: "${query}"`);
-  //         // Display pre-rendered results instantly
-  //         const success = displayPreRenderedResults(preRenderedHtml, query);
-  //         if (success) {
-  //           CacheMonitor.logSearch(true); // Log as fast path search
-  //           return; // Exit early - we're done!
-  //         }
-  //       }
-
-  //       console.log(`[SMART-PRERENDER] No pre-rendered content available, using standard search for: "${query}"`);
-  //       // Fallback to existing search logic
-  //       performSearch(query, document.getElementById('results'));
-  //     })
-  //     .catch(error => {
-  //       console.log(`[SMART-PRERENDER] Error checking for pre-rendered content, using standard search:`, error.message);
-  //       // Always fall back to existing search logic on any error
-  //       performSearch(query, document.getElementById('results'));
-  //     });
-  // }
 });
-
-// Make functions available globally
-// window.performSearch = performSearch;
-// window.fetchSuggestions = fetchSuggestions;
-// window.trackResultClick = trackResultClick;
-// window.trackSuggestionClick = trackSuggestionClick;
-// window.getCacheMetrics = function () {
-//   return CacheMonitor.getMetricsReport();
-// };
 
 // Make pre-rendering functions available globally for debugging
 window.checkForPreRenderedContent = checkForPreRenderedContent;
