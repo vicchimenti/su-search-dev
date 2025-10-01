@@ -107,8 +107,8 @@ export default async function handler(
 
     // Cache the result
     await setCachedData(cacheKey, result, DEFAULT_TTL); // 12 hours TTL
-    console.log(`[SUGGESTIONS-API] Cached suggestions for key: ${cacheKey}, TTL: 300s`);
-
+    console.log(`[SUGGESTIONS-API] Cached suggestions for key: ${cacheKey}, TTL: ${DEFAULT_TTL}s`);
+    
     // Return the result
     res.status(200).json(result);
   } catch (error) {
