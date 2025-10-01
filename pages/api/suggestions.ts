@@ -12,7 +12,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createApiClient } from '../../lib/api-client';
-import { getCachedData, setCachedData } from '../../lib/cache';
+import { setCachedData, getCachedData, DEFAULT_TTL } from '../../lib/cache';
 import { getClientInfo, getClientIpHeaders } from '../../lib/ip-service';
 
 export default async function handler(
@@ -106,7 +106,7 @@ export default async function handler(
     }
 
     // Cache the result
-    await setCachedData(cacheKey, result, 60 * 5); // 5 minutes TTL
+    await setCachedData(cacheKey, result, DEFAULT_TTL); // 12 hours TTL
     console.log(`[SUGGESTIONS-API] Cached suggestions for key: ${cacheKey}, TTL: 300s`);
 
     // Return the result
