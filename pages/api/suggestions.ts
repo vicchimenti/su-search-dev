@@ -6,8 +6,8 @@
  * preservation for accurate analytics and personalization.
  *
  * @author Victor Chimenti
- * @version 3.0.0
- * @lastModified 2025-04-28
+ * @version 3.1.0
+ * @lastModified 2025-10-01
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';

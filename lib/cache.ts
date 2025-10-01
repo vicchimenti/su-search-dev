@@ -6,9 +6,9 @@
  * support for tab content caching and tiered TTL for popular queries.
  *
  * @author Victor Chimenti
- * @version 3.0.0
+ * @version 3.1.0
  * @license MIT
- * @lastModified 2025-09-10
+ * @lastModified 2025-10-01
  */
 
 import Redis from 'ioredis';

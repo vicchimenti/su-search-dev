@@ -6,8 +6,8 @@
  * and IP resolution for accurate client tracking.
  *
  * @author Victor Chimenti
- * @version 3.2.0
- * @lastModified 2025-09-08
+ * @version 3.3.0
+ * @lastModified 2025-10-01
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
