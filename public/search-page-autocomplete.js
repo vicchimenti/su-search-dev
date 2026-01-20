@@ -83,12 +83,12 @@ const CacheMonitor = {
     totalSearches: 0,
     fastPathSearches: 0,
     preRenderHits: 0,
-    preRenderMisses: 0
+    preRenderMisses: 0,
   },
 
   // Reset metrics
   reset() {
-    Object.keys(this.metrics).forEach(key => {
+    Object.keys(this.metrics).forEach((key) => {
       this.metrics[key] = 0;
     });
   },
@@ -97,20 +97,20 @@ const CacheMonitor = {
   logCacheCheck(result) {
     this.metrics.cacheChecks++;
 
-    if (result === 'hit') {
+    if (result === "hit") {
       this.metrics.cacheHits++;
-    } else if (result === 'miss') {
+    } else if (result === "miss") {
       this.metrics.cacheMisses++;
-    } else if (result === 'error') {
+    } else if (result === "error") {
       this.metrics.cacheErrors++;
     }
   },
 
   // Log a pre-render result
   logPreRenderResult(result) {
-    if (result === 'hit') {
+    if (result === "hit") {
       this.metrics.preRenderHits++;
-    } else if (result === 'miss') {
+    } else if (result === "miss") {
       this.metrics.preRenderMisses++;
     }
   },
@@ -149,26 +149,26 @@ const CacheMonitor = {
       ...this.metrics,
       cacheHitRate: `${this.getCacheHitRate().toFixed(1)}%`,
       preRenderHitRate: `${this.getPreRenderHitRate().toFixed(1)}%`,
-      fastPathRate: `${this.getFastPathRate().toFixed(1)}%`
+      fastPathRate: `${this.getFastPathRate().toFixed(1)}%`,
     };
-  }
+  },
 };
 
 /**
  * Check for pre-rendered content in cache
  * This function checks if search results were pre-rendered and cached
  * during the header form submission, enabling instant result display.
- * 
+ *
  * Check for pre-rendered content in cache
  * Enhanced with performance timing for optimization
- * 
+ *
  * @param {string} query - The search query to check for
  * @returns {Promise<string|null>} Promise resolving to cached HTML or null if not found
  */
 async function checkForPreRenderedContent(query) {
   const startTime = Date.now(); // ADD: Start timing
 
-  if (!query || typeof query !== 'string') {
+  if (!query || typeof query !== "string") {
     return null;
   }
 
@@ -177,19 +177,21 @@ async function checkForPreRenderedContent(query) {
     const sessionId = SessionManager.getSessionId();
 
     // Get API URL from global config or use default
-    const apiBaseUrl = window.seattleUConfig?.search?.apiBaseUrl || "https://su-search-dev.vercel.app";
+    const apiBaseUrl =
+      window.seattleUConfig?.search?.apiBaseUrl ||
+      "https://su-search-dev.vercel.app";
 
     // Prepare parameters for cache check
     const params = new URLSearchParams({
       query: query.trim(),
-      collection: 'seattleu~sp-search',
-      profile: '_default',
-      form: 'partial'
+      collection: "seattleu~sp-search",
+      profile: "_default",
+      form: "partial",
     });
 
     // Only add session ID if it's available
     if (sessionId) {
-      params.append('sessionId', sessionId);
+      params.append("sessionId", sessionId);
     }
 
     console.log(`[PRE-RENDER-CHECK] Starting cache check for: "${query}"`); // ENHANCED: Better log
@@ -202,31 +204,44 @@ async function checkForPreRenderedContent(query) {
       // Check cache via existing search API
       const url = `${apiBaseUrl}/api/search?${params}`;
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         signal: controller.signal,
         headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'text/html'
-        }
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "text/html",
+        },
       });
 
       // Clear timeout since we got a response
       clearTimeout(timeoutId);
 
       // Check if we got pre-rendered content from cache
-      const cacheStatus = response.headers.get('X-Cache-Status');
+      const cacheStatus = response.headers.get("X-Cache-Status");
       const responseTime = Date.now() - startTime; // ADD: Calculate response time
 
-      if (response.ok && cacheStatus === 'HIT') {
+      if (response.ok) {
         const html = await response.text();
-        const totalTime = Date.now() - startTime; // ADD: Total time including text parsing
-        console.log(`[PRE-RENDER-CHECK] Cache HIT for "${query}" in ${totalTime}ms (fetch: ${responseTime}ms)`); // ENHANCED: Show timing
-        CacheMonitor.logPreRenderResult('hit');
+        const totalTime = Date.now() - startTime;
+
+        if (cacheStatus === "HIT") {
+          console.log(
+            `[PRE-RENDER-CHECK] Cache HIT for "${query}" in ${totalTime}ms (fetch: ${responseTime}ms)`,
+          );
+          CacheMonitor.logPreRenderResult("hit");
+        } else {
+          console.log(
+            `[PRE-RENDER-CHECK] Cache MISS for "${query}" in ${totalTime}ms (status: ${cacheStatus || "MISS"}) - using response`,
+          );
+          CacheMonitor.logPreRenderResult("miss");
+        }
+
         return html;
       } else {
-        const totalTime = Date.now() - startTime; // ADD: Track miss timing too
-        console.log(`[PRE-RENDER-CHECK] Cache MISS for "${query}" in ${totalTime}ms (status: ${cacheStatus || 'unknown'})`); // ENHANCED: Show timing
-        CacheMonitor.logPreRenderResult('miss');
+        const totalTime = Date.now() - startTime;
+        console.log(
+          `[PRE-RENDER-CHECK] Request FAILED for "${query}" in ${totalTime}ms (status: ${response.status})`,
+        );
+        CacheMonitor.logPreRenderResult("miss");
         return null;
       }
     } catch (fetchError) {
@@ -235,19 +250,27 @@ async function checkForPreRenderedContent(query) {
       const totalTime = Date.now() - startTime; // ADD: Track error timing
 
       // Handle abort (timeout)
-      if (fetchError.name === 'AbortError') {
-        console.log(`[PRE-RENDER-CHECK] Timeout checking cache for "${query}" after ${totalTime}ms`); // ENHANCED: Show timing
+      if (fetchError.name === "AbortError") {
+        console.log(
+          `[PRE-RENDER-CHECK] Timeout checking cache for "${query}" after ${totalTime}ms`,
+        ); // ENHANCED: Show timing
       } else {
-        console.log(`[PRE-RENDER-CHECK] Error checking cache for "${query}" after ${totalTime}ms:`, fetchError.message); // ENHANCED: Show timing
+        console.log(
+          `[PRE-RENDER-CHECK] Error checking cache for "${query}" after ${totalTime}ms:`,
+          fetchError.message,
+        ); // ENHANCED: Show timing
       }
 
-      CacheMonitor.logPreRenderResult('miss');
+      CacheMonitor.logPreRenderResult("miss");
       return null;
     }
   } catch (error) {
     const totalTime = Date.now() - startTime; // ADD: Track exception timing
-    console.log(`[PRE-RENDER-CHECK] Exception checking for pre-rendered content after ${totalTime}ms:`, error.message); // ENHANCED: Show timing
-    CacheMonitor.logPreRenderResult('miss');
+    console.log(
+      `[PRE-RENDER-CHECK] Exception checking for pre-rendered content after ${totalTime}ms:`,
+      error.message,
+    ); // ENHANCED: Show timing
+    CacheMonitor.logPreRenderResult("miss");
     return null;
   }
 }
@@ -255,29 +278,31 @@ async function checkForPreRenderedContent(query) {
 /**
  * Display pre-rendered search results instantly
  * This function takes cached HTML content and displays it immediately,
- * then ensures all existing functionality (analytics, click handlers, etc.) 
+ * then ensures all existing functionality (analytics, click handlers, etc.)
  * is properly initialized.
- * 
+ *
  * Display pre-rendered search results instantly
  * Enhanced with performance timing for optimization
- * 
+ *
  * @param {string} html - The pre-rendered HTML content to display
  * @param {string} query - The search query for analytics and tracking
  */
 function displayPreRenderedResults(html, query) {
   const startTime = Date.now(); // ADD: Start timing
 
-  if (!html || typeof html !== 'string') {
-    console.error('[PRE-RENDER-DISPLAY] Invalid HTML provided');
+  if (!html || typeof html !== "string") {
+    console.error("[PRE-RENDER-DISPLAY] Invalid HTML provided");
     return false;
   }
 
   try {
     // Get results container
-    const resultsContainer = document.getElementById('results');
+    const resultsContainer = document.getElementById("results");
     if (!resultsContainer) {
       const totalTime = Date.now() - startTime; // ADD: Track error timing
-      console.error(`[PRE-RENDER-DISPLAY] Results container not found after ${totalTime}ms`); // ENHANCED: Show timing
+      console.error(
+        `[PRE-RENDER-DISPLAY] Results container not found after ${totalTime}ms`,
+      ); // ENHANCED: Show timing
       return false;
     }
 
@@ -296,7 +321,10 @@ function displayPreRenderedResults(html, query) {
     const handlersTime = Date.now() - handlersStart; // ADD: Handler timing
 
     // Notify SearchManager about the new content if available
-    if (window.SearchManager && typeof window.SearchManager.updateResults === 'function') {
+    if (
+      window.SearchManager &&
+      typeof window.SearchManager.updateResults === "function"
+    ) {
       window.SearchManager.updateResults(html);
     }
 
@@ -308,12 +336,16 @@ function displayPreRenderedResults(html, query) {
     const scrollTime = Date.now() - scrollStart; // ADD: Scroll timing
 
     const totalTime = Date.now() - startTime; // ADD: Total display time
-    console.log(`[PRE-RENDER-DISPLAY] Results displayed for "${query}" in ${totalTime}ms (DOM: ${domUpdateTime}ms, handlers: ${handlersTime}ms, scroll: ${scrollTime}ms)`); // ENHANCED: Detailed timing
+    console.log(
+      `[PRE-RENDER-DISPLAY] Results displayed for "${query}" in ${totalTime}ms (DOM: ${domUpdateTime}ms, handlers: ${handlersTime}ms, scroll: ${scrollTime}ms)`,
+    ); // ENHANCED: Detailed timing
     return true;
-
   } catch (error) {
     const totalTime = Date.now() - startTime; // ADD: Track error timing
-    console.error(`[PRE-RENDER-DISPLAY] Error displaying pre-rendered results after ${totalTime}ms:`, error); // ENHANCED: Show timing
+    console.error(
+      `[PRE-RENDER-DISPLAY] Error displaying pre-rendered results after ${totalTime}ms:`,
+      error,
+    ); // ENHANCED: Show timing
     return false;
   }
 }
@@ -345,107 +377,122 @@ function renderResultsPageSuggestions(data, container, query) {
   let html = `
     <div class="suggestions-list">
       <div class="suggestions-columns">
-        ${general.length > 0
-      ? `
+        ${
+          general.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Suggestions</div>
             ${general
-        .map((suggestion, index) => {
-          const display = suggestion.display || suggestion;
-          return `
+              .map((suggestion, index) => {
+                const display = suggestion.display || suggestion;
+                return `
                 <div class="suggestion-item" role="option" data-index="${index}" data-type="general">
                   <span class="suggestion-text">${display}</span>
                 </div>
               `;
-        })
-        .join("")}
+              })
+              .join("")}
           </div>
         `
-      : ""
-    }
+            : ""
+        }
         
-        ${staff.length > 0
-      ? `
+        ${
+          staff.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Faculty & Staff</div>
             ${staff
-        .map(
-          (person, index) => `
-              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${person.url || "#"
-            }">
-                <a href="${person.url || "#"
-            }" class="staff-link" target="_blank" rel="noopener noreferrer">
+              .map(
+                (person, index) => `
+              <div class="suggestion-item staff-item" role="option" data-index="${index}" data-type="staff" data-url="${
+                person.url || "#"
+              }">
+                <a href="${
+                  person.url || "#"
+                }" class="staff-link" target="_blank" rel="noopener noreferrer">
                   <div class="staff-suggestion">
-                    ${person.image
-              ? `
+                    ${
+                      person.image
+                        ? `
                       <div class="staff-image">
-                        <img src="${person.image}" alt="${person.title || ""
-              }" class="staff-thumbnail" loading="lazy">
+                        <img src="${person.image}" alt="${
+                          person.title || ""
+                        }" class="staff-thumbnail" loading="lazy">
                       </div>
                     `
-              : ""
-            }
+                        : ""
+                    }
                     <div class="staff-info">
                       <span class="suggestion-text">${person.title || ""}</span>
-                      ${person.position
-              ? `<span class="staff-role">${person.position}</span>`
-              : ""
-            }
-                      ${person.affiliation
-              ? `<span class="staff-role">${person.affiliation}</span>`
-              : ""
-            }
-                      ${person.department
-              ? `<span class="staff-department">${person.department}</span>`
-              : ""
-            }
-                      ${person.college
-              ? `<span class="staff-department">${person.college}</span>`
-              : ""
-            }
+                      ${
+                        person.position
+                          ? `<span class="staff-role">${person.position}</span>`
+                          : ""
+                      }
+                      ${
+                        person.affiliation
+                          ? `<span class="staff-role">${person.affiliation}</span>`
+                          : ""
+                      }
+                      ${
+                        person.department
+                          ? `<span class="staff-department">${person.department}</span>`
+                          : ""
+                      }
+                      ${
+                        person.college
+                          ? `<span class="staff-department">${person.college}</span>`
+                          : ""
+                      }
                     </div>
                   </div>
                 </a>
               </div>
-            `
-        )
-        .join("")}
+            `,
+              )
+              .join("")}
           </div>
         `
-      : ""
-    }
+            : ""
+        }
         
-        ${programResults.length > 0
-      ? `
+        ${
+          programResults.length > 0
+            ? `
           <div class="suggestions-column">
             <div class="column-header">Programs</div>
             ${programResults
-        .map(
-          (program, index) => `
-              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${program.url || "#"
-            }">
-                <a href="${program.url || "#"
-            }" class="program-link" target="_blank" rel="noopener noreferrer">
+              .map(
+                (program, index) => `
+              <div class="suggestion-item program-item" role="option" data-index="${index}" data-type="program" data-url="${
+                program.url || "#"
+              }">
+                <a href="${
+                  program.url || "#"
+                }" class="program-link" target="_blank" rel="noopener noreferrer">
                   <div class="program-suggestion">
                     <span class="suggestion-text">${program.title || ""}</span>
-                    ${program.details?.school
-              ? `<span class="suggestion-type">${program.details.school}</span>`
-              : ""
-            }
-                    ${program.description
-              ? `<span class="program-description">${program.description}</span>`
-              : ""
-            }
+                    ${
+                      program.details?.school
+                        ? `<span class="suggestion-type">${program.details.school}</span>`
+                        : ""
+                    }
+                    ${
+                      program.description
+                        ? `<span class="program-description">${program.description}</span>`
+                        : ""
+                    }
                   </div>
                 </a>
               </div>
-            `
-        )
-        .join("")}
+            `,
+              )
+              .join("")}
           </div>
         `
-      : ""
-    }
+            : ""
+        }
       </div>
     </div>
   `;
@@ -479,7 +526,7 @@ function renderResultsPageSuggestions(data, container, query) {
 
         // Find the search input and set its value
         const searchInput = document.getElementById(
-          "autocomplete-concierge-inputField"
+          "autocomplete-concierge-inputField",
         );
         if (searchInput) {
           searchInput.value = text;
@@ -655,8 +702,8 @@ async function performSearch(query, container) {
     }
 
     // Check if this was served from cache (could be pre-rendered content)
-    const cacheStatus = response.headers.get('X-Cache-Status');
-    if (cacheStatus === 'HIT') {
+    const cacheStatus = response.headers.get("X-Cache-Status");
+    if (cacheStatus === "HIT") {
       usedPreRender = true;
     }
 
@@ -665,7 +712,9 @@ async function performSearch(query, container) {
 
     // Calculate total time
     const totalTime = Date.now() - startTime;
-    console.log(`Search completed in ${totalTime}ms for "${query}"${cacheStatus ? ` (Cache: ${cacheStatus})` : ''}`);
+    console.log(
+      `Search completed in ${totalTime}ms for "${query}"${cacheStatus ? ` (Cache: ${cacheStatus})` : ""}`,
+    );
 
     // Update results container
     container.innerHTML = `
@@ -704,23 +753,23 @@ async function performSearch(query, container) {
 function setLoadingState(container, isLoading) {
   if (isLoading) {
     // Add loading indicator if not exists
-    if (!container.querySelector('.results-loading')) {
-      const loadingIndicator = document.createElement('div');
-      loadingIndicator.className = 'results-loading';
+    if (!container.querySelector(".results-loading")) {
+      const loadingIndicator = document.createElement("div");
+      loadingIndicator.className = "results-loading";
       loadingIndicator.innerHTML = `
         <div class="spinner"></div>
         <p>Loading search results...</p>
       `;
       container.appendChild(loadingIndicator);
     }
-    container.classList.add('loading');
+    container.classList.add("loading");
   } else {
     // Remove loading indicators
-    const loadingIndicator = container.querySelector('.results-loading');
+    const loadingIndicator = container.querySelector(".results-loading");
     if (loadingIndicator) {
       loadingIndicator.remove();
     }
-    container.classList.remove('loading');
+    container.classList.remove("loading");
   }
 }
 
@@ -740,7 +789,7 @@ function isElementInViewport(el) {
     rect.top >= 0 &&
     rect.left >= 0 &&
     rect.bottom <=
-    (window.innerHeight || document.documentElement.clientHeight) &&
+      (window.innerHeight || document.documentElement.clientHeight) &&
     rect.right <= (window.innerWidth || document.documentElement.clientWidth)
   );
 }
@@ -749,7 +798,7 @@ function isElementInViewport(el) {
 function attachResultClickHandlers(container, query) {
   // Find all result links
   const resultLinks = container.querySelectorAll(
-    ".fb-result h3 a, .search-result-item h3 a, .listing-item__title a"
+    ".fb-result h3 a, .search-result-item h3 a, .listing-item__title a",
   );
 
   resultLinks.forEach((link, index) => {
@@ -827,7 +876,7 @@ function addKeyboardNavigation(container) {
 
   // Handle keyboard events for the search input
   const searchInput = document.getElementById(
-    "autocomplete-concierge-inputField"
+    "autocomplete-concierge-inputField",
   );
   if (!searchInput) return;
 
@@ -965,7 +1014,7 @@ function addKeyboardNavigation(container) {
           const ratio = currentIndex / (currentItems.length - 1 || 1);
           const targetIndex = Math.min(
             Math.round(ratio * (items.length - 1)),
-            items.length - 1
+            items.length - 1,
           );
 
           activeItem = items[targetIndex];
@@ -1000,7 +1049,7 @@ function addKeyboardNavigation(container) {
           const ratio = currentIndex / (currentItems.length - 1 || 1);
           const targetIndex = Math.min(
             Math.round(ratio * (items.length - 1)),
-            items.length - 1
+            items.length - 1,
           );
 
           activeItem = items[targetIndex];
@@ -1034,10 +1083,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Find the search input and suggestions container
   const searchInput = document.getElementById(
-    "autocomplete-concierge-inputField"
+    "autocomplete-concierge-inputField",
   );
   const suggestionsContainer = document.getElementById(
-    "autocomplete-suggestions"
+    "autocomplete-suggestions",
   );
 
   if (!searchInput || !suggestionsContainer) {
