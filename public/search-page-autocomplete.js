@@ -23,8 +23,8 @@
  *
  * @license MIT
  * @author Victor Chimenti
- * @version 3.2.0
- * @lastModified 2025-09-29
+ * @version 3.2.1
+ * @lastModified 2026-01-20
  */
 
 // Create a module-level session handler that serves as the single source of truth within this file
