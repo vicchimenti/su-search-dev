@@ -10,7 +10,7 @@
  * @lastModified 2025-05-09
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 
 interface ResultsListProps {
   html: string;
@@ -31,39 +31,29 @@ export default function ResultsList({
 }: ResultsListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Attach click handlers to results
+  const attachClickHandlers = useCallback(() => {
+    if (!containerRef.current || !onResultClick) return;
+    const resultLinks = containerRef.current.querySelectorAll(
+      '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
+    );
+    resultLinks.forEach((link, index) => {
+      link.addEventListener('click', function (e) {
+        const linkElement = e.currentTarget as HTMLAnchorElement;
+        const url = linkElement.getAttribute('data-live-url') || linkElement.getAttribute('href') || '';
+        const title = linkElement.textContent?.trim() || '';
+        onResultClick(url, title, index + 1);
+      });
+    });
+  }, [onResultClick]);
+
   // Update container with HTML content
   useEffect(() => {
     if (containerRef.current && html) {
       containerRef.current.innerHTML = html;
-
-      // Add click tracking to results
       attachClickHandlers();
     }
-  }, [html]);
-
-  // Attach click handlers to results
-  const attachClickHandlers = () => {
-    if (!containerRef.current || !onResultClick) return;
-
-    // Find all result links
-    const resultLinks = containerRef.current.querySelectorAll(
-      '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'
-    );
-
-    resultLinks.forEach((link, index) => {
-      link.addEventListener('click', function (e) {
-        // Don't prevent default navigation
-        const linkElement = e.currentTarget as HTMLAnchorElement;
-
-        // Get link details
-        const url = linkElement.getAttribute('data-live-url') || linkElement.getAttribute('href') || '';
-        const title = linkElement.textContent?.trim() || '';
-
-        // Track click
-        onResultClick(url, title, index + 1);
-      });
-    });
-  };
+  }, [html, attachClickHandlers]);
 
   // Render loading state
   if (isLoading) {
