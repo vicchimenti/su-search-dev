@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Write(audit/**)",
+      "Edit(audit/**)",
+      "MultiEdit(audit/**)",
+      "Bash(mkdir:audit)"
+    ]
+  }
+}

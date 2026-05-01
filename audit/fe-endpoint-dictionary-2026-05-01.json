@@ -1,0 +1,592 @@
+{
+  "audit_date": "2026-05-01",
+  "scope": "FE-originated requests to the proxy from su-search-dev",
+  "audit_method": "static analysis of public/integration.js, public/search-page-autocomplete.js, public/js/search-index.js, public/js/modules/*.js, pages/api/*.ts, plus one-level dependency reads of lib/api-client.ts, lib/utils.ts, lib/ip-service.ts, components/SearchInput.tsx, components/ResultList.tsx",
+  "stop_rules_applied": [
+    "Cache logic in lib/cache.ts not traversed; cache_gate field records presence/absence only.",
+    "Sibling repo funnelback-proxy-dev not read; proxy_route values cross-reference the proxy dictionary by name.",
+    "lib/ files read one level deep; their imports (e.g., axios) not followed.",
+    "search-bundle.js not enumerated as a live request surface — preloaded but never executed per CLAUDE.md; its proxy-call patterns mirror integration.js and search-page-autocomplete.js (captured as cross-cutting observation)."
+  ],
+
+  "search_coverage": {
+    "fe_call_layers": [
+      "Server-side: Next.js API routes (pages/api/*.ts) call the proxy through lib/api-client.ts (axios). BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://funnelback-proxy-dev.vercel.app/proxy'.",
+      "Client-side direct: browser modules call the proxy directly via fetch / sendBeacon, using a hardcoded proxyBaseUrl 'https://funnelback-proxy-dev.vercel.app/proxy' (with a window.seattleUConfig.search.proxyBaseUrl override path in some places)."
+    ],
+    "configuration_layers_observed": {
+      "integration_js_defaults": "public/integration.js defines const config = { apiBaseUrl, proxyBaseUrl, collection: 'seattleu~sp-search', profile: '_default', minQueryLength: 3, debounceTime: 200, prefetchDebounceTime: 300, prefetchMinQueryLength: 4, cacheTTL: 300, logLevel }. Spread into window.seattleUConfig.search via { ...config, ...window.seattleUConfig?.search } so a pre-existing window.seattleUConfig.search wins on key collision.",
+      "search_index_js_config": "public/js/search-index.js passes { proxyBaseUrl: 'https://funnelback-proxy-dev.vercel.app/proxy', enabledModules: [...], defaultResultsPerPage, searchInputSelector, resultsContainerSelector } to searchManager.init(); these are merged via { ...this.config, ...options } in core-search-manager.js — runtime options win.",
+      "core_search_manager_defaults": "public/js/modules/core-search-manager.js holds its own hardcoded proxyBaseUrl, observerConfig, analyticsEndpoints object, plus enableIpTracking, ipMismatchThreshold. No collection/profile/form fields — those live only in the integration.js config and per-call construction.",
+      "data_star_attributes_on_input": "No code in the inspected files reads data-* attributes off the search input element. The input IDs referenced are 'search-input' (header) and 'autocomplete-concierge-inputField' (results page). No getAttribute('data-collection') / data-profile / data-form found in any FE module.",
+      "per_call_construction": "Each FE call site constructs its trinity by either (a) reading from window.seattleUConfig.search / config object, or (b) forwarding the query string of a Funnelback-generated href verbatim. No call site reads the input element to source trinity values."
+    }
+  },
+
+  "request_types": [
+    {
+      "id": "results-page-initial-render",
+      "originating_component": "public/integration.js — processUrlParameters → performStandardSearchFallback → performSearch",
+      "user_action": "Land on /search-test/?query=<q> (typically via header form redirect from any seattleu.edu page)",
+      "wire_destination": "Browser → su-search-dev /api/search → proxy /funnelback/search",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "integration.js config default (config.collection)", "resolution_notes": "Read at performSearch via config.collection; could be overridden by a pre-existing window.seattleUConfig.search.collection at script-load time, but no such override is set anywhere in this repo." },
+        "profile":    { "value": "_default",          "source_layer": "integration.js config default (config.profile)", "resolution_notes": "Same resolution as collection." },
+        "form":       { "value": "partial",           "source_layer": "hardcoded in performSearch params object", "resolution_notes": "Literal string 'partial' embedded at integration.js:906 inside the URLSearchParams construction; not configurable." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "URL parameter 'query' from window.location, then normalizeQuery() (lowercase, trim, collapse spaces, strip ['\"?!.,])", "notes": "Normalization is applied client-side before the request is fired." },
+        { "name": "sessionId", "value_or_source": "window.SessionService.getSessionId() if available; appended only when truthy", "notes": "" }
+      ],
+      "headers_set_by_fe": { "browser_request_to_/api/search": "default fetch() headers only — no custom headers set on this call from integration.js performSearch." },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "789-864", "function": "processUrlParameters" },
+        { "file": "public/integration.js", "line_range": "876-892", "function": "performStandardSearchFallback" },
+        { "file": "public/integration.js", "line_range": "899-980", "function": "performSearch (private)" }
+      ],
+      "cache_gate": "Indirect: processUrlParameters first calls window.checkForPreRenderedContent (defined by search-page-autocomplete.js) which itself fires a separate /api/search request with X-Cache-Status check (see request type 'pre-render-content-check'). If that returns content, performSearch is skipped. If it returns nothing or fails, performSearch fires.",
+      "gaps": []
+    },
+    {
+      "id": "pre-render-content-check",
+      "originating_component": "public/search-page-autocomplete.js — checkForPreRenderedContent",
+      "user_action": "Same trigger as results-page-initial-render; this fires first as a check for cached pre-rendered content.",
+      "wire_destination": "Browser → su-search-dev /api/search (server reads cache; on HIT returns cached HTML, on MISS hits proxy → /funnelback/search)",
+      "proxy_route": "/proxy/funnelback/search (only on cache MISS path)",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "hardcoded in checkForPreRenderedContent", "resolution_notes": "Literal string at search-page-autocomplete.js:188." },
+        "profile":    { "value": "_default",          "source_layer": "hardcoded in checkForPreRenderedContent", "resolution_notes": "Literal string at search-page-autocomplete.js:189." },
+        "form":       { "value": "partial",           "source_layer": "hardcoded in checkForPreRenderedContent", "resolution_notes": "Literal string at search-page-autocomplete.js:190." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "function arg query.trim()", "notes": "" },
+        { "name": "sessionId", "value_or_source": "SessionManager.getSessionId() if truthy", "notes": "" }
+      ],
+      "headers_set_by_fe": { "X-Requested-With": "XMLHttpRequest", "Accept": "text/html" },
+      "triggering_code": [
+        { "file": "public/search-page-autocomplete.js", "line_range": "168-276", "function": "checkForPreRenderedContent" },
+        { "file": "public/search-page-autocomplete.js", "line_range": "1133-1134", "note": "Exposed as window.checkForPreRenderedContent" },
+        { "file": "public/integration.js", "line_range": "813-859", "note": "Caller path inside processUrlParameters" }
+      ],
+      "cache_gate": "This request itself IS the cache probe. Server-side /api/search consults lib/cache.ts; FE reads response.headers['X-Cache-Status'] to log HIT/MISS but always uses the response body either way.",
+      "gaps": [
+        "When the call falls through to the proxy on cache MISS, the FE-side request is indistinguishable on the wire from a normal performSearch call (same trinity, same form=partial). This auditable path produces a duplicate proxy hit with the integration.js-side performSearch if both fire (mitigated by the pre-render success-then-return early-exit in processUrlParameters)."
+      ]
+    },
+    {
+      "id": "header-form-prerender-trigger",
+      "originating_component": "public/integration.js — setupHeaderSearch form submit handler",
+      "user_action": "User submits the global header search form on any seattleu.edu page",
+      "wire_destination": "Browser → POST su-search-dev /api/pre-render → proxy /funnelback/search (fire-and-forget background fetch from server)",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "pre-render.ts handler default; FE does not send collection in the POST body", "resolution_notes": "pre-render.ts:112 defaults collection = 'seattleu~sp-search' when req.body.collection is absent. integration.js POSTs only { query, sessionId }." },
+        "profile":    { "value": "_default",          "source_layer": "pre-render.ts handler default; FE does not send profile in the POST body", "resolution_notes": "pre-render.ts:113 defaults profile = '_default'." },
+        "form":       { "value": "partial",           "source_layer": "hardcoded in pre-render.ts handler", "resolution_notes": "pre-render.ts:145 literal 'partial' in searchParams object." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "POST body 'query'; integration.js sends normalizeQuery(headerInput.value)", "notes": "" },
+        { "name": "sessionId", "value_or_source": "POST body 'sessionId'; from window.SessionService.getSessionId(); pre-render.ts substitutes 'prerender_<ts>_<rand>' if absent", "notes": "" },
+        { "name": "clientIp", "value_or_source": "Server-resolved via getClientInfo(req.headers); appended to backend params if present", "notes": "Server-injected, not FE-controlled." }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "fetch_options": "method: POST, keepalive: true" },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "336-387", "function": "setupHeaderSearch (form submit handler)" },
+        { "file": "pages/api/pre-render.ts", "line_range": "83-227", "function": "handler — composes searchParams and fires apiClient.get('/funnelback/search', ...)" }
+      ],
+      "cache_gate": "Server-side: pre-render.ts caches the response with 16h TTL via setCachedSearchResults (lib/cache.ts) — not traversed.",
+      "gaps": [
+        "FE never sends collection/profile in the POST body; the server-side defaults are the de facto trinity. If any caller ever wants to pre-render against a non-default collection/profile, no FE call site supplies that today."
+      ]
+    },
+    {
+      "id": "header-search-suggestions-keystroke",
+      "originating_component": "public/integration.js — fetchHeaderSuggestions (debounced on header input)",
+      "user_action": "User types in the global header search input (>= 3 chars after debounceTime=200ms)",
+      "wire_destination": "Browser → su-search-dev /api/suggestions → proxy /funnelback/suggest + /suggestPeople + /suggestPrograms (3 parallel server-side fetches when type query param is absent)",
+      "proxy_route": "/proxy/funnelback/suggest, /proxy/suggestPeople, /proxy/suggestPrograms (fan-out)",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "hardcoded in suggestions.ts fetchGeneralSuggestions params (only applies to /funnelback/suggest leg)", "resolution_notes": "FE does not send collection. /suggestPeople and /suggestPrograms legs do not take a collection at all." },
+        "profile":    { "value": "_default",          "source_layer": "hardcoded in suggestions.ts fetchGeneralSuggestions params (only /funnelback/suggest leg)", "resolution_notes": "Same scope as collection." },
+        "form":       { "value": "n/a",               "source_layer": "not sent on any leg",       "resolution_notes": "Suggestions endpoints do not take a form parameter." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "FE sends raw input value as 'query'; suggestions.ts forwards as 'partial_query' to /funnelback/suggest, and as 'query' to /suggestPeople and /suggestPrograms", "notes": "Parameter name renamed at the FE-server boundary for the general leg." },
+        { "name": "sessionId", "value_or_source": "FE sends from SessionService; suggestions.ts forwards on each leg", "notes": "" },
+        { "name": "type", "value_or_source": "Not sent by FE in this code path (defaults to all-types fan-out)", "notes": "suggestions.ts supports type=general|staff|programs but no FE caller exercises this." }
+      ],
+      "headers_set_by_fe": { "browser_request_to_/api/suggestions": "default fetch() headers only — no custom headers from integration.js fetchHeaderSuggestions." },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "389-422", "function": "setupHeaderSearch input listener (debounced)" },
+        { "file": "public/integration.js", "line_range": "544-593", "function": "fetchHeaderSuggestions" },
+        { "file": "pages/api/suggestions.ts", "line_range": "121-175", "function": "fetchGeneralSuggestions / fetchStaffSuggestions / fetchProgramSuggestions" }
+      ],
+      "cache_gate": "Server-side: suggestions.ts checks lib/cache.ts via getCachedData/setCachedData with key 'suggestions:<type>:<query>:<collection>'. FE does not pre-check cache for this request type.",
+      "gaps": [
+        "FE never sets the type query parameter. The type=general/staff/programs branches in suggestions.ts:79-91 are dead from this repo's call sites — only the default fan-out leg is reachable."
+      ]
+    },
+    {
+      "id": "search-page-autocomplete-keystroke",
+      "originating_component": "public/search-page-autocomplete.js — fetchSuggestions (debounced)",
+      "user_action": "User types in the search-results-page input #autocomplete-concierge-inputField (>= 3 chars after 200ms debounce). Note this script attaches site-wide despite the file name, but the input element it targets exists only on /search-test/.",
+      "wire_destination": "Browser → su-search-dev /api/suggestions → fan-out as in header-search-suggestions-keystroke",
+      "proxy_route": "/proxy/funnelback/suggest, /proxy/suggestPeople, /proxy/suggestPrograms",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "hardcoded in suggestions.ts fetchGeneralSuggestions (FE does not send)", "resolution_notes": "Same as header keystroke — server-side hardcode is the de facto value." },
+        "profile":    { "value": "_default",          "source_layer": "hardcoded in suggestions.ts fetchGeneralSuggestions",                              "resolution_notes": "" },
+        "form":       { "value": "n/a",               "source_layer": "not sent",                                                                          "resolution_notes": "" }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "raw input value, no normalization", "notes": "Differs from integration.js code path which normalizes." },
+        { "name": "sessionId", "value_or_source": "SessionManager.getSessionId() if truthy", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/search-page-autocomplete.js", "line_range": "627-663", "function": "fetchSuggestions" },
+        { "file": "public/search-page-autocomplete.js", "line_range": "1100-1113", "note": "Bound to input via DOMContentLoaded" }
+      ],
+      "cache_gate": "Server-side cache only (same path as header-search-suggestions-keystroke).",
+      "gaps": []
+    },
+    {
+      "id": "prefetch-on-keystroke",
+      "originating_component": "public/integration.js — prefetchSearchResults (debounced; bound to both header input AND results-page input)",
+      "user_action": "User types in either the header search input or the results-page search input, query length >= 4 (config.prefetchMinQueryLength), debounce 300ms (config.prefetchDebounceTime).",
+      "wire_destination": "Browser → su-search-dev /api/prefetch → proxy /funnelback/search (server fires fire-and-forget; client does not block)",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "FE config.collection (integration.js)", "resolution_notes": "Sent on the wire via URLSearchParams in prefetchSearchResults at integration.js:486." },
+        "profile":    { "value": "_default",          "source_layer": "FE config.profile (integration.js)",     "resolution_notes": "Sent on the wire." },
+        "form":       { "value": "n/a",               "source_layer": "not sent by FE; not added by prefetch.ts to backend params", "resolution_notes": "prefetch.ts does NOT add form: 'partial' on the backend leg — distinct from pre-render.ts and search.ts." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "normalizeQuery(input.value)", "notes": "" },
+        { "name": "prefetch", "value_or_source": "literal 'true'", "notes": "Set in BOTH the FE-→-/api/prefetch URL params AND propagated by prefetch.ts on the backend leg." },
+        { "name": "sessionId", "value_or_source": "SessionService.getSessionId() if available; appended to FE URL", "notes": "" },
+        { "name": "ttl", "value_or_source": "Not sent by FE; prefetch.ts defaults to 300 seconds when absent", "notes": "" },
+        { "name": "clientIp", "value_or_source": "Server-side getClientInfo() result, propagated to backend params by prefetch.ts", "notes": "Server-injected." }
+      ],
+      "headers_set_by_fe": { "X-Prefetch-Request": "true", "X-Requested-With": "XMLHttpRequest", "fetch_options": "priority: low, keepalive: true, AbortController with 5000ms timeout" },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "405-422", "note": "Header input prefetch listener" },
+        { "file": "public/integration.js", "line_range": "722-740", "note": "Results-page input prefetch listener" },
+        { "file": "public/integration.js", "line_range": "465-537", "function": "prefetchSearchResults" },
+        { "file": "pages/api/prefetch.ts", "line_range": "40-201", "function": "handler — backend call at lines 121-130" }
+      ],
+      "cache_gate": "Server-side caches under generateSearchCacheKey(query, collection, profile) with cacheTTL (lib/cache.ts). Not FE-side.",
+      "gaps": [
+        "Trinity for prefetch lacks form on the backend leg, while results-page-initial-render sends form=partial. If the proxy treats /funnelback/search differently when form is absent vs 'partial', the prefetched payload may not match what a subsequent results-page-initial-render call expects from the cache key. Worth flagging in cross-cutting (FE-cache-key consistency)."
+      ]
+    },
+    {
+      "id": "results-page-form-resubmit",
+      "originating_component": "public/integration.js — setupResultsSearch form submit handler",
+      "user_action": "On the results page, user re-submits the search form (modifies query and clicks search).",
+      "wire_destination": "Browser → su-search-dev /api/search → proxy /funnelback/search",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "integration.js config.collection",                "resolution_notes": "Same as results-page-initial-render — they share the private performSearch function." },
+        "profile":    { "value": "_default",          "source_layer": "integration.js config.profile",                   "resolution_notes": "" },
+        "form":       { "value": "partial",           "source_layer": "hardcoded in performSearch (integration.js:906)", "resolution_notes": "" }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "normalizeQuery(component.input.value)", "notes": "" },
+        { "name": "sessionId", "value_or_source": "SessionService.getSessionId() if available", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "676-719", "function": "setupResultsSearch (form submit handler)" },
+        { "file": "public/integration.js", "line_range": "899-980", "function": "performSearch (shared with initial render)" }
+      ],
+      "cache_gate": "Server-side cache only — same path as results-page-initial-render.",
+      "gaps": []
+    },
+    {
+      "id": "search-page-autocomplete-suggestion-click",
+      "originating_component": "public/search-page-autocomplete.js — performSearch (local fn, distinct from integration.js's window.performSearch)",
+      "user_action": "User clicks a suggestion in the search-page autocomplete dropdown (general/staff/program). Triggers performSearch + updateUrl.",
+      "wire_destination": "Browser → su-search-dev /api/search → proxy /funnelback/search",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "seattleu~sp-search", "source_layer": "window.seattleUConfig?.search?.collection || hardcoded fallback 'seattleu~sp-search' at search-page-autocomplete.js:681",         "resolution_notes": "Sent by FE." },
+        "profile":    { "value": "_default",          "source_layer": "window.seattleUConfig?.search?.profile || hardcoded fallback '_default' at search-page-autocomplete.js:682",                       "resolution_notes": "Sent by FE." },
+        "form":       { "value": "partial",           "source_layer": "FE does NOT send form; /api/search server-side defaults form = req.query.form || 'partial' at search.ts:249",                       "resolution_notes": "DIVERGENCE from integration.js performSearch which sends form=partial explicitly. End wire trinity is identical only because /api/search defaults the missing param." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "Suggestion text (no normalization applied client-side here)", "notes": "Differs from integration.js path." },
+        { "name": "sessionId", "value_or_source": "SessionManager.getSessionId() if available", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/search-page-autocomplete.js", "line_range": "504-575", "function": "renderResultsPageSuggestions click handlers" },
+        { "file": "public/search-page-autocomplete.js", "line_range": "666-750", "function": "performSearch (private, file-local — not the same as window.performSearch)" }
+      ],
+      "cache_gate": "Server-side only.",
+      "gaps": [
+        "Two distinct performSearch implementations exist with different parameter shapes (form sent vs not sent, normalization applied vs not). Cross-cutting note flags this."
+      ]
+    },
+    {
+      "id": "tab-click",
+      "originating_component": "public/js/modules/tabs-manager.js — loadTabContent (and enhancedPerformSearch when re-entering via window.performSearch wrap)",
+      "user_action": "User clicks a tab in the search results page (.tab-list__nav a, .tab__button, [role=tab], [data-tab-group-control], etc.).",
+      "wire_destination": "Browser → proxy /funnelback/search DIRECTLY (no Next.js hop). Goes through core.fetchFromProxy(href, 'search').",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "varies — taken from the Funnelback-generated tab anchor href query string", "source_layer": "Funnelback response HTML embedded the trinity into the tab href; FE forwards as-is", "resolution_notes": "fetchFromProxy parses href.split('?')[1] into URLSearchParams, removes only sessionId/clientIp, then re-injects them. Whatever collection/profile/form Funnelback put in the href is what reaches the proxy." },
+        "profile":    { "value": "varies — typically '_default' or a tab-specific profile per Funnelback's URL templating", "source_layer": "Funnelback href",                "resolution_notes": "" },
+        "form":       { "value": "partial (typical for AJAX tab fetches)", "source_layer": "Funnelback href",                                                                                            "resolution_notes": "lib/utils.ts:isTabRequest treats 'form=partial' as a strong tab indicator." }
+      },
+      "other_query_params": [
+        { "name": "f.Tabs|<group>", "value_or_source": "Funnelback-generated href, forwarded verbatim", "notes": "lib/utils.ts:extractTabId parses Faculty_Staff / Programs / News / Results from this and from staff= / programs- / Faculty patterns." },
+        { "name": "tab", "value_or_source": "May appear; forwarded verbatim", "notes": "" },
+        { "name": "start_rank, num_ranks, query, etc.", "value_or_source": "Whatever Funnelback embedded in the href", "notes": "" },
+        { "name": "sessionId", "value_or_source": "Replaced by core.getSessionId() before forwarding", "notes": "FE strips any incoming sessionId and re-injects its canonical one." },
+        { "name": "clientIp", "value_or_source": "core.getClientIp() if config.enableIpTracking, else omitted", "notes": "FE strips incoming clientIp and re-injects its canonical one." }
+      ],
+      "headers_set_by_fe": { "browser_request_to_proxy": "default fetch() headers only — fetchFromProxy does not add custom headers." },
+      "triggering_code": [
+        { "file": "public/js/modules/tabs-manager.js", "line_range": "223-255", "function": "handleTabClick" },
+        { "file": "public/js/modules/tabs-manager.js", "line_range": "351-397", "function": "loadTabContent" },
+        { "file": "public/js/modules/tabs-manager.js", "line_range": "405-478", "function": "enhancedPerformSearch (also calls fetchFromProxy when isFromTabNavigation)" },
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "411-517", "function": "fetchFromProxy (case 'search')" }
+      ],
+      "cache_gate": "None FE-side. (Direct proxy fetch — neither lib/cache.ts nor /api/search interpose.)",
+      "gaps": [
+        "CONTRADICTS the audit's working assumption. Tab clicks DO fire a proxy request. The /search-test/ initial render does not pre-load all tabs' worth of data; each tab activation produces its own /proxy/funnelback/search call.",
+        "Each tab click bypasses the /api/search server-side cache layer entirely — nothing in this code path consults lib/cache.ts. The proxy's own caching (if any) is the only mediator."
+      ]
+    },
+    {
+      "id": "facet-select",
+      "originating_component": "public/js/modules/facets-manager.js — handleFacetClick",
+      "user_action": "User clicks a facet link in .facet-group__list (excluding clear and show-more).",
+      "wire_destination": "Browser → proxy /funnelback/search DIRECTLY via core.fetchFromProxy(href, 'search').",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "varies — from Funnelback href",  "source_layer": "Funnelback response HTML",            "resolution_notes": "Same as tab-click resolution mechanism." },
+        "profile":    { "value": "varies — from Funnelback href",  "source_layer": "Funnelback response HTML",            "resolution_notes": "" },
+        "form":       { "value": "partial (typical)",               "source_layer": "Funnelback response HTML",            "resolution_notes": "" }
+      },
+      "other_query_params": [
+        { "name": "f.<FacetName>|<value>", "value_or_source": "Funnelback href", "notes": "Includes f.Tabs, f.Authors, f.Topics, etc., depending on facet category." },
+        { "name": "query, start_rank, num_ranks, etc.", "value_or_source": "Funnelback href", "notes": "" },
+        { "name": "sessionId, clientIp", "value_or_source": "Stripped + re-injected from core.getSessionId() / core.getClientIp()", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/js/modules/facets-manager.js", "line_range": "81-110", "function": "handleFacetClick" },
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "411-517", "function": "fetchFromProxy (case 'search')" }
+      ],
+      "cache_gate": "None FE-side.",
+      "gaps": []
+    },
+    {
+      "id": "facet-clear",
+      "originating_component": "public/js/modules/facets-manager.js — handleClearFacetClick",
+      "user_action": "User clicks a.facet-group__clear or .facet-breadcrumb__link to remove an active facet.",
+      "wire_destination": "Browser → proxy /funnelback/search DIRECTLY",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "" },
+        "profile":    { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "" },
+        "form":       { "value": "partial (typical)",              "source_layer": "Funnelback response HTML", "resolution_notes": "" }
+      },
+      "other_query_params": [
+        { "name": "Funnelback's clear-facet href", "value_or_source": "verbatim from response HTML", "notes": "Differs from facet-select href in that the f.<facet> param it removed is absent." }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/js/modules/facets-manager.js", "line_range": "116-145", "function": "handleClearFacetClick" }
+      ],
+      "cache_gate": "None FE-side.",
+      "gaps": []
+    },
+    {
+      "id": "pagination-click",
+      "originating_component": "public/js/modules/pagination-manager.js — handlePaginationClick",
+      "user_action": "User clicks an a.pagination__link (numbered page, next, or previous).",
+      "wire_destination": "Browser → proxy /funnelback/search DIRECTLY",
+      "proxy_route": "/proxy/funnelback/search",
+      "trinity": {
+        "collection": { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "" },
+        "profile":    { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "" },
+        "form":       { "value": "partial (typical)",              "source_layer": "Funnelback response HTML", "resolution_notes": "" }
+      },
+      "other_query_params": [
+        { "name": "start_rank", "value_or_source": "Funnelback href", "notes": "Also extracted by FE for client-side URL update via updateUrlWithoutRefresh." },
+        { "name": "page",       "value_or_source": "Funnelback href",      "notes": "May or may not be present depending on Funnelback's pagination scheme." },
+        { "name": "num_ranks, query, etc.", "value_or_source": "Funnelback href", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/js/modules/pagination-manager.js", "line_range": "60-102", "function": "handlePaginationClick" }
+      ],
+      "cache_gate": "None FE-side.",
+      "gaps": []
+    },
+    {
+      "id": "spelling-suggestion-click",
+      "originating_component": "public/js/modules/spelling-manager.js — handleSpellingSuggestionClick",
+      "user_action": "User clicks a 'Did you mean' suggestion (.search-spelling-suggestions__link) or a query-blending highlight (.query-blending__highlight).",
+      "wire_destination": "Browser → proxy /funnelback/spelling DIRECTLY via core.fetchFromProxy(href, 'spelling')",
+      "proxy_route": "/proxy/funnelback/spelling",
+      "trinity": {
+        "collection": { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "fetchFromProxy 'spelling' branch parses href query string, strips sessionId/clientIp, re-injects them, forwards as-is." },
+        "profile":    { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "" },
+        "form":       { "value": "varies — from Funnelback href", "source_layer": "Funnelback response HTML", "resolution_notes": "Spelling endpoints typically return JSON; form may or may not appear." }
+      },
+      "other_query_params": [
+        { "name": "query", "value_or_source": "Funnelback href (the corrected term)", "notes": "" },
+        { "name": "sessionId, clientIp", "value_or_source": "Re-injected from core", "notes": "" }
+      ],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/js/modules/spelling-manager.js", "line_range": "67-100", "function": "handleSpellingSuggestionClick" },
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "475-500", "function": "fetchFromProxy (case 'spelling')" }
+      ],
+      "cache_gate": "None FE-side.",
+      "gaps": []
+    },
+    {
+      "id": "analytics-result-click",
+      "originating_component": "Three independent emitters: public/integration.js trackResultClick, public/search-page-autocomplete.js trackResultClick, public/js/modules/analytics-manager.js trackResultClick → core.sendAnalyticsData (type='click').",
+      "user_action": "User clicks a result link (.fb-result h3 a, .search-result-item h3 a, .listing-item__title a).",
+      "wire_destination": "Browser → proxy /analytics/click DIRECTLY via navigator.sendBeacon (preferred) or fetch(keepalive)",
+      "proxy_route": "/proxy/analytics/click",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "Analytics endpoints don't take collection/profile/form." }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "other_query_params": [],
+      "request_body_fields": [
+        { "name": "originalQuery",   "value_or_source": "core.originalQuery || URL ?query || searchInput.value || '' (analytics-manager); query from URL params (integration.js); query function arg (search-page-autocomplete.js)", "notes": "Three different recovery orders across emitters." },
+        { "name": "clickedUrl",      "value_or_source": "link.getAttribute('data-live-url') || link.getAttribute('href') || ''", "notes": "data-live-url preferred for accurate destination tracking." },
+        { "name": "clickedTitle",    "value_or_source": "link textContent (sanitized)", "notes": "" },
+        { "name": "clickPosition",   "value_or_source": "1-based index within .fb-result/.search-result-item/.listing-item collection",                              "notes": "" },
+        { "name": "clickType",       "value_or_source": "literal 'search'", "notes": "" },
+        { "name": "timestamp",       "value_or_source": "Date.now() or new Date().toISOString() depending on emitter", "notes": "Two formats in use." },
+        { "name": "sessionId",       "value_or_source": "SessionService / SessionManager / core.getSessionId() — only set when truthy", "notes": "" },
+        { "name": "clientIp",        "value_or_source": "core.getClientIp() — only added by analytics-manager-via-core path", "notes": "Other emitters do not include clientIp." }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "fetch_options": "keepalive: true (when navigator.sendBeacon falls back to fetch)" },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "1025-1081", "function": "trackResultClick" },
+        { "file": "public/search-page-autocomplete.js", "line_range": "820-866", "function": "trackResultClick" },
+        { "file": "public/js/modules/analytics-manager.js", "line_range": "88-165", "function": "trackResultClick" },
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "594-833", "function": "sendAnalyticsData (click branch lines 634-672)" }
+      ],
+      "cache_gate": "None — analytics is unconditional.",
+      "gaps": [
+        "Three independent emitters of the same event — payload shape varies (timestamp format, clientIp inclusion, originalQuery recovery). On any given click, multiple may fire if their event listeners overlap (analytics-manager and search-page-autocomplete.js both attach to .fb-result h3 a). No deduplication observed."
+      ]
+    },
+    {
+      "id": "analytics-suggestion-click",
+      "originating_component": "Two emitters: public/integration.js window.trackSuggestionClick (header suggestions) and public/search-page-autocomplete.js trackSuggestionClick (search-page suggestions).",
+      "user_action": "User clicks a suggestion item (general, staff, or program) in either header or search-page autocomplete.",
+      "wire_destination": "Browser → proxy /analytics/click DIRECTLY (sendBeacon/fetch)",
+      "proxy_route": "/proxy/analytics/click",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "other_query_params": [],
+      "request_body_fields": [
+        { "name": "originalQuery",   "value_or_source": "the suggestion text (passed as 'text' arg)", "notes": "Note this puts the SUGGESTION text into 'originalQuery' rather than the user's original typed query — distinct semantics from result-click events." },
+        { "name": "clickedUrl",      "value_or_source": "url arg, or '' for general suggestions", "notes": "" },
+        { "name": "clickedTitle",    "value_or_source": "title arg with role/dept context appended for staff, school context for programs",                                "notes": "" },
+        { "name": "clickType",       "value_or_source": "type arg: 'general' | 'staff' | 'program' | 'suggestion' (fallback)",                                              "notes": "" },
+        { "name": "clickPosition",   "value_or_source": "literal -1",                                                                                                       "notes": "Sentinel for non-result clicks." },
+        { "name": "timestamp",       "value_or_source": "new Date().toISOString()",                                                                                         "notes": "" },
+        { "name": "sessionId",       "value_or_source": "SessionService.getSessionId() / SessionManager.getSessionId() if truthy",                                          "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/integration.js", "line_range": "1091-1154", "function": "window.trackSuggestionClick" },
+        { "file": "public/search-page-autocomplete.js", "line_range": "578-624", "function": "trackSuggestionClick" }
+      ],
+      "cache_gate": "None.",
+      "gaps": []
+    },
+    {
+      "id": "analytics-tab-change",
+      "originating_component": "public/js/modules/tabs-manager.js trackTabChange → core.sendAnalyticsData (type='tab'); also public/integration.js exposes window.trackTabChange (separate, sends DIRECTLY to /analytics/supplement, not via core).",
+      "user_action": "User clicks a tab.",
+      "wire_destination": "Browser → proxy /analytics/supplement DIRECTLY",
+      "proxy_route": "/proxy/analytics/supplement",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "request_body_fields": [
+        { "name": "query", "value_or_source": "URL ?query || core.originalQuery || ''", "notes": "Note the supplement endpoint uses 'query', not 'originalQuery' — core.sendAnalyticsData renames if the wrong key is provided." },
+        { "name": "enrichmentData.actionType", "value_or_source": "literal 'tab'", "notes": "" },
+        { "name": "enrichmentData.tabName", "value_or_source": "extractCleanTabName(tabElement) — sanitized, counter patterns stripped", "notes": "" },
+        { "name": "enrichmentData.timestamp", "value_or_source": "Date.now()", "notes": "" },
+        { "name": "sessionId", "value_or_source": "core.getSessionId() if available", "notes": "" },
+        { "name": "clientIp", "value_or_source": "core.getClientIp() if config.enableIpTracking", "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "Origin": "window.location.origin (fetch path)", "credentials": "include", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/js/modules/tabs-manager.js", "line_range": "287-312", "function": "trackTabChange" },
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "710-813", "function": "sendAnalyticsData (supplement branch)" },
+        { "file": "public/integration.js", "line_range": "1163-1221", "function": "window.trackTabChange (independent emitter, never invoked from this repo's modules — appears to be a back-compat exposure)" }
+      ],
+      "cache_gate": "None.",
+      "gaps": [
+        "tabs-manager.js's trackTabChange originally also included tabId in enrichmentData (core.sendAnalyticsData strips it for tab actions per core-search-manager.js:756-763). FE intent vs server expectation diverged here at some point."
+      ]
+    },
+    {
+      "id": "analytics-facet-selection",
+      "originating_component": "public/js/modules/analytics-manager.js trackFacetSelection → core.sendAnalyticsData (type='facet')",
+      "user_action": "User clicks a facet link or facet-clear/breadcrumb link (analytics-manager listens in parallel with facets-manager).",
+      "wire_destination": "Browser → proxy /analytics/supplement DIRECTLY",
+      "proxy_route": "/proxy/analytics/supplement",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "request_body_fields": [
+        { "name": "query", "value_or_source": "core.originalQuery || ''", "notes": "" },
+        { "name": "enrichmentData.actionType", "value_or_source": "literal 'facet'", "notes": "" },
+        { "name": "enrichmentData.facetName", "value_or_source": "data-facet-name attr OR closest .facet-group .facet-group__title text OR .facet-breadcrumb__category text OR 'unknown'", "notes": "" },
+        { "name": "enrichmentData.facetValue", "value_or_source": "data-facet-value attr OR .facet-group__list-link-text OR .facet-breadcrumb__value OR link textContent",                          "notes": "" },
+        { "name": "enrichmentData.action", "value_or_source": "'clear' if .facet-group__clear or .facet-breadcrumb__link; else 'select'", "notes": "" },
+        { "name": "enrichmentData.timestamp", "value_or_source": "Date.now()", "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "Origin": "window.location.origin", "credentials": "include", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/js/modules/analytics-manager.js", "line_range": "171-204", "function": "trackFacetSelection" }
+      ],
+      "cache_gate": "None.",
+      "gaps": []
+    },
+    {
+      "id": "analytics-pagination",
+      "originating_component": "public/js/modules/analytics-manager.js trackPaginationEvent → core.sendAnalyticsData (type='pagination')",
+      "user_action": "User clicks an a.pagination__link.",
+      "wire_destination": "Browser → proxy /analytics/supplement DIRECTLY",
+      "proxy_route": "/proxy/analytics/supplement",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "request_body_fields": [
+        { "name": "query", "value_or_source": "core.originalQuery || ''", "notes": "" },
+        { "name": "enrichmentData.actionType", "value_or_source": "literal 'pagination'", "notes": "" },
+        { "name": "enrichmentData.pageNumber", "value_or_source": "parseInt(link textContent) | 'next' | 'prev' | -1", "notes": "Type can be number OR string in same field." },
+        { "name": "enrichmentData.timestamp", "value_or_source": "Date.now()", "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "Origin": "window.location.origin", "credentials": "include", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/js/modules/analytics-manager.js", "line_range": "210-242", "function": "trackPaginationEvent" }
+      ],
+      "cache_gate": "None.",
+      "gaps": []
+    },
+    {
+      "id": "analytics-spelling-suggestion",
+      "originating_component": "public/js/modules/analytics-manager.js trackSpellingSuggestion → core.sendAnalyticsData (type='spelling')",
+      "user_action": "User clicks a 'Did you mean' or query-blending suggestion.",
+      "wire_destination": "Browser → proxy /analytics/supplement DIRECTLY",
+      "proxy_route": "/proxy/analytics/supplement",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "request_body_fields": [
+        { "name": "query", "value_or_source": "core.originalQuery || '' (the original misspelled term)", "notes": "" },
+        { "name": "enrichmentData.actionType", "value_or_source": "literal 'spelling'", "notes": "" },
+        { "name": "enrichmentData.suggestedQuery", "value_or_source": "sanitized link textContent (the suggested correction)", "notes": "" },
+        { "name": "enrichmentData.timestamp", "value_or_source": "Date.now()", "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "Origin": "window.location.origin", "credentials": "include", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/js/modules/analytics-manager.js", "line_range": "248-272", "function": "trackSpellingSuggestion" }
+      ],
+      "cache_gate": "None.",
+      "gaps": []
+    },
+    {
+      "id": "analytics-ui-interaction-collapse",
+      "originating_component": "public/js/modules/collapse-manager.js trackCollapseEvent / trackShowMoreEvent / trackTabGroupEvent — all → core.sendAnalyticsData with type='tab' (intentionally typed 'tab' for routing purposes, despite being UI interactions)",
+      "user_action": "User clicks a facet collapse/expand button, a 'show more' button in a facet group, or the tab-group filter visibility toggle (the dynamically-injected 'Show Filters' / 'Hide Filters' button).",
+      "wire_destination": "Browser → proxy /analytics/supplement DIRECTLY (because core's supplement branch is the default for everything that isn't 'click' or 'batch')",
+      "proxy_route": "/proxy/analytics/supplement",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "request_body_fields": [
+        { "name": "query", "value_or_source": "URL ?query || core.originalQuery || ''", "notes": "" },
+        { "name": "enrichmentData.actionType", "value_or_source": "literal 'ui-interaction'", "notes": "DIVERGENCE from supplement endpoint's documented enum (tab|facet|pagination|spelling). core.sendAnalyticsData passes actionType through unchanged for non-canonical values; the proxy may or may not handle 'ui-interaction'." },
+        { "name": "enrichmentData.elementType", "value_or_source": "'facet-group' | 'show-more' | 'tab-group-filters'", "notes": "" },
+        { "name": "enrichmentData.action", "value_or_source": "'expand' | 'collapse' | 'click'", "notes": "" },
+        { "name": "enrichmentData.elementName", "value_or_source": "facet name (sanitized) for facet-group/show-more; absent for tab-group-filters", "notes": "" },
+        { "name": "enrichmentData.timestamp", "value_or_source": "Date.now()", "notes": "" }
+      ],
+      "headers_set_by_fe": { "Content-Type": "application/json", "Origin": "window.location.origin", "credentials": "include", "fetch_options": "keepalive: true" },
+      "triggering_code": [
+        { "file": "public/js/modules/collapse-manager.js", "line_range": "270-315", "function": "trackCollapseEvent" },
+        { "file": "public/js/modules/collapse-manager.js", "line_range": "322-371", "function": "trackShowMoreEvent" },
+        { "file": "public/js/modules/collapse-manager.js", "line_range": "379-416", "function": "trackTabGroupEvent" }
+      ],
+      "cache_gate": "None.",
+      "gaps": [
+        "actionType='ui-interaction' may not match anything the proxy /analytics/supplement endpoint expects per the proxy dictionary. Worth cross-checking against funnelback-endpoint-dictionary-2026-05-01.json."
+      ]
+    },
+    {
+      "id": "client-info-fetch",
+      "originating_component": "public/js/modules/core-search-manager.js fetchClientIp (fallback when SessionService unavailable); also lib/api-client.ts axios request interceptor on client-side requests; also lib/ip-service.ts fetchClientInfo",
+      "user_action": "Implicit — fires when a module needs the client IP and SessionService.getSessionIp returns nothing, or when an axios request from inside the browser needs to add IP headers.",
+      "wire_destination": "Browser → su-search-dev /api/client-info (LOCAL — does NOT call the proxy)",
+      "proxy_route": "n/a — no proxy hop. Documented for completeness because it appears as outbound traffic from FE code.",
+      "trinity": { "collection": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "profile": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" }, "form": { "value": "n/a", "source_layer": "n/a", "resolution_notes": "" } },
+      "other_query_params": [],
+      "headers_set_by_fe": {},
+      "triggering_code": [
+        { "file": "public/js/modules/core-search-manager.js", "line_range": "197-208", "function": "fetchClientIp" },
+        { "file": "lib/api-client.ts", "line_range": "210-250", "function": "client-side request interceptor" },
+        { "file": "lib/ip-service.ts", "line_range": "171-218", "function": "fetchClientInfo" },
+        { "file": "pages/api/client-info.ts", "line_range": "91-144", "function": "handler — purely inspects req headers and returns IP; no proxy call" }
+      ],
+      "cache_gate": "Client-side IP cache in lib/ip-service.ts (5 min) and lib/api-client.ts (1 min). Both stay within the FE app boundary.",
+      "gaps": []
+    }
+  ],
+
+  "cross_cutting_observations": {
+    "tab_click_assumption_result": "CONTRADICTED. Tabs do NOT operate as client-side filters over preloaded all-tabs data. Each tab click (tabs-manager.js handleTabClick → loadTabContent) fires a fresh /proxy/funnelback/search request via core.fetchFromProxy(href, 'search'), bypassing /api/search and its lib/cache.ts layer entirely. The href used is the Funnelback-generated tab anchor's href — Funnelback templates the trinity (collection/profile/form) and tab-scoping params (f.Tabs|...) into that href, and FE forwards them verbatim except for stripping/re-injecting sessionId and clientIp.",
+    "results_response_segmentation": "Inconclusive from the FE-only audit. The FE's /api/search response handling treats the body as opaque HTML (innerHTML assignment into '#funnelback-search-container-response'). It does not parse for per-tab metadata or slice into tab-scoped subsets. Combined with the tab-click finding above, the most consistent interpretation is: the initial render returns ONLY the active tab's content (typically Results/all), and each tab activation pulls its own slice. Confirming this requires inspecting an actual response body, which is out of scope.",
+    "trinity_universality_vs_variation": {
+      "universally_fixed_FE_initiated_paths": "On the FE-orchestrated paths (/api/search, /api/prefetch, /api/pre-render, /api/suggestions for the general leg), trinity is uniformly collection='seattleu~sp-search', profile='_default', form='partial' (where applicable). The values appear in three places: integration.js config object, search-page-autocomplete.js hardcoded fallbacks (after a window.seattleUConfig optional-chain), and the Next.js API route handler defaults (search.ts, prefetch.ts, pre-render.ts, suggestions.ts). This is the 'three places' duplication CLAUDE.md flagged — the FE-side manifestations of the trinity.",
+      "varies_on_funnelback_response_paths": "On the in-page interaction paths (tab-click, facet-select, facet-clear, pagination-click, spelling-suggestion-click), the trinity is whatever Funnelback embedded into the href in the prior response. The FE has no static knowledge of these values — it just forwards href.split('?')[1] verbatim. So profile may be '_default' or something else entirely (e.g., a tab-specific profile if Funnelback's templating produced one); collection may differ; form may or may not appear.",
+      "implication": "Trinity discipline on the FE is split: outbound calls the FE constructs from scratch are uniformly canonical; outbound calls the FE forwards from server-supplied hrefs inherit whatever the proxy/Funnelback chose. Any rebuild design that wants to centralize trinity needs to handle both modes."
+    },
+    "fe_intent_vs_proxy_reconciliation_divergences": [
+      "form parameter on /funnelback/search prefetch leg: prefetch.ts does NOT include form='partial' in its backend call params (prefetch.ts:121-130), unlike pre-render.ts and search.ts. If the proxy normalizes /funnelback/search calls to require form='partial', the prefetched cache key may not match a subsequent canonical search request's cache key. Worth verifying against the proxy dictionary.",
+      "form parameter on search-page-autocomplete-suggestion-click: the FE-→-/api/search call from search-page-autocomplete.js performSearch does not send form, relying on /api/search's server-side default. Functionally identical wire output, but the FE intent here is implicit rather than explicit.",
+      "actionType='ui-interaction' on /analytics/supplement (collapse-manager): not in the documented enum the supplement endpoint advertised (tab|facet|pagination|spelling). Either the proxy accepts arbitrary actionType strings or these events are silently dropped; FE code alone cannot tell.",
+      "/analytics/clicks-batch: configured in core.config.analyticsEndpoints.batch and supported in core.sendAnalyticsData's batch branch (core-search-manager.js:673-709), but no FE caller produces type='batch' analytics anywhere in the inspected files. Endpoint is unreachable from the live FE.",
+      "/analytics/ (session): configured in core.config.analyticsEndpoints.session but never referenced by sendAnalyticsData or anywhere else. Dead config entry."
+    ],
+    "tab_id_enumeration_for_supplement_endpoint": {
+      "tabName_values_observed_on_wire": ["Results", "Programs", "Faculty & Staff", "News"],
+      "extraction_method": "tabs-manager.extractCleanTabName → first .tab-name/.tab-title/.tab-label child OR first text node child OR full textContent, then sanitizeTabName strips '(N)' / '[N]' counter patterns, HTML tags, and normalizes whitespace.",
+      "notes": "These are user-facing display labels, not the URL-safe identifiers (Faculty_Staff/Programs/Results/News) that lib/utils.ts:normalizeTabId produces server-side from /api/search hrefs. Two different tab-naming spaces coexist: display-name (analytics) vs id (cache keys)."
+    },
+    "tools_path_enumeration": {
+      "result": "EMPTY. core-search-manager.js fetchFromProxy supports type='tools' (case at lines 450-473) which would forward to /proxy/funnelback/tools with a 'path' parameter extracted from url.split('/s/')[1]. However, no FE caller in the inspected files ever invokes fetchFromProxy with type='tools'. The /funnelback/tools endpoint receives no traffic from this FE.",
+      "implication": "The proxy audit's gap on opaque 'path' values for /funnelback/tools cannot be filled from FE code — there are no FE-originated 'path' values to enumerate. Either the endpoint is dead, or it is exercised only by a sibling app (su-search A-side, or another integration).",
+      "gap_for_chat": "If the proxy logs show /funnelback/tools traffic, it is not coming from this codebase."
+    },
+    "configuration_source_distribution_across_request_types": {
+      "integration_js_config_object_drives": ["results-page-initial-render", "results-page-form-resubmit", "prefetch-on-keystroke (collection, profile)", "header-form-prerender-trigger (only via window.seattleUConfig if overridden — body itself does not include collection/profile)"],
+      "search_page_autocomplete_hardcoded_fallbacks_drive": ["pre-render-content-check", "search-page-autocomplete-suggestion-click"],
+      "next_js_api_route_handler_defaults_drive": ["header-search-suggestions-keystroke (collection, profile, on /funnelback/suggest leg)", "search-page-autocomplete-keystroke (same)", "header-form-prerender-trigger (collection, profile)", "search-page-autocomplete-suggestion-click (form)"],
+      "funnelback_response_href_drives": ["tab-click", "facet-select", "facet-clear", "pagination-click", "spelling-suggestion-click"],
+      "data_star_attributes_on_input": "NONE. No FE call site reads data-collection / data-profile / data-form from the input element. This row in the audit's configuration model is empty for this codebase."
+    },
+    "session_id_propagation_summary": "Three independent SessionService consumers: (1) integration.js reads window.SessionService.getSessionId() inline at each call site; (2) search-page-autocomplete.js wraps it in a module-level SessionManager; (3) core-search-manager.js caches it on this.sessionId and refreshes via getSessionId(). All three hit window.SessionService.getSessionId() under the hood, so they agree, but there's no single source-of-truth wrapper.",
+    "client_ip_propagation_summary": "Two layers: (a) FE-direct browser→proxy calls sometimes append clientIp as a query param (core.fetchFromProxy when config.enableIpTracking=true) or as a body field (core.sendAnalyticsData supplement/click branches); (b) Next.js API routes resolve via lib/ip-service.getClientInfo(req.headers) and lib/api-client.ts adds X-Forwarded-For + X-Client-IP headers on the backend leg. The /api/client-info endpoint is the canonical resolver consumed by client-side fetchers.",
+    "cache_gates_observed": {
+      "fe_side_pre_request_check": "Only one path: pre-render-content-check fires /api/search with X-Requested-With=XMLHttpRequest and inspects X-Cache-Status to decide whether to display pre-rendered content or fall through. This is NOT a cache-only check (it always returns the response body); it just probes via the same /api/search endpoint that does the full call.",
+      "/api/check-cache.ts": "Exists in pages/api/ but no FE module references it. It would be invoked as /api/check-cache?query=...&collection=...&profile=...&. This is a true cache-only probe (returns 404 on MISS, 200 with TTL on HIT). Endpoint is reachable but unused by inspected FE code.",
+      "implication": "/api/check-cache appears to be vestigial from a previous FE design. The current FE uses /api/search itself as the probe."
+    },
+    "search_bundle_js_inertness_confirmed": "public/search-bundle.js contains the same proxy-call patterns (proxyBaseUrl, fetchSuggestions calling /api/suggestions, performSearch calling /api/search, sendBeacon to /analytics/click and /analytics/supplement) that are live in integration.js + search-page-autocomplete.js. CLAUDE.md notes it is preloaded by integration.js but not executed. Confirmed not listed as a live request surface in this audit."
+  },
+
+  "global_gaps": [
+    "Whether /proxy/analytics/supplement accepts actionType='ui-interaction' (collapse-manager) — FE code alone cannot answer; cross-check against the proxy dictionary's supplement endpoint enum.",
+    "Whether the proxy treats /funnelback/search calls without 'form' (prefetch path) the same as 'form=partial' (search-page/pre-render paths). If they diverge in cache-key generation, prefetched results would not satisfy a subsequent canonical search request.",
+    "Whether /proxy/funnelback/tools is exercised at all in the live system — no caller in this FE codebase produces a 'tools' request. Could be entirely served by the A-side FE (su-search) or unused.",
+    "Whether /proxy/analytics/clicks-batch and /proxy/analytics/ (session) are exercised — the FE configures both endpoints but produces no traffic to them.",
+    "Whether the response body returned by /api/search on initial render contains all-tabs data (and the per-tab calls observed are redundant fetches) or only the active tab's data (and per-tab calls are required for the others). Resolving this requires inspecting actual response bodies, which is out of scope for FE-only audit.",
+    "CLAUDE.md states search-page-autocomplete.js lives at public/js/search-page-autocomplete.js, but the actual file is at public/search-page-autocomplete.js. Referenced behavior matches; only the path note in CLAUDE.md is stale."
+  ]
+}
