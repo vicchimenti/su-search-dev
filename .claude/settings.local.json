@@ -4,7 +4,22 @@
       "Write(audit/**)",
       "Edit(audit/**)",
       "MultiEdit(audit/**)",
-      "Bash(mkdir:audit)"
+      "Bash(mkdir:audit)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(diff:*)",
+      "Bash(git log:*)",
+      "Bash(git blame:*)",
+      "Bash(git show:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)"
     ]
-  }
+  },
+  "defaultMode": "default"
 }
