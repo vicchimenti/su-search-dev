@@ -18,7 +18,9 @@
       "Bash(git blame:*)",
       "Bash(git show:*)",
       "Bash(git status:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(git add:audit/**)",
+      "Bash(git commit:*)"
     ]
   },
   "defaultMode": "default"
