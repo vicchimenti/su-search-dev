@@ -1,0 +1,998 @@
+{
+  "meta": {
+    "audit_date": "2026-05-13",
+    "audit_version": "1.0.0",
+    "phase": "C",
+    "phase_stage": "C.4-final",
+    "scope": "Squiz stencils contract surface — binding requirements the FE rebuild must reproduce in its interaction with Squiz-framework-driven components and the Vic-controlled FreeMarker templates that configure them. Documents: the autocomplete-concierge React component mount point (wrapper div + nested-span dataset configuration), the on-page input element with its full data-* configuration set, the seam contracts to #autocomplete-suggestions and #results, the universal stencils cluster (seven JS files loaded by T4 PageLayout), the inline marketing pixels confirmed non-search, and the Squiz behavioral consumers (compiled stencils main.js with its module map, the lazy-loaded React component, Twitter Typeahead). The three Vic-controlled FreeMarker templates (auto_complete_concierge.ftl, auto_complete.ftl, partial.ftl) are documented as the writer source-layer of the entries they emit; they are characterization targets, not modification targets in this audit phase. The three-pattern decision (data-feed-only vs controller-only vs full-Squiz-rendering) is scoped here as a flagged development investigation; Phase C does not pick a pattern.",
+    "binding_status": "REQUIREMENTS — rebuild MUST reproduce contract surfaces marked REQUIRED or EXTERNAL_CONSUMER_REQUIRED if it preserves the autocomplete-concierge mechanism. The three_pattern_relevance field on each entry documents how each pattern interacts with the surface; the development investigation tries each empirically. TO_DETERMINE and VESTIGIAL_CANDIDATE bindings are open questions deferred to rebuild design phase or to later audit/inspection passes that need live DOM, Funnelback admin config, or design-system access.",
+    "source_layers": [
+      "FE_DYNAMIC_INSERTION",
+      "T4_PAGELAYOUT",
+      "SQUIZ_STENCILS_BOILERPLATE",
+      "FUNNELBACK_PARTIAL",
+      "SQUIZ_INJECTED",
+      "SQUIZ_FTL_TEMPLATE"
+    ],
+    "binding_values": [
+      "REQUIRED",
+      "EXTERNAL_CONSUMER_REQUIRED",
+      "TO_DETERMINE",
+      "VESTIGIAL_CANDIDATE",
+      "NOT_BINDING"
+    ],
+    "consumer_types": [
+      "IN_REPO_FE",
+      "EXTERNAL_JS_LOADED_BY_FUNNELBACK",
+      "EXTERNAL_JS_LOADED_BY_T4",
+      "ASSISTIVE_TECH_INFERRED",
+      "CSS_INFERRED",
+      "SQUIZ_FRAMEWORK_REACT_COMPONENT"
+    ],
+    "behavioral_consumers": [
+      {
+        "id": "squiz-stencils-main-js",
+        "url": "https://dxp-us-search.funnelback.squiz.cloud/s/resources/seattleu~sp-search/_default/themes/stencils/js/main.js",
+        "loaded_by": "Funnelback partial response on the search page only (script tag injected inside the funnelback-search-container-response wrapper). NOT loaded on non-search pages. This corrects the Phase A meta.behavioral_consumers.squiz-stencils-main-js.loaded_by description, which previously said 'injected inside the funnelback-search-container-response wrapper on the search page' but did not explicitly state the non-loading-on-other-pages constraint.",
+        "kind": "compiled webpack bundle (Squiz stencils framework)",
+        "module_map": {
+          "47462": "autocomplete-concierge bootstrap — defines the wrapper component and _parseConfiguration method",
+          "603": "autocomplete-search bootstrap — defines the legacy autocomplete-search adapter (different from autocomplete-concierge)",
+          "79963": "helpers module — defines the rg helper used by _parseConfiguration to parse innerHTML to children",
+          "38630": "standard React component target (lazy-imported via chunk 641)",
+          "25699": "modal React component target (lazy-imported via chunk 641, alternate mode)"
+        },
+        "lazy_chunks": [
+          "chunk 466 (Promise.all leg 1)",
+          "chunk 401 (Promise.all leg 2)",
+          "chunk 641 (Promise.all leg 3; hash e501a609afe40e692932)"
+        ],
+        "consumed_attributes_on_wrapper": {
+          "data-component": "REQUIRED — value 'autocomplete-concierge' is the discriminator that picks up the bootstrap. Confirmed via module 47462 query pattern.",
+          "data-configuration": "REQUIRED — JSON-string blob parsed for top-level component config (portal, default template, etc.). Module 47462 reads it via _parseConfiguration, which then queries `i.Qj[n.name]` for known attribute names.",
+          "innerHTML": "Module 47462 calls (0,i.rg)(document, e.innerHTML) — module 79963's rg helper parses the innerHTML to child elements (returns n.children after innerHTML assignment to a div). The returned children are then iterated as per-dataset configuration spans."
+        },
+        "consumed_dataset_on_nested_spans": {
+          "data-id": "REQUIRED — dataset key 'id', extracted as `(0,i.H2)(t.dataset.id)`. Per-dataset identifier (e.g. 'general', 'staff', 'programs').",
+          "data-label": "REQUIRED — column header label string for the rendered React tree.",
+          "data-template": "REQUIRED — names which React template to use for this dataset (e.g. 'organic' for the default text-row template).",
+          "data-service-url": "REQUIRED — the upstream service URL the React component queries for this dataset's data (per-dataset; allows different upstream targets per column).",
+          "data-adapter": "REQUIRED — names the adapter class for transforming the service response. The brief's narrative listed five dataset attributes; this is the sixth, surfaced by Phase C's WebFetch on main.js.",
+          "data-params": "REQUIRED — additional query parameters passed to the service URL."
+        },
+        "consumed_attributes_on_inputField": "Per Phase A Finding F10, data-form is NOT in the consumed set (the captured input doesn't emit it and there is no read in main.js's parse path that targets it). The actually-consumed attribute set on the input element is enumerated in entry _seam_autocomplete-concierge-inputField below. The Phase A meta.behavioral_consumers.squiz-stencils-main-js.presumed_consumed_attributes list (which included data-form) is revised: data-form REMOVED.",
+        "notes": "External JS loaded into the page when the search page renders the Funnelback partial. Consumes the wrapper's data-configuration JSON plus nested-span dataset attributes. Internal architecture: webpack-compiled bundle containing the ally.js accessibility library, React lazy-loading scaffolding, autocomplete-concierge component (module 47462), legacy autocomplete-search component (module 603), and a near-complete core-js polyfill set. Phase C's stop rules limit examination to the modules that define the public contract surface; the React component itself (chunk 641 → module 38630 / 25699) is reached only by lazy import after the wrapper mounts, and its source has not been read in depth — the contract entries below mark its rendering behavior as TO_DETERMINE pending the development-phase three-pattern investigation."
+      },
+      {
+        "id": "autocomplete-concierge-react-component",
+        "url": "https://dxp-us-search.funnelback.squiz.cloud/s/resources/seattleu~sp-search/_default/themes/stencils/js/641.<hash>.js (hash e501a609afe40e692932 per main.js's webpack manifest)",
+        "loaded_by": "Lazy import from module 47462 via Promise.all([n.e(466), n.e(401), n.e(641)]).then(n.bind(n, 38630)) for the standard variant and ...n.bind(n, 25699) for the modal variant",
+        "kind": "React component (lazy-loaded chunk)",
+        "consumed_attributes": [
+          "(inferred — actual contract pending chunk-source inspection in development phase) per-dataset id, label, template name, service URL, adapter, and params from the parsed wrapper configuration; renders into a portal target if configured or into the wrapper otherwise"
+        ],
+        "rendering_behavior": "TO_DETERMINE — Phase C did not inspect the chunk source. Open questions: (a) where the React tree renders (inside the wrapper, into the portal target referenced by the wrapper's portal attribute if present, or somewhere else); (b) whether it currently renders any visible UI in production or whether it is configured to mount silently (no datasets configured = no rendered output); (c) the data-shape expected from each dataset's service-url response; (d) the catalog of available template names beyond 'organic' (the default referenced in the brief).",
+        "notes": "The lazy-loaded React component is the active autocomplete mechanism on the search page IF datasets are configured in the Funnelback admin's stencils.auto-completion.datasets profile config. Vic 2026-05-13: profile config value not yet checked; if zero datasets are configured the React tree mounts silently and the visible autocomplete UX is FE-rendered. The three-pattern decision (data-feed-only / controller-only / full-Squiz-rendering) hinges on this component's contract — the development investigation evaluates each pattern against it."
+      },
+      {
+        "id": "squiz-typeahead-bundle",
+        "url": "https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.11.1/typeahead.bundle.min.js",
+        "loaded_by": "T4 PageLayout script imports — part of the universal stencils cluster (loaded universally on all pages where T4 PageLayout renders, not specifically on the search page)",
+        "kind": "Twitter Typeahead bundle (jQuery-based autocomplete library)",
+        "consumed_attributes": [
+          "(unknown — Typeahead binds to inputs via $.typeahead({...}) API call sites, not via DOM attribute scanning by default; specific Squiz binding sites unconfirmed)"
+        ],
+        "status": "TO_DETERMINE — Phase C working hypothesis is that Typeahead is loaded universally but not bound to any input in current production (no tt-* DOM signatures observed in any captured state; the search-page input is bound by the autocomplete-concierge React component instead). The autocomplete-search FTL macro in auto_complete.ftl is the path that would invoke Typeahead-style binding, and per the brief the search-page partial.ftl invokes hero_banner.SearchForm rather than the autocomplete-search macro — but reading hero_banner.ftl is needed to confirm the macro selection. If confirmed idle, Typeahead becomes a strip-out candidate evaluated in the development-phase universal-stencils-cluster experiment.",
+        "notes": "Twitter Typeahead, jQuery-based autocomplete library bundled by Squiz. Phase A originally hypothesized Typeahead as the create site for #header-suggestions (Finding F8) and as a possible consumer of the on-page input's data-* attributes. Phase C cannot confirm either — the typeahead bundle is part of the universal cluster and may be entirely idle on this template. Confirmation requires either runtime DOM inspection during a query or reading the hero_banner.ftl macro source to see if Typeahead-style binding macros are invoked."
+      }
+    ],
+    "capture_states": [
+      "search-initial",
+      "search-on-page-dropdown-staff-focused",
+      "search-on-page-dropdown-all-columns",
+      "non-search-idle",
+      "non-search-header-dropdown"
+    ],
+    "capture_states_status": {
+      "search-initial": "INHERITED from Phase A Capture 1 — the on-page input's data-* attribute set is sourced here",
+      "search-on-page-dropdown-staff-focused": "INHERITED from Phase A Capture 2/3 — useful only for FE-emitted dropdown contents, not Squiz contract",
+      "search-on-page-dropdown-all-columns": "INHERITED from Phase A Capture 2/3 — same",
+      "non-search-idle": "INHERITED from Phase A Capture 5 — confirms autocomplete-concierge wrapper is NOT present on non-search pages",
+      "non-search-header-dropdown": "INHERITED from Phase A Capture 4 — same"
+    },
+    "cross_references": [
+      "audit/html-audit-phase-a-2026-05-12-v2.json (Phase A canonical — Findings F8, F9, F10, F11, F12 close out here)",
+      "audit/html-audit-phase-a-2026-05-12-v2.md (Phase A markdown companion)",
+      "audit/fe-autocomplete-audit-2026-05-05.md (FE autocomplete subsystem audit)",
+      "audit/fe-listener-audit-2026-05-06.md (listener inventory and reachability map)",
+      "audit/fe-tabs-manager-audit-2026-05-08-v2.md (tabs-manager single-file audit)",
+      "audit/fe-cache-audit-2026-05-04.md (FE cache layer audit)",
+      "audit/network-investigation-2026-05-01.md (live-traffic observations)",
+      "audit/network-recap-re-examination-2026-05-11.md and addendum",
+      "audit/prefetch-archaeology-audit-2026-05-11.md",
+      "audit/funnelback-endpoint-dictionary-2026-05-01.json (proxy-rebuild equivalent — same structural role for Funnelback wire contract)",
+      "audit/fe-endpoint-dictionary-2026-05-07.json"
+    ],
+    "findings": [
+      {
+        "finding_id": "C1",
+        "title": "The nested-span dataset attribute set is six, not five",
+        "evidence": "WebFetch on https://dxp-us-search.funnelback.squiz.cloud/s/resources/seattleu~sp-search/_default/themes/stencils/js/main.js retrieved the literal Array.from(n).map(...) body inside module 47462's _parseConfiguration: `id:(0,i.H2)(t.dataset.id), label:(0,i.H2)(t.dataset.label), template:(0,i.H2)(t.dataset.template), serviceUrl:(0,i.H2)(t.dataset.serviceUrl), adapter:(0,i.H2)(t.dataset.adapter), params:(0,i.H2)(t.dataset.params), className:(0,i.H2)(t.classList.value), type:(0,i.H2)(t.nodeName), name:(0,i.H2)(t.name), value:(0,i.H2)(t.value)`.",
+        "implication": "The brief's preserved-narrative enumeration listed five dataset attributes (data-id, data-label, data-template, data-service-url, data-params). The actual consumed set is six — data-adapter is the sixth. The brief framing of `data-service-url` per-channel substitution under Pattern 1 (data-feed-only) extends to `data-adapter` substitution too: the adapter class is named per dataset and transforms the upstream response into the React component's expected shape. Pattern 1's contract surface for the rebuild therefore requires BOTH per-channel service-URL routing through the proxy AND per-channel adapter selection. The classList.value, nodeName, name, and value fields are extracted from the host element but are platform/DOM metadata (CSS class string, tag name, input name/value) not Vic-controlled per-template configuration; they don't represent additional contract surface."
+      },
+      {
+        "finding_id": "C2",
+        "title": "data-configuration is JSON-parsed and feeds an attribute-mapping table",
+        "evidence": "Module 47462's _parseConfiguration body (per WebFetch): `const n=(0,i.rg)(document,e.innerHTML), r=t.portal||null, o=[], a=document.querySelector(r); if(r&&a){const t=document.createElement('div'); for(let e=0;e<a.attributes.length;e++){const n=a.attributes[e]; 'id'===n.name && t.setAttribute(n.name,n.value), 'value'!==n.name && i.Qj[n.name] && (o[i.Qj[n.name]]=n.value.toString())}}`. The `t` parameter is the parsed JSON object (deserialized from the wrapper's data-configuration attribute); `e` is the wrapper element itself; `t.portal` is one of the known top-level config keys that point at an external target element via CSS selector.",
+        "implication": "Two distinct contract surfaces: (a) the JSON blob in data-configuration, whose schema includes at least a 'portal' key and presumably default-template / behavior keys; (b) the `i.Qj` attribute-name-to-config-key mapping table, which determines which HTML attributes on the portal target element get hoisted into the component's runtime config. The full i.Qj table is not enumerated in this audit pass (WebFetch returned only the parse-site code); the development investigation should grep the bundle for the Qj definition. For the rebuild: if Pattern 3 (full-Squiz-rendering) is selected, the data-configuration JSON shape becomes a binding contract for FTL template modifications. If Pattern 1 or 2 is selected, only the wrapper's presence and minimum attribute set must be reproduced."
+      },
+      {
+        "finding_id": "C3",
+        "title": "Module 603 (autocomplete-search) reads four data-* attributes from the host element",
+        "evidence": "Per WebFetch, module 603's constructor: `this.emphasis=t.dataset.emphasis; this.remoteAddress=`${this.autocomplete.dataset.suggestSource}?collection=${this.autocomplete.dataset.suggestCollection}&${this.autocomplete.dataset.suggestAdditionalParams}&fmt=json++``. Plus the constructor at the top of module 603 queries the host for `[data-component='autocomplete-result-status']`, `[data-component='autocomplete-result-count']`, and `[data-component='autocomplete-result-template']` (the third inferred from the line beginning `this.resultItemTemplate=t.querySelector` — the explicit selector text was truncated by WebFetch's summary).",
+        "implication": "The autocomplete-search adapter (module 603) consumes a separate attribute namespace than autocomplete-concierge: data-emphasis, data-suggest-source, data-suggest-collection, data-suggest-additional-params on the host, plus data-component='autocomplete-result-status' / 'autocomplete-result-count' / 'autocomplete-result-template' on child elements. None of these attributes appear in Phase A's Capture 1 of the on-page input. Working hypothesis: module 603 is wired up via the auto_complete.ftl FreeMarker macro (the older mechanism), and the search-page partial does not invoke that macro — only auto_complete_concierge.ftl is in active use. This aligns with the Typeahead-idle hypothesis (Typeahead and the autocomplete-search adapter pair were the older mechanism; autocomplete-concierge replaced them). Confirmation requires reading hero_banner.ftl to see which macro the SearchForm component invokes."
+      },
+      {
+        "finding_id": "C4",
+        "title": "React lazy-loading uses three webpack chunks and two module IDs",
+        "evidence": "Per WebFetch: `const s=(0,r.lazy)((()=>Promise.all([n.e(466), n.e(401), n.e(641)]).then(n.bind(n, 38630)))), u=(0,r.lazy)((()=>Promise.all([n.e(466), n.e(401), n.e(641)]).then(n.bind(n, 25699))))`. The `s` and `u` constants are React.lazy components used inside module 47462; chunks 466 and 401 are shared dependencies (likely React itself + ally.js or similar), and chunk 641 (hash e501a609afe40e692932 per the brief) contains both target modules 38630 (standard) and 25699 (modal).",
+        "implication": "Two component variants exist: standard and modal. The brief's narrative noted chunk 641 only; Phase C clarifies that two distinct React component implementations are bundled in it. Which variant is mounted depends on the wrapper configuration — likely a 'modal' flag in the data-configuration JSON. For the rebuild: if Pattern 3 (full-Squiz-rendering) is selected, the modal-vs-standard choice is part of the contract surface and the development investigation should determine which variant the current production wrapper requests."
+      },
+      {
+        "finding_id": "C5",
+        "title": "Module 79963's rg helper parses innerHTML via div-mutation",
+        "evidence": "Per WebFetch: `function o(t,e){const n=t.createElement('div'); return n.innerHTML=e, n.children}`. The function takes a document reference and an HTML-string; mutates a throwaway div; returns the resulting child HTMLCollection. Module 47462's _parseConfiguration calls it as `(0,i.rg)(document, e.innerHTML)` where `e` is the wrapper element, hoisting the wrapper's innerHTML into the children collection that is then iterated for per-dataset spans.",
+        "implication": "The implementation detail confirms that the dataset configuration spans (data-id / data-label / data-template / data-service-url / data-adapter / data-params bearing) must be DIRECT children of the wrapper's innerHTML — nested grandchildren would not be enumerated. The FTL template auto_complete_concierge.ftl emits exactly this flat-spans-inside-wrapper structure. The pattern is rigid for the rebuild: any wrapper-substitute must produce flat dataset spans at the immediate child level."
+      },
+      {
+        "finding_id": "C6",
+        "title": "Phase A Finding F10 closed — data-form is not consumed by main.js",
+        "evidence": "The _parseConfiguration body (per Finding C1 and C2) reads dataset attributes via the explicit name list (id, label, template, serviceUrl, adapter, params) on nested spans, plus the `i.Qj`-mapped attributes on the portal target element. None of these include `form`. The captured on-page input (Phase A Capture 1) does not emit data-form. The Phase A meta.behavioral_consumers.squiz-stencils-main-js.presumed_consumed_attributes list (which speculatively included data-form) is revised — data-form REMOVED from the presumed set.",
+        "implication": "The rebuild does NOT need to emit data-form on the on-page input. Phase A's F10 gap closes. The Phase B endpoint dictionary's `data_star_attributes_on_input` row amendment (long queued since 2026-05-11, mentioned in the brief as 'unlockable after Phase C resolves what the data-* set actually consumes') can now be finalized with the actually-consumed set: data-component, data-configuration on the WRAPPER, and on the INPUT the configuration-source attributes referenced by `i.Qj` mapping (data-collection, data-profile, data-autocomplete, data-max-results, data-min-length, data-results-container) — pending enumeration of the full i.Qj table in the development phase."
+      },
+      {
+        "finding_id": "C7",
+        "title": "Phase A Finding F11 clarified — data-results-container=\"results\" is React-component-internal config, not a parallel-pipeline routing mechanism",
+        "evidence": "Per Finding C2's evidence trace, the input element's data-* attributes (data-results-container included) get hoisted into the component's runtime config via `i.Qj[n.name]` mapping. The 'results' string value names an element by ID (Squiz stencils convention), but the consumer is the lazy-loaded React component (chunk 641 → module 38630 / 25699) rather than an out-of-component routing mechanism. The component reads the configured target during its render; whether it renders into the target, scrolls to it, or merely references it for ARIA wiring is not visible from the parse-site source and is queued for chunk-source inspection in the development phase.",
+        "implication": "Phase A's F11 'two readings' both collapse to one: data-results-container is React-component-internal configuration, not a 'Squiz autocomplete writes to #results' mechanism that would collide with the FE-authored funnelback-search-container-response wrapper write. The rebuild's three-pattern decision determines what to do with this attribute: under Pattern 1 (data-feed-only) the rebuild can drop the data-results-container attribute (the React component is gone, the FE owns #results); under Pattern 2 (controller-only) the attribute remains EXTERNAL_CONSUMER_REQUIRED with its current value 'results'; under Pattern 3 (full-Squiz-rendering) the attribute remains EXTERNAL_CONSUMER_REQUIRED and the React component takes ownership of #results writes (the FE's funnelback-search-container-response wrapper write would need to coexist or yield)."
+      },
+      {
+        "finding_id": "C8",
+        "title": "Typeahead status remains TO_DETERMINE pending hero_banner.ftl read",
+        "evidence": "No tt-* DOM signatures observed in any captured state (Phase A Captures 1-5). Twitter Typeahead bundle is loaded universally as part of the seven-file stencils cluster but no binding site is visible in main.js's autocomplete-concierge or autocomplete-search modules — Typeahead is jQuery-API-bound via $.typeahead({...}) call sites which would appear elsewhere in the bundle or in supplementary scripts not yet inspected. The brief's preserved working hypothesis (Typeahead loaded but idle on this template) is consistent with the absence of DOM signatures.",
+        "implication": "Confirmation requires either: (a) reading hero_banner.ftl (the SearchForm component invoked by partial.ftl) to see which autocomplete macro is invoked, or (b) live runtime DOM inspection during a query to look for tt-* sibling wrappers around either input. Both are pending. Conservatively: Typeahead remains EXTERNAL_CONSUMER_REQUIRED-with-TO_DETERMINE-active-status; the universal-stencils-cluster strip-out experiment (development phase) will resolve via empirical removal."
+      },
+      {
+        "finding_id": "C9",
+        "title": "Three-pattern decision contract-surface implications enumerated",
+        "evidence": "Per the brief's three-pattern decision framework, each Phase C entry below carries a three_pattern_relevance field documenting what role the entry plays under each pattern. Aggregating: under Pattern 1 (data-feed-only), the wrapper and nested-span dataset config remain REQUIRED (the React component continues to render) but the data-service-url values are reconfigured to proxy endpoints. Under Pattern 2 (controller-only), the wrapper remains but the React component is configured to mount without rendering output (render-disabled mode if supported, or render-to-slot mode if exposed); the FE's dropdown DOM continues to receive innerHTML writes. Under Pattern 3 (full-Squiz-rendering), the wrapper plus extended dataset configuration is the SOLE autocomplete mechanism on the search page; the FE's renderResultsPageSuggestions code path is retired.",
+        "implication": "The development investigation has the contract surface mapped per pattern. Decision is not Phase C's to make; Phase C provides the constraint enumeration. Pattern 2 feasibility is the most uncertain because it requires the React component to expose a render-disabled or render-to-slot mode that has not been confirmed to exist; the development investigation should examine the chunk 641 source first to confirm Pattern 2 is viable before committing experimentation time to it."
+      },
+      {
+        "finding_id": "C10",
+        "title": "Universal stencils cluster enumerated as seven JS files",
+        "evidence": "Per brief preserved findings from the 2026-05-13 chat: the T4 PageLayout's body imports load seven stencils-related JS files in this order — (1) jQuery, (2) popper, (3) Twitter Typeahead bundle (typeahead.bundle.min.js from cdnjs), (4) Handlebars, (5) es6-promise polyfill, (6) stencils.js, (7) handlebars-helpers.js. All seven load on every page where T4 PageLayout renders, not specifically on the search page. The compiled Squiz main.js (per the squiz-stencils-main-js behavioral consumer entry) loads ONLY on the search page via the Funnelback partial response — distinct from the universal cluster.",
+        "implication": "Strip-out experiment scope: of the seven files, jQuery is the foundation dependency for popper, Typeahead, and Handlebars; es6-promise is for older-browser support; stencils.js and handlebars-helpers.js are the Squiz-specific layer. The development phase universal-stencils-cluster strip-out experiment evaluates which files are load-bearing for the rebuild's selected three-pattern variant. Phase C records the cluster as the entry _seam_universal-stencils-cluster-script-imports below; the strip-out itself is not Phase C work."
+      },
+      {
+        "finding_id": "C11",
+        "title": "FTL templates are Vic-modifiable platform content, not Squiz framework internals",
+        "evidence": "Per the brief's preserved 5/13 chat conclusions: the three FTL templates auto_complete_concierge.ftl, auto_complete.ftl, and partial.ftl live inside the Funnelback design system to which Vic has admin access. They are FreeMarker templates that Vic can modify (with appropriate caution); they are not Squiz framework internals to be black-boxed. Phase A's source_layers list did not include a SQUIZ_FTL_TEMPLATE value because Phase A did not characterize entries originating from these templates as a distinct source layer; Phase C extends the source_layers enumeration to include SQUIZ_FTL_TEMPLATE for entries whose writer is one of these Vic-controlled templates.",
+        "implication": "Architectural principle for the rebuild: FTL template modifications are on the table for high-leverage rebuild needs (e.g., Pattern 3 requiring custom dataset templates for staff and programs columns), but are not the default approach. The default approach is to consume the FTL output as-is and adapt FE-side. The audit posture extends to FTL templates: characterize-but-do-not-modify in this discovery phase. Modifications belong to development phase if and only if the selected three-pattern variant requires them."
+      },
+      {
+        "finding_id": "C12",
+        "title": "Inline marketing pixel scripts in PageLayout confirmed non-search infrastructure",
+        "evidence": "Per the brief's preserved 5/13 chat conclusions: inline <script> tags in T4 PageLayout were enumerated and confirmed to be marketing pixels (Snapchat, TikTok ×3, Basis/Centro, Facebook Pixel). None of them participate in the search infrastructure; they fire on every PageLayout render regardless of search context.",
+        "implication": "Out-of-scope for the rebuild's search subsystem. Phase C records the marketing-pixel inline scripts as entry _seam_inline-marketing-pixel-scripts below with structural_role 'analytics/marketing — NOT search infrastructure'; the entry exists so that future audit phases or rebuild design conversations do not re-investigate these as potential search-related scripts. The rebuild does not need to coordinate with or replace these scripts."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "autocomplete-concierge-wrapper-div",
+      "selector": "div[id=\"autocomplete-concierge\"][data-component=\"autocomplete-concierge\"]",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "auto_complete_concierge.ftl (Vic-controlled FreeMarker template inside Funnelback design system)",
+        "function": "(the macro that emits the wrapper; exact macro name pending FTL read)",
+        "line_range": "TO_DETERMINE — FTL source uploaded to prior chat, not in this repo",
+        "behavior": "Emits the outer wrapper element with data-component='autocomplete-concierge' as the discriminator that picks up the bootstrap in main.js module 47462, plus a data-configuration attribute carrying a JSON-string blob of top-level component config (portal selector, default template, modal flag, etc.). The wrapper's innerHTML contains the nested dataset configuration spans (see entry autocomplete-concierge-nested-span-dataset). Macro invocation site is partial.ftl on the search page (likely via the hero_banner.SearchForm component chain, pending confirmation)."
+      },
+      "structural_role": "React component mount point for the autocomplete-concierge multi-channel suggestion renderer. The bootstrap in main.js module 47462 queries [data-component='autocomplete-concierge'] elements after DOM ready, calls _parseConfiguration on each match to deserialize the data-configuration JSON and iterate the nested dataset spans, then lazy-imports the React component chunk (chunk 641 → module 38630 standard / 25699 modal) and mounts it.",
+      "literal_html": "TO_CAPTURE — Vic 2026-05-13 to DOM-inspect the production search page's wrapper and report the data-configuration value plus the full nested-span set. Working shape: <div id=\"autocomplete-concierge\" data-component=\"autocomplete-concierge\" data-configuration='{\"portal\":\"...\",\"template\":\"organic\",...}'>{ nested dataset spans }</div>",
+      "attributes": {
+        "id": {
+          "value": "autocomplete-concierge",
+          "binding": "TO_DETERMINE",
+          "rationale": "Captured on the inputField selector pattern as 'autocomplete-concierge-inputField' (Phase A Capture 1). The wrapper's id 'autocomplete-concierge' is the conventional Squiz pattern; main.js module 47462's query is [data-component='autocomplete-concierge'] not by id, so the id itself is more likely a CSS/labelling hook than a functional requirement. Confirmation pending DOM capture."
+        },
+        "data-component": {
+          "value": "autocomplete-concierge",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C2, this attribute is the discriminator that main.js module 47462's bootstrap uses to select wrapper elements. Removing it removes the wrapper from main.js's processing. Required for the React component mount to occur."
+        },
+        "data-configuration": {
+          "value": "JSON string (deserialized by main.js into a configuration object with at least a 'portal' key per the _parseConfiguration body's `r=t.portal||null`)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C2. The full JSON schema is not enumerated here — Phase C did not retrieve a literal value. Vic 2026-05-13 queued: DOM inspection of the production search page to capture the current value, plus a grep of main.js for the full i.Qj attribute-mapping table to enumerate all consumed config keys."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_FUNNELBACK",
+          "file": "see meta.behavioral_consumers.squiz-stencils-main-js (module 47462)",
+          "context": "Bootstrap site — _parseConfiguration call. The wrapper is the host for the React component mount that lazy-loads chunk 641 (module 38630 standard or 25699 modal)."
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 (hash e501a609afe40e692932) — module 38630 or 25699",
+          "context": "React.lazy target — receives the parsed configuration object and the per-dataset array, renders the autocomplete UI. Rendering target (inside the wrapper, into a portal element referenced by the wrapper's portal config key, or elsewhere) pending chunk-source inspection."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "TO_DETERMINE — the wrapper is emitted inside the search-results form region (concierge-search-form-cluster) per Phase A's Capture 1 setup, but the exact parent ancestry is not enumerated in any current capture",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE (partial.ftl invocation site, presumably via hero_banner.SearchForm chain)",
+        "contract_dependencies": [
+          "Wrapper must be in DOM at main.js bootstrap time (DOMContentLoaded). On the search page, main.js is injected by the Funnelback partial response, which arrives synchronously inside the funnelback-search-container-response wrapper write — timing should be compatible.",
+          "Wrapper's innerHTML must contain the dataset configuration spans as direct children (per Finding C5, the rg helper returns only n.children, not deeper descendants)."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "OPEN",
+        "class_names": "OPEN",
+        "inner_dom_structure": "BOUNDED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "BOUNDED",
+        "notes": "inner_dom_structure BOUNDED — direct-child spans for datasets are required by Finding C5. attribute_set BOUNDED — data-component is REQUIRED, data-configuration is REQUIRED with a JSON-schema constraint, the id is conventional but not strictly required. content_schema BOUNDED — the data-configuration JSON shape and the nested-span dataset set together define the schema; rebuild may extend (add datasets) or contract (remove datasets), but cannot restructure the parent-child relationship without breaking main.js's parse."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Container. The number of nested-span datasets determines the column count of the React component's output (typically three: general / staff / programs)."
+      },
+      "appears_on": [
+        "search page only (the wrapper is emitted by partial.ftl's macro chain on the search results template; not present on non-search pages per Phase A Captures 4 and 5)"
+      ],
+      "captured_in_state": "TO_CAPTURE — Phase A captured the inputField inside the wrapper but did not capture the wrapper's outerHTML or data-configuration value",
+      "gaps": [
+        "Literal data-configuration JSON value pending DOM inspection",
+        "Wrapper's outerHTML and parent ancestry pending DOM inspection",
+        "Whether the wrapper's id is functionally required by anything (CSS, FE code) or merely conventional"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (via auto_complete_concierge.ftl modification) for emission; Squiz (via main.js bootstrap) for consumption; Funnelback admin (via stencils.auto-completion.* profile config) for behavior tuning",
+        "requires_design_system_access": true,
+        "modification_risk": "medium — FTL changes affect production search-page rendering; modifications should be staged and verified against the React component's actual chunk-source contract before deployment"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "REQUIRED — wrapper continues to mount the React component, but the nested-span dataset configuration is rewritten (per dataset, data-service-url points at the FE proxy endpoint instead of directly at Funnelback's autocomplete service, and data-adapter selects an adapter that handles the proxy's response shape).",
+        "pattern_2_controller_only": "REQUIRED — wrapper still mounts the React component, but data-configuration includes a render-disabled or render-to-slot flag (if the chunk supports one — TO_DETERMINE) that causes the React tree to handle controller-layer wiring (mount, ARIA, keyboard, events) without rendering visible UI; the FE's renderResultsPageSuggestions continues to populate the on-page dropdown DOM in response to React component events.",
+        "pattern_3_full_squiz_rendering": "REQUIRED with extended schema — wrapper hosts the full Squiz rendering, the nested-span dataset configuration extends to include staff and programs datasets with custom React templates (if available) or default 'organic' templates, the FE's renderResultsPageSuggestions code path retires and the React component owns the autocomplete DOM exclusively."
+      },
+      "notes": "The wrapper is the single highest-leverage contract surface in Phase C. All three patterns require it to be present; the difference is what configuration and consumption rules apply. Vic 2026-05-13 to DOM-inspect production for the current data-configuration value, plus check the stencils.auto-completion.datasets profile config value in Funnelback admin — those two data points together determine which pattern is closest to current behavior and inform the development-investigation order."
+    },
+    {
+      "id": "autocomplete-concierge-nested-span-dataset",
+      "selector": "div[data-component=\"autocomplete-concierge\"] > span (or other direct children with the dataset attribute set; exact element tag pending FTL read)",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "auto_complete_concierge.ftl",
+        "function": "(the macro that iterates the Funnelback profile-config dataset list and emits one nested span per dataset)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Iterates the value of the Funnelback profile config key `stencils.auto-completion.datasets` (a comma-separated list, presumably 'general,staff,programs' or similar in current production) and emits one direct-child span per dataset name, with the six dataset attributes (id, label, template, service-url, adapter, params) read from the per-dataset profile config keys (`stencils.auto-completion.datasets.${dataset}.label`, `.template`, `.service-url`, etc.). The flat-spans-as-direct-children structure is required by main.js module 47462's parse, which uses module 79963's rg helper to return only n.children (Finding C5)."
+      },
+      "structural_role": "Per-dataset configuration block. Each span declares one autocomplete column / source (e.g., general suggestions, staff people, academic programs). Main.js module 47462's _parseConfiguration iterates these via Array.from(n).map(...) (Finding C1) and produces a configuration array passed to the React component for rendering.",
+      "literal_html": "TO_CAPTURE — Vic 2026-05-13 to DOM-inspect production. Working shape based on Findings C1 and C5: <span data-id=\"general\" data-label=\"Suggestions\" data-template=\"organic\" data-service-url=\"https://...\" data-adapter=\"...\" data-params=\"...\"></span><span data-id=\"staff\" ...></span><span data-id=\"programs\" ...></span>",
+      "attributes": {
+        "data-id": {
+          "value": "string (e.g. 'general', 'staff', 'programs')",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1, extracted via t.dataset.id in module 47462's parse. The per-dataset identifier passed to the React component."
+        },
+        "data-label": {
+          "value": "string (column header text — e.g. 'Suggestions', 'Faculty & Staff', 'Programs')",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1. Column header for the React tree's per-dataset section."
+        },
+        "data-template": {
+          "value": "string (React template name — 'organic' is the default referenced in the brief; other named templates may exist in the Squiz design system)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1. Names which template the React component uses to render this dataset's rows. The template inventory beyond 'organic' is TO_DETERMINE pending Squiz design system documentation lookup."
+        },
+        "data-service-url": {
+          "value": "URL string (the upstream service that returns this dataset's data)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1. The React component queries this URL with the user's input value as a parameter. Per Pattern 1 (data-feed-only) decision matrix, this is the substitution point: pointing data-service-url at the FE's proxy endpoint instead of directly at Funnelback's autocomplete service routes the data feed through the rebuild's pipeline."
+        },
+        "data-adapter": {
+          "value": "string (named adapter class for response transformation)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1 (the sixth dataset attribute beyond what the brief's preserved-narrative listed). Names which adapter class transforms the service URL response into the React component's expected data shape. Per Pattern 1: under data-feed-only, the adapter must either accept the proxy's response shape unchanged or be paired with a custom adapter that the rebuild ships."
+        },
+        "data-params": {
+          "value": "string (additional query parameters appended to the service URL)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Finding C1. Appended to the service-URL request. May include collection name, profile name, response limit, etc."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_FUNNELBACK",
+          "file": "see meta.behavioral_consumers.squiz-stencils-main-js (module 47462 _parseConfiguration)",
+          "context": "Iterated via Array.from(n).map(...) where n is the wrapper's children HTMLCollection returned by module 79963's rg helper. Each span produces one entry in the dataset configuration array passed to the React component."
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 (hash e501a609afe40e692932) — module 38630 or 25699",
+          "context": "React component receives the configuration array and renders one section per dataset, querying each dataset's service-url on user input changes and applying the adapter to transform responses."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "div[data-component=\"autocomplete-concierge\"] (the wrapper — entry autocomplete-concierge-wrapper-div above)",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE",
+        "contract_dependencies": [
+          "Spans must be DIRECT children of the wrapper (Finding C5 — rg helper returns only n.children).",
+          "Wrapper's data-configuration JSON parse must succeed before the span iteration runs (Finding C2).",
+          "Each span's six dataset attributes must be present and string-valued; module 47462's parse applies `(0,i.H2)(...)` which presumably normalizes/coerces but expects defined values."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "NOT_BINDING",
+        "class_names": "NOT_BINDING",
+        "inner_dom_structure": "FIXED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "FIXED",
+        "content_schema": "BOUNDED",
+        "notes": "These spans are not visually rendered — they are configuration-bearing DOM elements whose entire contract is in their dataset attributes. inner_dom_structure FIXED — flat spans, no nested content. attribute_set FIXED — the six attributes are the consumed set per Finding C1. content_schema BOUNDED — the rebuild controls which datasets exist and what their per-attribute values are via FTL modification + profile-config tuning."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "One span per configured dataset; cap is the configured dataset count."
+      },
+      "appears_on": [
+        "inside the autocomplete-concierge-wrapper-div — search page only"
+      ],
+      "captured_in_state": "TO_CAPTURE",
+      "gaps": [
+        "Literal HTML pending DOM inspection — number of spans, exact element tag (span vs other), and per-attribute values all unconfirmed",
+        "The `stencils.auto-completion.datasets` profile config value in Funnelback admin determines how many spans get emitted; checking the current value would resolve whether the React component is currently configured with three datasets matching the visible UX or with fewer / none",
+        "The full list of available React template names (alternatives to 'organic') pending Squiz design system documentation lookup"
+      ],
+      "profile_config_dependencies": [
+        "stencils.auto-completion.datasets (comma-separated dataset name list)",
+        "stencils.auto-completion.datasets.${dataset}.label",
+        "stencils.auto-completion.datasets.${dataset}.template",
+        "stencils.auto-completion.datasets.${dataset}.service-url",
+        "stencils.auto-completion.datasets.${dataset}.adapter",
+        "stencils.auto-completion.datasets.${dataset}.params"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (via auto_complete_concierge.ftl + Funnelback admin profile config)",
+        "requires_design_system_access": true,
+        "modification_risk": "medium — adding / removing datasets directly changes the React component's rendered output; service-url and adapter changes can break the response-shape contract; staged validation required"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "REQUIRED with substitution — per-dataset data-service-url rewritten to FE proxy endpoints; per-dataset data-adapter selected for the proxy's response shape; the per-dataset configuration is the rebuild's data-pipeline boundary.",
+        "pattern_2_controller_only": "REQUIRED in current shape — datasets continue to drive the React component's controller-layer wiring; the FE's renderer code path interprets the React component's events to populate the FE-owned dropdown DOM.",
+        "pattern_3_full_squiz_rendering": "REQUIRED with extension — datasets must cover the full tri-modal UX (general / staff / programs at minimum), each with an appropriate data-template value; custom templates may need to be authored via the Squiz design system if the default 'organic' template does not produce the desired staff and programs row shapes."
+      },
+      "notes": "The dataset spans are the per-channel configuration mechanism that gives Pattern 1 its leverage: by substituting data-service-url values, the rebuild can route the data feed without removing the React component. They are also the constraint on Pattern 3: each dataset's React template must exist in the Squiz design system, which is the gating factor on whether staff and programs columns can be rendered to current production fidelity by the React component alone. Pattern 2's feasibility depends on whether the React component supports a render-suppression mode that does not also suppress its event surface."
+    },
+    {
+      "id": "_seam_autocomplete-concierge-inputField",
+      "selector": "input#autocomplete-concierge-inputField[data-component]",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "auto_complete_concierge.ftl (Vic-controlled)",
+        "function": "(macro emitting the input element as the focus/typing target for the autocomplete-concierge wrapper)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Emits the input element that the autocomplete-concierge React component binds to for user input. The input's data-* attribute set (captured in Phase A's Capture 1) is the input-element configuration source that main.js module 47462 hoists into the runtime config via the `i.Qj` attribute-name-to-config-key mapping (per Finding C2). The label element (entry _seam_autocomplete-concierge-label below) is paired with this input via for=id binding."
+      },
+      "structural_role": "User-input element on the search page. Receives keystrokes, focus, autofocus, and is the binding target for the autocomplete-concierge React component's input-event listeners. Also referenced by FE's search-page-autocomplete.js handleInput (via getElementById('autocomplete-concierge-inputField') at line 1088 per fe-listener-audit) — two consumers attach to this same input.",
+      "literal_html": "Per Phase A Capture 1 (search-initial): <input type=\"search\" id=\"autocomplete-concierge-inputField\" name=\"query\" class=\"...\" autocomplete=\"off\" spellcheck=\"false\" autofocus=\"\" data-component=\"...\" data-autocomplete=\"...\" data-collection=\"...\" data-profile=\"...\" data-max-results=\"10\" data-min-length=\"...\" data-results-container=\"results\">",
+      "attributes": {
+        "id": {
+          "value": "autocomplete-concierge-inputField",
+          "binding": "REQUIRED",
+          "rationale": "FE's search-page-autocomplete.js queries getElementById('autocomplete-concierge-inputField') at line 1088; the label's for= attribute binds to this id; the autocomplete-concierge React component identifies its input target by this id (or by the wrapper-relative query). REQUIRED for both FE and external consumers."
+        },
+        "type": {
+          "value": "search",
+          "binding": "REQUIRED",
+          "rationale": "type=search activates browser-native search-input semantics (clear button on some browsers, IME behavior); referenced as the type discriminator in keyboard-handler logic. The header consumer uses type=text (per Phase A) — the asymmetry is intentional."
+        },
+        "name": {
+          "value": "query",
+          "binding": "REQUIRED",
+          "rationale": "Form-submission parameter name. Native form submission appends ?query=value to the form's action URL — the search page expects ?query= param."
+        },
+        "autocomplete": {
+          "value": "off",
+          "binding": "REQUIRED",
+          "rationale": "Disables browser autocomplete to give the Squiz/FE autocomplete UI exclusive control of suggestion rendering. Mixing both would cause UX collision."
+        },
+        "spellcheck": {
+          "value": "false",
+          "binding": "TO_DETERMINE",
+          "rationale": "Common search-input convention; no FE or external consumer documented. CSS_INFERRED or UX-convention; not a binding contract."
+        },
+        "autofocus": {
+          "value": "boolean attribute (present)",
+          "binding": "TO_DETERMINE",
+          "rationale": "Browser-handled. UX policy decision (search page lands with input focused); rebuild decides whether to preserve."
+        },
+        "data-component": {
+          "value": "(TO_DETERMINE — exact value not captured in Phase A's enumeration of the input's data-* set; may be 'autocomplete-concierge-inputField' or a sub-component value)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Confirmed in main.js module 47462's parse path (Finding C2). The exact value pending DOM inspection."
+        },
+        "data-autocomplete": {
+          "value": "string (likely a URL or service identifier)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A behavioral_consumers.squiz-stencils-main-js list; consumed by main.js's `i.Qj` attribute mapping (Finding C2). Exact runtime usage pending the full `i.Qj` table enumeration."
+        },
+        "data-collection": {
+          "value": "string (Funnelback collection name)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A; consumed by main.js's `i.Qj` mapping. Likely passed through to the React component's service-URL query as a collection= parameter."
+        },
+        "data-profile": {
+          "value": "string (Funnelback profile name)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A; consumed by main.js's `i.Qj` mapping."
+        },
+        "data-max-results": {
+          "value": "10 (per Phase A Capture 1)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A Finding F13, this is the upstream cap source — passed through to the Funnelback suggestions endpoint as the show=N param. Per Phase C: consumed by main.js's `i.Qj` mapping and forwarded to the React component, which then includes it in the service-URL request."
+        },
+        "data-min-length": {
+          "value": "string (likely '2' or '3' — minimum input characters before suggest fires)",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A; consumed by main.js's `i.Qj` mapping. Defines the React component's debounced-input minimum threshold."
+        },
+        "data-results-container": {
+          "value": "results",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "Per Phase A Finding F11 / Phase C Finding C7: hoisted into the React component's runtime config via `i.Qj` mapping; the unprefixed 'results' value names an element ID (Squiz stencils convention) that the React component references internally (rendering target, ARIA wiring, or scroll target — pending chunk-source inspection). NOT a parallel-pipeline routing mechanism that collides with FE's #results writes."
+        },
+        "data-form": {
+          "value": "(NOT EMITTED on the captured input — Phase A Finding F10, Phase C Finding C6 closes)",
+          "binding": "NOT_BINDING",
+          "rationale": "Per Finding C6: main.js's _parseConfiguration body does not read a 'form' attribute; the Phase A meta.behavioral_consumers.squiz-stencils-main-js.presumed_consumed_attributes list (which had included data-form) is revised — data-form REMOVED from the presumed-consumed set. Closed."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "IN_REPO_FE",
+          "file": "public/search-page-autocomplete.js",
+          "line": "1088 (per fe-listener-audit)",
+          "context": "getElementById('autocomplete-concierge-inputField') at DOMContentLoaded; if absent the entire autocomplete handler early-returns at line 1093. FE's handleInput binds an input listener here."
+        },
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_FUNNELBACK",
+          "file": "see meta.behavioral_consumers.squiz-stencils-main-js (module 47462 _parseConfiguration `i.Qj` attribute mapping)",
+          "context": "data-* attributes hoisted into the React component's runtime configuration object. The input element itself is also the focus/typing target for the React component's input-event listeners (which the chunk source defines)."
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 (hash e501a609afe40e692932) — module 38630 or 25699",
+          "context": "Binds input-event listeners to this element for user-input capture; the suggestions response triggers the React tree's render."
+        },
+        {
+          "consumer_type": "ASSISTIVE_TECH_INFERRED",
+          "file": "N/A",
+          "context": "Paired with the autocomplete-concierge-label element via for= attribute binding (entry _seam_autocomplete-concierge-label below)."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "form#concierge-search-form (per Phase A Capture 1 cluster)",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE (auto_complete_concierge.ftl emits the form along with the input)",
+        "contract_dependencies": [
+          "Element must exist before search-page-autocomplete.js's DOMContentLoaded handler runs (verified — present at idle in Capture 1).",
+          "Element must exist before main.js's autocomplete-concierge bootstrap runs (the bootstrap is loaded by the Funnelback partial response, which the FE waits for via window.SearchManager.updateResults flow — timing should be compatible).",
+          "Two distinct consumers (FE and Squiz React component) attach input-event listeners to the same input. Per fe-autocomplete-audit, the FE consumer's listener performs the FE's own debounced suggestions fetch; the React component's listener performs its own. Whether the two compete or coexist is the central question of the three-pattern decision."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "OPEN",
+        "class_names": "TO_DETERMINE",
+        "inner_dom_structure": "FIXED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "FIXED",
+        "notes": "attribute_set BOUNDED — id, type, name, autocomplete, and the data-* set (data-component, data-autocomplete, data-collection, data-profile, data-max-results, data-min-length, data-results-container) are REQUIRED or EXTERNAL_CONSUMER_REQUIRED. autofocus and spellcheck are TO_DETERMINE / convention. data-form is NOT_BINDING (Finding C6). The rebuild's three-pattern variant controls whether the data-* set is retained: Pattern 1 keeps it (React component still mounts); Pattern 2 keeps it (controller mode); Pattern 3 keeps it (full Squiz rendering). Only Patterns that remove the React component entirely would let the rebuild drop these attributes."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Single input element."
+      },
+      "appears_on": [
+        "search page (inside the concierge-search-form cluster on the results template)"
+      ],
+      "captured_in_state": "search-initial (Phase A Capture 1) — confirmed",
+      "gaps": [
+        "Exact value of data-component pending DOM inspection (Phase A enumeration listed the attribute name but did not pin the value)",
+        "Full `i.Qj` attribute-mapping table (which other input data-* attributes would be consumed if emitted) — grep main.js for the Qj definition",
+        "The exact behavior of the data-results-container='results' reference inside the React component (rendering target, ARIA-controls target, or scroll target) pending chunk-source inspection"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (via auto_complete_concierge.ftl modification) for emission; Funnelback admin profile config for some attribute values (e.g. collection, profile, max-results)",
+        "requires_design_system_access": true,
+        "modification_risk": "medium — input attributes drive both the FE and React component consumers; changes need to be validated against both"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Attribute set retained — the React component still mounts and reads its config from these attributes. data-collection, data-profile, etc. may need to be reconfigured if the proxy-routed datasets use different upstream collections.",
+        "pattern_2_controller_only": "Attribute set retained — React component still mounts as controller, the input-event listener is the controller-layer wiring the FE relies on. The data-* attributes that affect the React component's RENDER behavior (data-results-container) may need adjustment if the render mode is suppressed.",
+        "pattern_3_full_squiz_rendering": "Attribute set retained, possibly extended — the React component owns the autocomplete UX; data-max-results, data-min-length, data-results-container drive its behavior; additional data-* attributes may be added to enable extra React component features (modal mode, etc.)."
+      },
+      "notes": "Phase C upgrades this entry from Phase A's skeleton (which treated the input as a SQUIZ_STENCILS_BOILERPLATE seam parent with attribute set deferred to Phase C) to a full SQUIZ_FTL_TEMPLATE entry with attribute bindings enumerated. The input is the central two-consumer surface on the search page — the FE attaches one listener, the React component attaches another. Whichever three-pattern variant is selected determines whether the two consumers compete (current state per the brief's symbiotic-not-competing commitment), cooperate (Pattern 2 controller mode), or one of them retires (Pattern 1 or Pattern 3 eliminating one of the listener targets)."
+    },
+    {
+      "id": "_seam_autocomplete-concierge-label",
+      "selector": "label#autocomplete-concierge-label[for=\"autocomplete-concierge-inputField\"]",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "auto_complete_concierge.ftl (Vic-controlled)",
+        "function": "(macro emitting the label paired with the inputField)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Emits the label element with class='sr-only' (visually hidden but kept in the accessibility tree) and aria-live='polite'. The aria-live attribute means screen-reader announcements occur when the label's text content changes — used by the React component for announcing query state or result counts."
+      },
+      "structural_role": "Accessible label for the on-page input. The for= attribute binds the label to the input. Per Phase A Capture 1: <label id='autocomplete-concierge-label' for='autocomplete-concierge-inputField' class='sr-only' aria-live='polite'>. The id is referenced by the autocomplete-suggestions container's aria-labelledby attribute (entry _seam_autocomplete-suggestions-container below), establishing the ARIA listbox-to-label chain.",
+      "literal_html": "Per Phase A Capture 1: <label id=\"autocomplete-concierge-label\" for=\"autocomplete-concierge-inputField\" class=\"sr-only\" aria-live=\"polite\">{label text}</label>",
+      "attributes": {
+        "id": {
+          "value": "autocomplete-concierge-label",
+          "binding": "REQUIRED",
+          "rationale": "Referenced by #autocomplete-suggestions aria-labelledby — REQUIRED for the ARIA chain integrity. ASSISTIVE_TECH_INFERRED consumer."
+        },
+        "for": {
+          "value": "autocomplete-concierge-inputField",
+          "binding": "REQUIRED",
+          "rationale": "Binds the label to the input. Standard HTML accessibility contract."
+        },
+        "class": {
+          "value": "sr-only",
+          "binding": "REQUIRED",
+          "rationale": "Visually hides the label while preserving it in the accessibility tree (unlike the header's hidden=\"\" attribute which removes from a11y tree per Phase A Finding F12). The sr-only class is a project-wide CSS convention; CSS audit pending will pin the rule, but the keep-in-a11y-tree behavior is the binding intent."
+        },
+        "aria-live": {
+          "value": "polite",
+          "binding": "EXTERNAL_CONSUMER_REQUIRED",
+          "rationale": "The React component (or another Squiz consumer) presumably writes to this element's text content as a screen-reader announcement channel — 'polite' politeness means assistive tech waits for a natural pause before announcing. The actual writes are not visible from any captured state and pending chunk-source inspection."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "ASSISTIVE_TECH_INFERRED",
+          "file": "N/A",
+          "context": "for= binding to input, plus the live-region announcement channel"
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 — TO_DETERMINE",
+          "context": "Presumed writer to the label text content for screen-reader announcements; exact behavior pending chunk-source inspection"
+        }
+      ],
+      "seam": {
+        "parent_container_id": "form#concierge-search-form or a sibling container (per Phase A Capture 1 cluster)",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE",
+        "contract_dependencies": [
+          "Label element must exist before the React component mounts (the component depends on the input-label binding for ARIA wiring)",
+          "Label's id must match #autocomplete-suggestions's aria-labelledby value"
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "NOT_BINDING",
+        "class_names": "BOUNDED",
+        "inner_dom_structure": "BOUNDED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "OPEN",
+        "notes": "class_names BOUNDED — sr-only is a project convention but the rebuild may use a different visually-hidden class as long as it keeps the element in the a11y tree. attribute_set BOUNDED — id, for, aria-live REQUIRED; class supports the visual-hiding behavior. content_schema OPEN — the label's initial text is rebuild-policy; the React component's writes to it are external behavior."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Single label element."
+      },
+      "appears_on": [
+        "search page"
+      ],
+      "captured_in_state": "search-initial (Phase A Capture 1) — confirmed",
+      "gaps": [
+        "Actual label text content not captured (PII-policy-irrelevant; can be re-inspected)",
+        "What writes occur to the live region (React component announcements) pending chunk-source inspection"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (via FTL) for emission; React component for live-region writes",
+        "requires_design_system_access": true,
+        "modification_risk": "low — ARIA chain modifications need to preserve the labelledby relationship but the label's class/text are flexible"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Retained as-is; the React component continues to write live-region announcements.",
+        "pattern_2_controller_only": "Retained as-is; controller-layer ARIA wiring depends on this label.",
+        "pattern_3_full_squiz_rendering": "Retained as-is; the React component's full rendering includes its own ARIA announcements."
+      },
+      "notes": "The label's sr-only class plus aria-live='polite' is the correct accessibility pattern — visually hidden but announced to screen readers, with announcements at natural pauses. Phase A Finding F12 contrasted this with the header consumer's broken hidden=\"\" pattern (removes label from a11y tree). The rebuild should apply the on-page pattern to the header consumer to fix F12; Phase C records the on-page pattern as the model."
+    },
+    {
+      "id": "_seam_autocomplete-suggestions-container",
+      "selector": "div#autocomplete-suggestions[role=\"listbox\"][aria-labelledby=\"autocomplete-concierge-label\"]",
+      "source_layer": "TO_DETERMINE — likely SQUIZ_FTL_TEMPLATE (emitted by auto_complete_concierge.ftl) but Phase A captured this element at idle in Capture 1 with the role and aria-labelledby attributes already present, which is inconsistent with the hypothesis that FE creates it (FE's create-path for the header equivalent #header-suggestions also turned out to be dead per Phase A Finding F8). Working hypothesis: this container is FTL-emitted, parallel to the inputField and label.",
+      "writer": {
+        "file": "auto_complete_concierge.ftl (Vic-controlled) — working hypothesis pending FTL read",
+        "function": "(macro emitting the suggestions container alongside the input and label)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Emits the container in idle/hidden state. Both the FE (via search-page-autocomplete.js renderResultsPageSuggestions writing innerHTML at line 501) and the React component (via chunk 641 mount target — possibly) populate this container."
+      },
+      "structural_role": "Container for the on-page autocomplete suggestions. Per Phase A's autocomplete-suggestions-list entry, the FE writes a .suggestions-list > .suggestions-columns > .suggestions-column structure into this container's innerHTML; the React component may also write here (pending chunk-source inspection). The aria-labelledby contract pairs this listbox with the autocomplete-concierge-label element.",
+      "literal_html": "Per Phase A's seam reference: <div id=\"autocomplete-suggestions\" role=\"listbox\" aria-labelledby=\"autocomplete-concierge-label\" hidden=\"\">{populated by FE renderResultsPageSuggestions or by React component}</div>",
+      "attributes": {
+        "id": {
+          "value": "autocomplete-suggestions",
+          "binding": "REQUIRED",
+          "rationale": "Queried by search-page-autocomplete.js at line 1088 (getElementById('autocomplete-suggestions')) for the container reference used in renderResultsPageSuggestions. REQUIRED."
+        },
+        "role": {
+          "value": "listbox",
+          "binding": "REQUIRED",
+          "rationale": "ARIA contract — pairs with role=option on .suggestion-item children. The FE-emitted children inside (per Phase A entries) depend on this role being set on the container for screen-reader semantics."
+        },
+        "aria-labelledby": {
+          "value": "autocomplete-concierge-label",
+          "binding": "REQUIRED",
+          "rationale": "Links the listbox to its label — ASSISTIVE_TECH_INFERRED consumer chain."
+        },
+        "hidden": {
+          "value": "boolean attribute, toggled (present at idle / empty / dismissed; absent when populated)",
+          "binding": "REQUIRED",
+          "rationale": "Visibility-state mechanism, same pattern as #header-suggestions. Set by FE's renderResultsPageSuggestions on empty/dismiss; removed on populated render."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "IN_REPO_FE",
+          "file": "public/search-page-autocomplete.js",
+          "line": "501 (renderResultsPageSuggestions writes innerHTML here)",
+          "context": "FE consumer writes the tri-modal .suggestions-list structure."
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 — TO_DETERMINE whether the React component writes here",
+          "context": "If data-results-container='results' (per Finding C7) refers to a separate target, the React component may NOT write here — but the chunk source has not been inspected to confirm. Two competing-or-coexisting writers to this container is the central Phase C uncertainty."
+        },
+        {
+          "consumer_type": "ASSISTIVE_TECH_INFERRED",
+          "file": "N/A",
+          "context": "ARIA listbox semantics with labelled-by relationship to the label element."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "TO_DETERMINE — pending DOM inspection of the cluster around the input element",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE (working hypothesis)",
+        "contract_dependencies": [
+          "Container must exist before search-page-autocomplete.js's DOMContentLoaded handler runs (verified — present at idle per Phase A Capture 1).",
+          "Two-writer contract — whichever writer goes second wins; competing writes may cause flashes / lost state. The three-pattern decision determines which writer is canonical."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "OPEN",
+        "class_names": "TO_DETERMINE",
+        "inner_dom_structure": "BOUNDED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "BOUNDED",
+        "notes": "inner_dom_structure BOUNDED — current FE-written shape is .suggestions-list > .suggestions-columns > .suggestions-column[×3] (per Phase A entries); rebuild may restructure but FE consumer code at line 506 queries .suggestion-item from this container, so that descendant selector must remain valid. attribute_set BOUNDED — id, role, aria-labelledby, hidden are REQUIRED."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Container."
+      },
+      "appears_on": [
+        "search page"
+      ],
+      "captured_in_state": "search-initial (Phase A Capture 1, idle) and search-on-page-dropdown-all-columns (Phase A Capture 2/3, populated) — confirmed",
+      "gaps": [
+        "Source layer pending — whether the FTL template emits this container or whether main.js / chunk 641 creates it",
+        "Whether the React component writes to this container in addition to FE — pending chunk-source inspection"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (FTL) for emission if FTL-sourced; otherwise Squiz",
+        "requires_design_system_access": "TO_DETERMINE",
+        "modification_risk": "medium — both FE and possibly React component write here; changes need coordination"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Writer surface remains shared in current architecture; under data-feed-only the React component still mounts and may still write here, plus FE writes. Coordination needed.",
+        "pattern_2_controller_only": "FE owns the writes; React component is configured to not render here (render-disabled or render-to-slot to a different target).",
+        "pattern_3_full_squiz_rendering": "React component owns the writes; FE's renderResultsPageSuggestions retires."
+      },
+      "notes": "This entry's source-layer ambiguity is one of the higher-leverage open questions in Phase C. If FTL-emitted, the rebuild's wrapper-substitute under Pattern 1 / 2 must reproduce the container; if FE-created elsewhere (via a script not yet identified), the rebuild's FE owns it. Resolution via DOM inspection of the cluster ancestry around the input element."
+    },
+    {
+      "id": "_seam_results-container",
+      "selector": "div#results",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "partial.ftl (Vic-controlled) — the Funnelback partial template that emits the search-results page skeleton",
+        "function": "(the skeleton emission point that puts <div id='results'></div> on the page)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Emits the empty results container at template render time. Subsequently populated by FE writes via the funnelback-search-container-response wrapper insertion (per Phase A entry funnelback-search-container-response-wrapper, five FE writer sites). May also be referenced by the React component via the data-results-container='results' configuration attribute (Finding C7)."
+      },
+      "structural_role": "The search results container. FE writes the funnelback-search-container-response wrapper into its innerHTML via five distinct sites (per Phase A Finding F2). May also be referenced internally by the autocomplete-concierge React component for ARIA-controls wiring or similar (Finding C7).",
+      "literal_html": "Per Phase A Capture 1 idle: <div id=\"results\"></div>. Per Phase A entry funnelback-search-container-response-wrapper populated: <div id=\"results\"><div id=\"funnelback-search-container-response\" class=\"funnelback-search-container\">{Funnelback partial response content}</div></div>",
+      "attributes": {
+        "id": {
+          "value": "results",
+          "binding": "REQUIRED",
+          "rationale": "Referenced by FE's five wrapper-writer sites via getElementById('results') (per Phase A Finding F2); referenced by the on-page input's data-results-container='results' attribute (per Finding C7) for the React component's internal reference."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "IN_REPO_FE",
+          "file": "public/integration.js, public/search-page-autocomplete.js, public/js/modules/core-search-manager.js, public/js/modules/tabs-manager.js",
+          "line": "Five sites per Phase A Finding F2 (success paths) plus five sites for error paths",
+          "context": "Each writes the funnelback-search-container-response wrapper into this container's innerHTML."
+        },
+        {
+          "consumer_type": "SQUIZ_FRAMEWORK_REACT_COMPONENT",
+          "file": "chunk 641 — TO_DETERMINE specific behavior",
+          "context": "Referenced via data-results-container='results' on the input (Finding C7). Whether the React component reads this for rendering output, ARIA wiring, or scroll target is pending chunk-source inspection."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "TO_DETERMINE — position relative to form#concierge-search-form not enumerated in current captures",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE",
+        "contract_dependencies": [
+          "Container must exist before any FE script attempts innerHTML write (verified — present at idle per Phase A Capture 1).",
+          "Container must accept full innerHTML replacement.",
+          "If the React component also writes here, the two-writer contract applies — the three-pattern decision determines who owns this container's content."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "OPEN",
+        "class_names": "TO_DETERMINE",
+        "inner_dom_structure": "BOUNDED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "BOUNDED",
+        "notes": "inner_dom_structure BOUNDED — contents are the FE-authored funnelback-search-container-response wrapper. The rebuild may collapse the wrapper away (use #results directly) or keep it; either way the per-result-type rendering inside is Phase E territory."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Container."
+      },
+      "appears_on": [
+        "search page"
+      ],
+      "captured_in_state": "search-initial (Phase A Capture 1) — confirmed empty at idle",
+      "gaps": [
+        "Exact position relative to form#concierge-search-form pending DOM inspection",
+        "React component's specific behavior toward this container (rendering target / ARIA / scroll) pending chunk-source inspection"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (FTL) for emission; FE for content writes; possibly React component",
+        "requires_design_system_access": true,
+        "modification_risk": "low for emission, medium for content if the React component also writes"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "FE owns writes; React component reference via data-results-container is internal-only (ARIA / scroll).",
+        "pattern_2_controller_only": "FE owns writes (controller mode doesn't write to a render container).",
+        "pattern_3_full_squiz_rendering": "Coexistence question — full Squiz rendering of AUTOCOMPLETE doesn't necessarily mean Squiz writes to #results (which is a search-RESULTS container, distinct from #autocomplete-suggestions). #results remains FE-owned in all three patterns unless the rebuild explicitly delegates search-results rendering to a different mechanism."
+      },
+      "notes": "Phase C upgrades this entry from Phase A's skeleton (which had source_layer TO_DETERMINE). The data-results-container='results' reference from the input (Finding C7) does not necessarily mean the React component writes to this container — likely it references the container for ARIA-controls wiring (pointing the listbox's aria-controls at the search-results region) or for scroll-into-view on result render. The FE's ownership of #results content is undisturbed by either Pattern 1 or Pattern 2."
+    },
+    {
+      "id": "_seam_concierge-search-form",
+      "selector": "form#concierge-search-form",
+      "source_layer": "SQUIZ_FTL_TEMPLATE",
+      "writer": {
+        "file": "auto_complete_concierge.ftl or partial.ftl (Vic-controlled)",
+        "function": "(macro emitting the search form on the results page)",
+        "line_range": "TO_DETERMINE",
+        "behavior": "Emits the form wrapping the autocomplete-concierge-inputField, the autocomplete-concierge-label, possibly the #autocomplete-suggestions container, and any related search controls. Different from the header search form (form#searchForm per Phase A Capture 5) — this is the search-results-page form on the page that shows after a search."
+      },
+      "structural_role": "Search form on the results page. Native form submission would post the input's `query` parameter; FE intercepts and dispatches to its own search handler instead.",
+      "literal_html": "TO_CAPTURE — Phase A Capture 1 referenced the 'concierge-search-form cluster' but did not capture the form's outerHTML",
+      "attributes": {
+        "id": {
+          "value": "concierge-search-form",
+          "binding": "REQUIRED",
+          "rationale": "Referenced by FE's search-page setup code (per fe-listener-audit cross-reference patterns); referenced by Phase A's seam pointers for the cluster's outer boundary."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "IN_REPO_FE",
+          "file": "public/search-page-autocomplete.js",
+          "line": "TO_DETERMINE (Phase A reference to 'concierge-search-form cluster' is via setup-code pattern; specific line pending listener-audit cross-walk)",
+          "context": "Form-submit listener attached; FE intercepts native submission and dispatches to its own handler."
+        }
+      ],
+      "seam": {
+        "parent_container_id": "TO_DETERMINE",
+        "parent_container_source_layer": "SQUIZ_FTL_TEMPLATE",
+        "contract_dependencies": [
+          "Form contains the autocomplete-concierge cluster (input, label, possibly suggestions container)"
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "TO_DETERMINE",
+        "class_names": "TO_DETERMINE",
+        "inner_dom_structure": "BOUNDED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "TO_DETERMINE",
+        "content_schema": "BOUNDED",
+        "notes": "inner_dom_structure BOUNDED — form must contain the input element for FE's getElementById lookup to find it; the label must be paired via for=id."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Form element."
+      },
+      "appears_on": [
+        "search page"
+      ],
+      "captured_in_state": "TO_CAPTURE — Phase A captured the cluster's child elements but not the form wrapper itself",
+      "gaps": [
+        "Form outerHTML pending DOM inspection",
+        "Form's action attribute, method, name pending capture"
+      ],
+      "modifiability": {
+        "who_controls": "Vic (FTL)",
+        "requires_design_system_access": true,
+        "modification_risk": "low — form attributes are conventional; the binding contract is the child element set"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Form retained as-is.",
+        "pattern_2_controller_only": "Form retained as-is.",
+        "pattern_3_full_squiz_rendering": "Form retained as-is."
+      },
+      "notes": "Skeleton seam entry pending DOM capture. The form's existence is binding (it wraps the cluster) but its specific attributes do not appear to have FE or external consumers beyond the form-submit-intercept pattern."
+    },
+    {
+      "id": "_seam_universal-stencils-cluster-script-imports",
+      "selector": "T4 PageLayout body region: seven <script> tags loading the universal stencils JS cluster",
+      "source_layer": "T4_PAGELAYOUT",
+      "writer": {
+        "file": "T4 PageLayout template (out of repo)",
+        "function": "N/A",
+        "line_range": "N/A",
+        "behavior": "Emits seven <script> tags in load order on every page where T4 PageLayout renders (universal, not search-page-specific): (1) jQuery, (2) popper, (3) Twitter Typeahead bundle (typeahead.bundle.min.js from cdnjs), (4) Handlebars, (5) es6-promise polyfill, (6) stencils.js, (7) handlebars-helpers.js. The compiled Squiz main.js (per the squiz-stencils-main-js behavioral consumer entry) is loaded SEPARATELY on the search page only via the Funnelback partial response — it is not part of this seven-file universal cluster."
+      },
+      "structural_role": "Foundation JS dependency layer for Squiz stencils framework features. Loads universally so that any Squiz framework code emitted in any context can find its dependencies.",
+      "literal_html": "TO_CAPTURE in Phase D — Phase A captured the script-loaded files referenced in fe-autocomplete-audit and noted Twitter Typeahead as visible in PageLayout-emitted script tags alongside jQuery, popper, handlebars, etc., but did not capture the full seven-script literal sequence",
+      "attributes": {
+        "(seven script src attributes per file)": {
+          "value": "see brief preserved enumeration: jQuery, popper, typeahead bundle, Handlebars, es6-promise, stencils.js, handlebars-helpers.js",
+          "binding": "TO_DETERMINE (per Finding C10 + C8 — strip-out experiment is development-phase work)",
+          "rationale": "Each file's load-bearing status depends on which Squiz framework features the rebuild's selected three-pattern variant continues to use. jQuery is the foundation for popper, Typeahead, and Handlebars. es6-promise polyfills older browsers. stencils.js and handlebars-helpers.js are the Squiz-specific layer."
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_T4",
+          "file": "see meta.behavioral_consumers.squiz-typeahead-bundle (loaded as part of this cluster)",
+          "context": "Twitter Typeahead is part of the universal cluster — TO_DETERMINE active per Finding C8"
+        },
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_FUNNELBACK",
+          "file": "see meta.behavioral_consumers.squiz-stencils-main-js (loaded separately on the search page only; depends on the universal cluster being present)",
+          "context": "Compiled main.js bundles its dependencies internally but may still reach for global jQuery / Handlebars symbols emitted by the universal cluster"
+        }
+      ],
+      "seam": {
+        "parent_container_id": "T4 PageLayout body region (specific position in document body TO_CAPTURE in Phase D)",
+        "parent_container_source_layer": "T4_PAGELAYOUT",
+        "contract_dependencies": [
+          "Cluster loads on every page; not search-specific. Removing any file affects all pages, not just the search page.",
+          "Load order matters — jQuery before its consumers (popper, Typeahead, Handlebars); Handlebars before handlebars-helpers; stencils.js after its dependencies."
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "NOT_BINDING",
+        "class_names": "NOT_BINDING",
+        "inner_dom_structure": "FIXED",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "BOUNDED",
+        "content_schema": "OPEN",
+        "notes": "Cluster contents are platform decisions. The rebuild may evaluate strip-out per Finding C10."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "Seven fixed script tags."
+      },
+      "appears_on": [
+        "all pages where T4 PageLayout renders (universal)"
+      ],
+      "captured_in_state": "TO_CAPTURE (Phase D)",
+      "gaps": [
+        "Full seven-script literal HTML pending Phase D capture",
+        "Strip-out feasibility per file pending development-phase experiment per Finding C10"
+      ],
+      "modifiability": {
+        "who_controls": "T4 PageLayout template owner (potentially Vic; potentially Squiz / T4 admin)",
+        "requires_design_system_access": "TO_DETERMINE",
+        "modification_risk": "high — universal cluster changes affect all pages; staged validation across multiple page types required"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Cluster retained — React component continues to mount and may depend on the universal cluster for fallback/polyfill behavior.",
+        "pattern_2_controller_only": "Cluster retained — same reasons.",
+        "pattern_3_full_squiz_rendering": "Cluster retained — React component depends on the cluster for its full rendering."
+      },
+      "notes": "Per Finding C10, the seven-file enumeration is the basis for the development-phase strip-out experiment. Phase C records the cluster; the experiment is not Phase C work. The brief's commitment to investigate strip-out empirically (rather than recommend it in the audit) preserves the discovery-phase posture."
+    },
+    {
+      "id": "_seam_inline-marketing-pixel-scripts",
+      "selector": "T4 PageLayout inline <script> tags emitting third-party marketing pixels",
+      "source_layer": "T4_PAGELAYOUT",
+      "writer": {
+        "file": "T4 PageLayout template (out of repo)",
+        "function": "N/A",
+        "line_range": "N/A",
+        "behavior": "Emits inline <script> tags that fire third-party marketing/analytics pixels: Snapchat pixel, TikTok pixel (three instances), Basis/Centro pixel, Facebook Pixel. None participate in the search infrastructure."
+      },
+      "structural_role": "Marketing / analytics tracking — NOT search infrastructure. Recorded here so that future audit phases or rebuild design conversations do not re-investigate these as potential search-related scripts.",
+      "literal_html": "OUT_OF_SCOPE — Phase C does not capture the literal pixel script content (third-party, marketing-tooling, not search-related)",
+      "attributes": {
+        "(varies per pixel)": {
+          "value": "third-party tracking IDs and call patterns",
+          "binding": "NOT_BINDING",
+          "rationale": "Per Finding C12 — marketing pixels, out of search rebuild scope"
+        }
+      },
+      "consumers": [
+        {
+          "consumer_type": "EXTERNAL_JS_LOADED_BY_T4",
+          "file": "N/A (third-party tracking endpoints)",
+          "context": "Pixels report to Snapchat, TikTok, Basis/Centro, Facebook analytics services"
+        }
+      ],
+      "seam": {
+        "parent_container_id": "T4 PageLayout body region",
+        "parent_container_source_layer": "T4_PAGELAYOUT",
+        "contract_dependencies": [
+          "Pixels fire on PageLayout render; no contract with search subsystem"
+        ]
+      },
+      "design_latitude": {
+        "visual_appearance": "NOT_BINDING",
+        "class_names": "NOT_BINDING",
+        "inner_dom_structure": "NOT_BINDING",
+        "click_mechanism": "NOT_BINDING",
+        "attribute_set": "NOT_BINDING",
+        "content_schema": "NOT_BINDING",
+        "notes": "All dimensions NOT_BINDING — marketing pixels are out of search scope."
+      },
+      "render_cap": {
+        "value": null,
+        "truncation_location": "N/A",
+        "rationale": "N/A."
+      },
+      "appears_on": [
+        "all pages where T4 PageLayout renders (universal)"
+      ],
+      "captured_in_state": "N/A (out of scope)",
+      "gaps": [],
+      "modifiability": {
+        "who_controls": "Marketing / web operations team (outside search rebuild scope)",
+        "requires_design_system_access": false,
+        "modification_risk": "N/A — out of scope"
+      },
+      "three_pattern_relevance": {
+        "pattern_1_data_feed_only": "Untouched by search rebuild.",
+        "pattern_2_controller_only": "Untouched by search rebuild.",
+        "pattern_3_full_squiz_rendering": "Untouched by search rebuild."
+      },
+      "notes": "Per Finding C12, this entry exists solely to document that the inline pixel scripts are confirmed non-search infrastructure. Future audit phases or rebuild design conversations can skip these scripts."
+    }
+  ]
+}
