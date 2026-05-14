@@ -42,7 +42,6 @@
 | E21 | Curator "promoted" label is lowercase in source (CLAUDE.md framed as PROMOTED) | curator.ftl:41 |
 | E22 | Sessions Tier 1 (LastVisitedLink) is the only actively wired session feature | sessions.ftl:11-20 |
 | E23 | data-pnp-component seam contracts — Squiz Plug-and-Play team component naming | search_tools.ftl:13, sessions.search_history.ftl:58 |
-| E11 | auto_complete namespace zero invocations — closes Phase C C8 | (cross-cutting, listed as DEAD_IMPORT too) |
 | (E1) | Duplicate curator import (listed as DEAD_IMPORT below) | partial.ftl:44, :54 |
 | (others) | See JSON for full evidence and implication blocks | — |
 

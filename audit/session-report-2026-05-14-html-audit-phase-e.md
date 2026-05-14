@@ -26,15 +26,15 @@ E.1 (brief ratification) was already complete; the brief itself was its delivera
 
 40 numbered findings across three streams:
 
-- **CONTRACT_SURFACE**: 23 findings. Binding constraints for the rebuild's reproduction of the partial-response surface. Includes the renderer-dispatch profile-config key, the shared markup envelope, the AfterSearchOnly gate asymmetry, the PNP component naming convention seam, and five markup/wiring defects (E10/E12/E13/E14/E16).
-- **DEAD_IMPORT**: 6 findings naming 10 dead `<#import>` statements in `partial.ftl` (the duplicate curator + four whole-feature dead imports + five inactive renderers).
-- **UNUSED_FEATURE**: 11 findings covering ~22 uninvoked macros + the 83-symbol unreferenced SVG sprite subset.
+- **CONTRACT_SURFACE**: 20 findings. Binding constraints for the rebuild's reproduction of the partial-response surface. Includes the renderer-dispatch profile-config key, the shared markup envelope, the AfterSearchOnly gate asymmetry, the PNP component naming convention seam, and five markup/wiring defects (E10/E12/E13/E14/E16).
+- **DEAD_IMPORT**: 7 findings naming 10 dead `<#import>` statements in `partial.ftl` (the duplicate curator + four whole-feature dead imports + five inactive renderers). E11 is canonically DEAD_IMPORT (auto_complete namespace dead) and also closes Phase C C8 — it appears once in the canonical JSON under DEAD_IMPORT.
+- **UNUSED_FEATURE**: 13 findings covering ~22 uninvoked macros + the 83-symbol unreferenced SVG sprite subset.
 
 ## Brief citation corrections (for v17 project-instructions amendments queue)
 
 The execution surfaced two factual deltas between the brief and the FTL source. These are flagged here for v17 amendments rather than corrected in the brief retroactively:
 
-1. **Phase A version reference**. The brief v1.1 references Phase A v3 dated 2026-05-13 (`audit/html-audit-phase-a-2026-05-13-v3.json` and `.md`). Only Phase A v2 dated 2026-05-12 (`audit/html-audit-phase-a-2026-05-12-v2.json` and `.md`) exists in this repo. No v3 file is present at the cited path. The Phase E deliverables cite v2 throughout. The brief's cross-reference should be corrected, or a v3 should be produced if the brief author intended changes that haven't been written.
+1. **Phase A version reference**. The brief v1.1 references Phase A v3 as `audit/html-audit-phase-a-2026-05-13-v3.json` and `.md`. Only the JSON is v3-dated; the markdown narrative remained at v2 (`audit/html-audit-phase-a-2026-05-12-v2.md`) because the v3 update only modified structured-data behavioral_consumers fields and did not need narrative amendment. The v3 JSON file was staged into `audit/` on 2026-05-14 (resolved the missing-file aspect of this correction). The remaining correction is that the brief's Cross-references list incorrectly bundled `.json` and `.md` as v3-dated; the corrected canonical reference pair is `audit/html-audit-phase-a-2026-05-12-v2.md` plus `audit/html-audit-phase-a-2026-05-13-v3.json`.
 
 2. **CTA URL list (partial.ftl L130-172)**. The brief v1.1 E.2 section lists the four hardcoded CTA URLs as `/visit, /academics/all-programs, /directory, /newsroom`. The actual partial.ftl values are `/visit` (default), `/academics/all-programs` (Programs), `https://redhawks.sharepoint.com/sites/Intranet-Home` (Faculty & Staff "Redhawk Hub"), `/newsroom` (News). No `/directory` value appears in source; the Faculty & Staff branch uses an external SharePoint URL. The count of four is correct; one URL identification was incorrect.
 
@@ -59,7 +59,7 @@ No FTL was modified. All work was read-and-record. The 27 in-scope templates wer
 
 Recommended amendments to project instructions / future briefs based on Phase E execution:
 
-1. **Update the Phase A reference** in the canonical cross-reference list to either `2026-05-12-v2` (if v3 was never produced) or `2026-05-13-v3` (if v3 should be produced and isn't yet).
+1. **Correct the Phase A reference format** in any narrative documents that bundle `.json` and `.md` under a single date. Phase A's canonical reference is a split pair: `audit/html-audit-phase-a-2026-05-12-v2.md` (markdown narrative) plus `audit/html-audit-phase-a-2026-05-13-v3.json` (canonical evidence). The version split is intentional because the v3 update only modified structured-data fields; the markdown narrative did not need amendment. Future briefs should reference both files explicitly rather than treating them as a date-bundled pair.
 2. **Correct the CTA URL list** preserved in any narrative documents that mention it: it is `/visit`, `/academics/all-programs`, `https://redhawks.sharepoint.com/sites/Intranet-Home`, `/newsroom` — not `/directory`.
 3. **Correct the curator "promoted" label framing**: the source text is lowercase `promoted`. Display rendering relies on CSS text-transform if the visible label is uppercase. CLAUDE.md and any narrative docs that say "PROMOTED" should clarify this is the rendered casing, not the source casing.
 4. **Add an explicit note** about `<#import>` idempotence in FreeMarker — the duplicate curator import (E1) is structurally a residue but not a runtime defect; rebuild dev should treat duplicate imports as trim candidates rather than bugs.

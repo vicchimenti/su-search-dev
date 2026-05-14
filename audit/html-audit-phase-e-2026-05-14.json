@@ -87,7 +87,7 @@
       "note_on_counts": "The brief's inventory section listed 27 Vic-canonical in-scope templates. The execution-time enumeration counted 29 because partial.ftl explicitly imports both the four active renderer files (results.news/law/programs/people.ftl) AND the five inactive renderer files (results.video/facebook/events/twitter/instagram.ftl). The five inactive renderer files are counted as in-scope in the inventory but their bodies are not read; their characterization is the one-line DEAD_IMPORT finding E28. The brief's 27 figure excludes both the active and inactive renderer files from the headline count; this audit uses 29 because the four active renderer files are characterized in full and the inactives are characterized as a one-line finding. Either count is internally consistent; the difference is bookkeeping. The 30-total-in-upload figure matches the brief."
     },
     "cross_references": [
-      "audit/html-audit-phase-a-2026-05-12-v2.json (Phase A canonical; the brief referenced a v3 dated 2026-05-13 but only v2 dated 2026-05-12 is present in this repo \u2014 see meta.brief_citation_corrections)",
+      "audit/html-audit-phase-a-2026-05-12-v2.json (Phase A canonical; the brief referenced a v3 dated 2026-05-13 but only v2 dated 2026-05-12 is present in this repo — see meta.brief_citation_corrections)",
       "audit/html-audit-phase-a-2026-05-12-v2.md (Phase A markdown companion)",
       "audit/html-audit-phase-c-2026-05-13.json (Phase C canonical; Finding C8 closes here via E11)",
       "audit/html-audit-phase-c-2026-05-13.md (Phase C markdown companion)",
@@ -98,7 +98,7 @@
       "audit/fe-cache-audit-2026-05-04.md"
     ],
     "brief_citation_corrections": {
-      "phase_a_version_reference": "Brief v1.1 cites 'Phase A (completed 2026-05-12, v3 2026-05-13)' and references 'audit/html-audit-phase-a-2026-05-13-v3.json and .md' in Cross-references. Only 'audit/html-audit-phase-a-2026-05-12-v2.json' and '.md' are present in this repo. No v3 file exists at the cited path. This audit cites v2 throughout; the version-naming inconsistency is flagged for the brief's amendments queue or for cataloging in v17 project instructions.",
+      "phase_a_version_reference": "Brief v1.1 referenced 'audit/html-audit-phase-a-2026-05-13-v3.json and .md' as a date-bundled pair. The .md bundling was wrong: only the JSON is v3-dated; the markdown narrative remained at v2 (audit/html-audit-phase-a-2026-05-12-v2.md) because the v3 update only modified structured-data behavioral_consumers fields. The v3 JSON file was staged into audit/ on 2026-05-14 (it had previously lived in Vic's tools repo). The corrected canonical reference pair is 'audit/html-audit-phase-a-2026-05-12-v2.md' plus 'audit/html-audit-phase-a-2026-05-13-v3.json'. The brief's date-bundling pattern is flagged for v17 project instructions as a citation-format amendment.",
       "cta_url_list": "Brief v1.1 E.2 sub-phase decomposition lists the four hardcoded CTA URLs as '/visit, /academics/all-programs, /directory, /newsroom'. The actual hardcoded values in partial.ftl L138-158 are '/visit' (default), '/academics/all-programs' (Programs), 'https://redhawks.sharepoint.com/sites/Intranet-Home' (Faculty & Staff), '/newsroom' (News). No '/directory' value appears; the Faculty & Staff branch uses an external SharePoint URL. The count is four; one value identification was wrong. See Finding E8."
     }
   },
@@ -114,7 +114,7 @@
         "target": "/web/templates/modernui/funnelback.ftl",
         "line": 28,
         "source_layer": "SQUIZ_PLATFORM_FTL_CORE_REFERENCE",
-        "status": "ALIVE_via_ExtraResults_IncludeUrl_transitive_only (used by extra_search, tabs.Preview, client_includes \u2014 all themselves unreached in current production)"
+        "status": "ALIVE_via_ExtraResults_IncludeUrl_transitive_only (used by extra_search, tabs.Preview, client_includes — all themselves unreached in current production)"
       },
       "base": {
         "target": "base.ftl",
@@ -123,7 +123,7 @@
         "invocations_from": [
           "search_tools.ftl:17 (inputsForForms)",
           "auto_complete.concierge.ftl:44 (inputsForForms)",
-          "tabs.ftl:249 (BROKEN \u2014 calls @base.Result which is not defined; bounded by unreachable Preview macro)"
+          "tabs.ftl:249 (BROKEN — calls @base.Result which is not defined; bounded by unreachable Preview macro)"
         ]
       },
       "hero_banner": {
@@ -196,7 +196,7 @@
         "status": "ALIVE_DIRECT",
         "invocations_from": [
           "partial.ftl:184,185 (HasFacets, Facets)",
-          "a-z_listing.ftl:117,119,121,123,127 (DropdownFacet, ListFacets \u2014 but a-z_listing itself is unreached)"
+          "a-z_listing.ftl:117,119,121,123,127 (DropdownFacet, ListFacets — but a-z_listing itself is unreached)"
         ]
       },
       "tier_bars": {
@@ -236,7 +236,7 @@
         "status": "DEAD_IMPORT",
         "invocations_from": [],
         "evidence": "Zero textual references to @auto_complete.* across all 27 in-scope templates. Closes Phase C C8 definitively: the Twitter Typeahead Configuration macro is fully dead code on Seattle U's template set.",
-        "phase_c_cross_reference": "C8, C10 \u2014 universal-stencils-cluster Typeahead bundle becomes a CONFIRMED strip-out candidate."
+        "phase_c_cross_reference": "C8, C10 — universal-stencils-cluster Typeahead bundle becomes a CONFIRMED strip-out candidate."
       },
       "concierge": {
         "target": "auto_complete.concierge.ftl",
@@ -244,7 +244,7 @@
         "status": "ALIVE_TRANSITIVE",
         "invocations_from": [
           "hero_banner.ftl:39 (Concierge in SearchForm)",
-          "hero_banner.ftl:98 (Concierge in SearchBoxOnly \u2014 uninvoked path)"
+          "hero_banner.ftl:98 (Concierge in SearchBoxOnly — uninvoked path)"
         ]
       },
       "curator_second_import": {
@@ -303,8 +303,8 @@
           "results.news.ftl:123 (LastVisitedLink)",
           "results.people.ftl:114 (LastVisitedLink)",
           "results.programs.ftl:93 (LastVisitedLink)",
-          "sessions.ftl:112 (ShortlistControl self-reference inside Controls \u2014 Controls itself unreached)",
-          "hero_banner.ftl:46 (sessions.Controls \u2014 COMMENTED OUT)"
+          "sessions.ftl:112 (ShortlistControl self-reference inside Controls — Controls itself unreached)",
+          "hero_banner.ftl:46 (sessions.Controls — COMMENTED OUT)"
         ],
         "note": "Only LastVisitedLink is reached. The broader sessions subsystem (Controls, Configuration, Templates, ShortlistDrawer, SearchHistoryAndShortlist, ShortlistControl, SessionCart JS init, search-history drawer, shortlist drawer) is wired but uninvoked. Effective surface depends on the question.collection.configuration.valueAsBoolean('ui.modern.session') flag value, which is not determinable from FTL source alone (Vic profile-config inspection pending)."
       },
@@ -593,14 +593,14 @@
         ]
       },
       "emitted_dom_anchor_ids": [
-        "funnelbach-search-facets (L121 \u2014 TYPO 'funnelbach' not 'funnelback')",
-        "funnelbach-search-body (L211 \u2014 same typo)"
+        "funnelbach-search-facets (L121 — TYPO 'funnelbach' not 'funnelback')",
+        "funnelbach-search-body (L211 — same typo)"
       ],
       "child_invocations_first_layer": [
         "hero_banner.SearchForm (L107)",
         "tabs.Tabs (L108)",
         "facets.HasFacets/Facets (L184-189)",
-        "curator.HasCuratorOrBestBet/Curator (L192-194, L222-224, L229-231 \u2014 three positions: left/top/bottom)",
+        "curator.HasCuratorOrBestBet/Curator (L192-194, L222-224, L229-231 — three positions: left/top/bottom)",
         "search_tools.SearchTools (L214)",
         "query_blending.QueryBlending (L216)",
         "spelling_suggestions.SpellingSuggestions (L217)",
@@ -635,10 +635,10 @@
       "structural_role": "Promotional region in the facets sidebar that varies copy and CTA URL based on the active tab. Default (no tab match) targets /visit ('Visit our Campus'). Programs branch targets /academics/all-programs ('Discover Programs'). Faculty & Staff branch targets https://redhawks.sharepoint.com/sites/Intranet-Home ('Redhawk Hub'). News branch targets /newsroom ('Latest Updates').",
       "consumed_attributes_and_state": {
         "FUNNELBACK_BACKEND_STATE": [
-          "response.customData.stencils.tabs.selected (L137 \u2014 the discriminator)"
+          "response.customData.stencils.tabs.selected (L137 — the discriminator)"
         ]
       },
-      "binding": "REQUIRED \u2014 the CTA content values are product-fixed REQUIRED content. The tab-selected discriminator is REQUIRED for routing.",
+      "binding": "REQUIRED — the CTA content values are product-fixed REQUIRED content. The tab-selected discriminator is REQUIRED for routing.",
       "related_findings": [
         "E8",
         "E18"
@@ -662,7 +662,7 @@
           "result.gscopesSet (L69)"
         ]
       },
-      "behavioral_implication": "The five inactive-renderer namespaces (video, facebook, events, twitter, instagram) are imported in partial.ftl L75-79 and would be reachable IF profile config or a gscope pointed at them. Per Vic, no crawler feeds these content types \u2014 so they remain structurally callable but functionally inert in current production.",
+      "behavioral_implication": "The five inactive-renderer namespaces (video, facebook, events, twitter, instagram) are imported in partial.ftl L75-79 and would be reachable IF profile config or a gscope pointed at them. Per Vic, no crawler feeds these content types — so they remain structurally callable but functionally inert in current production.",
       "related_findings": [
         "E17",
         "E19",
@@ -705,7 +705,7 @@
       "modifiability": {
         "who_controls": "Vic-controlled FTL"
       },
-      "structural_role": "News content-type renderer. Reached via stencils.template.result.<collection>='news' dispatch. Emits `<article class='listing-item listing-item--course ... newsData'>` (note: --course modifier and 'results.courses::GenericView' comment \u2014 copy/paste residue from a courses template). Title from `t` metadata, body from `c` metadata. Footer cascades `type | department` -> `type` -> `title`. Image from `image` metadata field, lazy-loaded.",
+      "structural_role": "News content-type renderer. Reached via stencils.template.result.<collection>='news' dispatch. Emits `<article class='listing-item listing-item--course ... newsData'>` (note: --course modifier and 'results.courses::GenericView' comment — copy/paste residue from a courses template). Title from `t` metadata, body from `c` metadata. Footer cascades `type | department` -> `type` -> `title`. Image from `image` metadata field, lazy-loaded.",
       "metadata_fields_consumed": [
         "t",
         "c",
@@ -720,8 +720,8 @@
         "ListView",
         "CardView",
         "GenericView",
-        "ShortlistTemplate (unreachable \u2014 only callable via sessions.shortlist.TemplatesForResults which is itself unreached)",
-        "QuickView (unreachable \u2014 never invoked from any reached site)"
+        "ShortlistTemplate (unreachable — only callable via sessions.shortlist.TemplatesForResults which is itself unreached)",
+        "QuickView (unreachable — never invoked from any reached site)"
       ],
       "unreachable_macro_content": "ShortlistTemplate (L157-268) is a Handlebars cart template referencing course-specific metadata (courseCode, courseDesc, courseCredit, courseDelivery, courseTerm, courseCampus). QuickView (L277-382) is a modal with course-specific dl/dt/dd content (courseDelivery, courseCredit, courseCampus, courseSubject, courseDepartment, courseCode, courseNumber, courseTerm, courseNotes). Both blocks are course-content-shaped; their presence in a news-named template is residue.",
       "related_findings": [
@@ -841,15 +841,15 @@
       "emitted_aria_and_data_attributes": {
         "role": "tab on each button",
         "aria-selected": "true|false per value.selected",
-        "aria-controls": "0-tab (HARDCODED literal \u2014 not dynamic; likely a Squiz convention or residue)",
+        "aria-controls": "0-tab (HARDCODED literal — not dynamic; likely a Squiz convention or residue)",
         "tabindex": "0",
-        "data-tab-group-control": "${base.getCssID(value.label)+value_index} \u2014 unique per button"
+        "data-tab-group-control": "${base.getCssID(value.label)+value_index} — unique per button"
       },
       "macros_defined": [
         "Tabs (entry; invoked from partial.ftl:108)",
         "TabsAsRadio (uninvoked)",
         "FacetCategoriesRadio (uninvoked; used only by TabsAsRadio)",
-        "Preview (uninvoked; references @base.Result which is undefined \u2014 latent defect E12)"
+        "Preview (uninvoked; references @base.Result which is undefined — latent defect E12)"
       ],
       "consumed_attributes_and_state": {
         "FUNNELBACK_BACKEND_STATE": [
@@ -967,14 +967,14 @@
       "modifiability": {
         "who_controls": "Vic-controlled FTL"
       },
-      "structural_role": "Curator macro iterates response.curator.exhibits, filtering by position attribute. Two render modes per exhibit: simple message (`<blockquote class='blockquote search-exhibit'>`) when exhibit.messageHtml is set, or full listing-item card (`<article class='listing-item listing-item--promoted'>`) when exhibit.descriptionHtml is set. The card carries a lowercase `<span class='listing-item__promoted-tag'>promoted</span>` label. Three position contexts in partial.ftl: left (in sidebar L192), top (above results L222), bottom (below results L229). Best-bets-vs-curator distinction via exhibit.category=='BEST_BETS' (HasBestBets, HasCurator macros) \u2014 but those filtering macros are not invoked from partial.ftl, only HasCuratorOrBestBet is.",
+      "structural_role": "Curator macro iterates response.curator.exhibits, filtering by position attribute. Two render modes per exhibit: simple message (`<blockquote class='blockquote search-exhibit'>`) when exhibit.messageHtml is set, or full listing-item card (`<article class='listing-item listing-item--promoted'>`) when exhibit.descriptionHtml is set. The card carries a lowercase `<span class='listing-item__promoted-tag'>promoted</span>` label. Three position contexts in partial.ftl: left (in sidebar L192), top (above results L222), bottom (below results L229). Best-bets-vs-curator distinction via exhibit.category=='BEST_BETS' (HasBestBets, HasCurator macros) — but those filtering macros are not invoked from partial.ftl, only HasCuratorOrBestBet is.",
       "macros_defined": [
         "Curator (entry)",
         "HasCuratorOrBestBet (used from partial.ftl x3)",
         "HasCurator (uninvoked)",
         "HasBestBets (uninvoked)"
       ],
-      "markup_defect": "L31: `<article class='listing-item listing-item--promoted listing-item--background-grey10 listing-item--color-black' ${(exhibit.additionalProperties.class)!}\">` \u2014 stray `\"` after the class binding. The expression produces `<article class='listing-item ...' SOMECLASS\">` which is invalid HTML attribute syntax. Browsers will likely tolerate but the trailing `\"` ends up as literal output.",
+      "markup_defect": "L31: `<article class='listing-item listing-item--promoted listing-item--background-grey10 listing-item--color-black' ${(exhibit.additionalProperties.class)!}\">` — stray `\"` after the class binding. The expression produces `<article class='listing-item ...' SOMECLASS\">` which is invalid HTML attribute syntax. Browsers will likely tolerate but the trailing `\"` ends up as literal output.",
       "related_findings": [
         "E10",
         "E21",
@@ -989,7 +989,7 @@
         "who_controls": "Vic-controlled FTL"
       },
       "structural_role": "TierBars macro emits `<div class='tier-bar'>` separators between fully-matching and partially-matching result tiers. Discriminates result.matched vs result.outOf for the label. Also handles eventDate tier bars (event-content-typed but inactive collection).",
-      "markup_defect": "L19: `<div class='tier-bar' class='sr-only search-tier'>Fully-matching results</div>` \u2014 TWO class attributes on the same element. HTML5 says the second is ignored; browsers keep the first. The intended sr-only treatment for fully-matching results is silently dropped \u2014 visually they render the same as the partial-match label.",
+      "markup_defect": "L19: `<div class='tier-bar' class='sr-only search-tier'>Fully-matching results</div>` — TWO class attributes on the same element. HTML5 says the second is ignored; browsers keep the first. The intended sr-only treatment for fully-matching results is silently dropped — visually they render the same as the partial-match label.",
       "related_findings": [
         "E14"
       ]
@@ -1029,7 +1029,7 @@
       "modifiability": {
         "who_controls": "Vic-controlled FTL"
       },
-      "structural_role": "hero_banner.SearchForm emits the hero-banner scaffold (`<div class='hero-banner hero-banner--settings ...'>`), a label[for='bannerQuery'] (referenced ID does NOT exist as written \u2014 see finding E16), and an autocomplete-search combobox wrapper that invokes auto_complete.concierge.Concierge. Concierge emits the `<div id='autocomplete-concierge' data-component='autocomplete-concierge' data-configuration='...JSON...'>` wrapper (per Phase C entries) with nested per-dataset `<span data-id data-label data-template data-service-url data-params>` children iterated from stencils.auto-completion.datasets profile config. Confirms Phase C C8 closure path: NO `$.typeahead({...})` initialization here.",
+      "structural_role": "hero_banner.SearchForm emits the hero-banner scaffold (`<div class='hero-banner hero-banner--settings ...'>`), a label[for='bannerQuery'] (referenced ID does NOT exist as written — see finding E16), and an autocomplete-search combobox wrapper that invokes auto_complete.concierge.Concierge. Concierge emits the `<div id='autocomplete-concierge' data-component='autocomplete-concierge' data-configuration='...JSON...'>` wrapper (per Phase C entries) with nested per-dataset `<span data-id data-label data-template data-service-url data-params>` children iterated from stencils.auto-completion.datasets profile config. Confirms Phase C C8 closure path: NO `$.typeahead({...})` initialization here.",
       "consumed_attributes_and_state": {
         "FUNNELBACK_PROFILE_CONFIG": [
           "stencils.auto-completion.alpha",
@@ -1055,7 +1055,7 @@
       "modifiability": {
         "who_controls": "Vic-controlled FTL"
       },
-      "structural_role": "LastVisitedLink macro emits `<p class='search-last-visited session-history-link'><small><span class='far fa-clock'></span> Last visited ${prettyTime(...)}</small></p>` per result, gated by question.collection.configuration.valueAsBoolean('ui.modern.session') && session?? && session.getClickHistory(result.indexUrl)??. Invoked from all five renderer paths (results.ftl, .news, .law, .programs, .people). Tier 1 of the sessions subsystem \u2014 the only tier actively wired to the partial response.",
+      "structural_role": "LastVisitedLink macro emits `<p class='search-last-visited session-history-link'><small><span class='far fa-clock'></span> Last visited ${prettyTime(...)}</small></p>` per result, gated by question.collection.configuration.valueAsBoolean('ui.modern.session') && session?? && session.getClickHistory(result.indexUrl)??. Invoked from all five renderer paths (results.ftl, .news, .law, .programs, .people). Tier 1 of the sessions subsystem — the only tier actively wired to the partial response.",
       "consumed_attributes_and_state": {
         "FUNNELBACK_BACKEND_STATE": [
           "session",
@@ -1093,7 +1093,7 @@
         ]
       },
       "data_pnp_seam_contract": "data-pnp-component='stencils-search-tools' on the form is the PNP (plug-and-play team) component-naming contract; consumer is external Squiz framework JS.",
-      "markup_defect": "counts.ftl: opens `<p class='counts'>` at L13 and closes `</span>` at L63 \u2014 mismatched tags. Browsers will auto-close the `<p>` and leak the `</span>` as a stray close. Documented as E13.",
+      "markup_defect": "counts.ftl: opens `<p class='counts'>` at L13 and closes `</span>` at L63 — mismatched tags. Browsers will auto-close the `<p>` and leak the `</span>` as a stray close. Documented as E13.",
       "related_findings": [
         "E13",
         "E20",
@@ -1128,7 +1128,7 @@
         "getCssID (function)",
         "inputsForForms (macro)"
       ],
-      "no_result_macro": "Despite tabs.ftl:249 calling `<@base.Result result=... view=... question=...>`, base.ftl does NOT define a Result macro. The call site is in the uninvoked Preview macro so it doesn't error at runtime; it's a latent defect \u2014 see E12.",
+      "no_result_macro": "Despite tabs.ftl:249 calling `<@base.Result result=... view=... question=...>`, base.ftl does NOT define a Result macro. The call site is in the uninvoked Preview macro so it doesn't error at runtime; it's a latent defect — see E12.",
       "related_findings": [
         "E12"
       ]
@@ -1202,13 +1202,13 @@
       "id": "E1",
       "category": "DEAD_IMPORT",
       "title": "partial.ftl imports curator.ftl twice",
-      "evidence": "partial.ftl:44 `<#import \"curator.ftl\" as curator />` and partial.ftl:54 `<#import \"curator.ftl\" as curator />` \u2014 same template, same alias, two import statements.",
+      "evidence": "partial.ftl:44 `<#import \"curator.ftl\" as curator />` and partial.ftl:54 `<#import \"curator.ftl\" as curator />` — same template, same alias, two import statements.",
       "implication": "FreeMarker <#import> is idempotent so the duplicate is not a runtime defect. Structurally it is a copy/paste residue and a clean trim candidate for the rebuild's import block. Provisional in brief v1.1; confirmed at E.2 execution."
     },
     {
       "id": "E2",
       "category": "CONTRACT_SURFACE",
-      "title": "AfterSearchOnly gate asymmetry \u2014 six macros sit outside the gate",
+      "title": "AfterSearchOnly gate asymmetry — six macros sit outside the gate",
       "evidence": "partial.ftl L221-233: `<@s.AfterSearchOnly>` wraps curator-top + no_results + result_list + curator-bottom. OUTSIDE the gate: search_tools.SearchTools (L214), query_blending.QueryBlending (L216), spelling_suggestions.SpellingSuggestions (L217), facets_breadcrumbs.Breadcrumb (L218), pagination.Pagination (L235), contextual_navigation.ContextualNavigation (L236). Each of these macros has its own internal guard (counts.Counts is content-conditional, QueryBlending is QSups-gated, SpellingSuggestions is spell-gated, facets.breadcrumbs is facetExtras.hasSelectedNonTabFacets-gated, pagination renders only stencils.pagination.{previous,pages,next} when present, contextual_navigation has HasContextualNavigation).",
       "implication": "The asymmetric gating is structurally functional thanks to per-macro internal guards. The rebuild can choose either to standardize one gate model (a uniform 'render only after search' wrapper) or to keep per-macro guards. The brief framed this around pagination and contextual_navigation specifically; the audit broadens the finding to all six. Provisional E2 in brief v1.1 is confirmed and extended."
     },
@@ -1229,8 +1229,8 @@
     {
       "id": "E5",
       "category": "CONTRACT_SURFACE",
-      "title": "Phase A Finding F2 'Funnelback-partial-content' enumeration closes \u2014 each region linked to emitting template",
-      "evidence": "Phase A v2's entry for funnelback-search-container-response-wrapper described the partial-content payload as 'tab bar + facets sidebar + results list + pagination + spelling + curator/best-bet slots \u2014 all PHASE E territory'. The E.2 partial.ftl body walk plus E.4 ancillary-template walks gives each region its emitter: tab bar = tabs.Tabs (partial.ftl:108); facets sidebar = facets.HasFacets+Facets (L184-189) plus curator-left (L192-194) plus tab-conditional CTA (L130-172); results column header = h2.sr-only 'Results' (L212); search tools = search_tools.SearchTools (L214); query blending notice = query_blending.QueryBlending (L216); spelling suggestion = spelling_suggestions.SpellingSuggestions (L217); facet breadcrumb = facets_breadcrumbs.Breadcrumb (L218); curator slots = curator.Curator at three positions (L192/L222/L229); no-results = no_results.NoResults (L226); results list = result_list.ResultList (L227); pagination = pagination.Pagination (L235); contextual navigation = contextual_navigation.ContextualNavigation (L236); SVG sprite = utilities.icons include (L92-94); main.js script tag = inline at L250.",
+      "title": "Phase A Finding F2 'Funnelback-partial-content' enumeration closes — each region linked to emitting template",
+      "evidence": "Phase A v2's entry for funnelback-search-container-response-wrapper described the partial-content payload as 'tab bar + facets sidebar + results list + pagination + spelling + curator/best-bet slots — all PHASE E territory'. The E.2 partial.ftl body walk plus E.4 ancillary-template walks gives each region its emitter: tab bar = tabs.Tabs (partial.ftl:108); facets sidebar = facets.HasFacets+Facets (L184-189) plus curator-left (L192-194) plus tab-conditional CTA (L130-172); results column header = h2.sr-only 'Results' (L212); search tools = search_tools.SearchTools (L214); query blending notice = query_blending.QueryBlending (L216); spelling suggestion = spelling_suggestions.SpellingSuggestions (L217); facet breadcrumb = facets_breadcrumbs.Breadcrumb (L218); curator slots = curator.Curator at three positions (L192/L222/L229); no-results = no_results.NoResults (L226); results list = result_list.ResultList (L227); pagination = pagination.Pagination (L235); contextual navigation = contextual_navigation.ContextualNavigation (L236); SVG sprite = utilities.icons include (L92-94); main.js script tag = inline at L250.",
       "implication": "Phase A's F2 region enumeration is now backed by the FTL source line numbers and namespace+macro names. The rebuild's partial-response composition plan has a complete map: which region originates from which template, in what order, under what gating."
     },
     {
@@ -1251,7 +1251,7 @@
       "id": "E8",
       "category": "CONTRACT_SURFACE",
       "title": "Brief CTA URL list contains '/directory' which does not appear in partial.ftl",
-      "evidence": "Brief v1.1 E.2 section: 'four hardcoded URLs (/visit, /academics/all-programs, /directory, /newsroom)'. Actual partial.ftl L138-158 values: default '/visit', Programs '/academics/all-programs', Faculty & Staff 'https://redhawks.sharepoint.com/sites/Intranet-Home', News '/newsroom'. The Faculty & Staff branch does not target '/directory' \u2014 it targets an external SharePoint URL labeled 'Redhawk Hub' with button text 'Explore Resources'. The count is four; one URL identification was incorrect in the brief.",
+      "evidence": "Brief v1.1 E.2 section: 'four hardcoded URLs (/visit, /academics/all-programs, /directory, /newsroom)'. Actual partial.ftl L138-158 values: default '/visit', Programs '/academics/all-programs', Faculty & Staff 'https://redhawks.sharepoint.com/sites/Intranet-Home', News '/newsroom'. The Faculty & Staff branch does not target '/directory' — it targets an external SharePoint URL labeled 'Redhawk Hub' with button text 'Explore Resources'. The count is four; one URL identification was incorrect in the brief.",
       "implication": "The brief's preserved-content claim is corrected. The rebuild's CTA-content-fixtures table needs the redhawks.sharepoint.com URL as the Faculty & Staff branch, not /directory. The link target also opens in a new tab (target='_blank' at L165). Recorded for v17 amendments queue."
     },
     {
@@ -1259,19 +1259,19 @@
       "category": "CONTRACT_SURFACE",
       "title": "results.news.ftl contains course-shaped residue: self-id comment and modifier class both say 'course(s)'",
       "evidence": "results.news.ftl:47 `<!-- results.courses::GenericView -->` (the self-identifier comment) and L48 `<article class='listing-item listing-item--course listing-item--background-grey10 listing-item--color-black dataListing newsData'>` (the `listing-item--course` modifier class). The file's filename is results.news.ftl, the data-class suffix is newsData, but the modifier class and self-id comment both say 'course'.",
-      "implication": "CSS selectors that target `.listing-item--course` would apply to news results \u2014 that is, news result cards inherit course-card styling whether intentionally or by residue. The rebuild should establish modifier-class-per-content-type as a clean contract; either rename to `.listing-item--news` or formalize the shared-with-course styling as a deliberate choice. The self-id comment is just dev-time tracking and is informational. Provisional E9 is confirmed via E.3 execution."
+      "implication": "CSS selectors that target `.listing-item--course` would apply to news results — that is, news result cards inherit course-card styling whether intentionally or by residue. The rebuild should establish modifier-class-per-content-type as a clean contract; either rename to `.listing-item--news` or formalize the shared-with-course styling as a deliberate choice. The self-id comment is just dev-time tracking and is informational. Provisional E9 is confirmed via E.3 execution."
     },
     {
       "id": "E10",
       "category": "CONTRACT_SURFACE",
       "title": "curator.ftl L31 stray double-quote after class binding",
-      "evidence": "curator.ftl:31 `<article class=\"listing-item listing-item--promoted listing-item--background-grey10 listing-item--color-black\" ${(exhibit.additionalProperties.class)!}\">`. The expression substitution `${...}` is unquoted in the source; the trailing `\"` appears immediately after. Output for an exhibit with a class value 'highlight' would be `class=\"listing-item ...\" highlight\">` \u2014 invalid HTML attribute syntax.",
+      "evidence": "curator.ftl:31 `<article class=\"listing-item listing-item--promoted listing-item--background-grey10 listing-item--color-black\" ${(exhibit.additionalProperties.class)!}\">`. The expression substitution `${...}` is unquoted in the source; the trailing `\"` appears immediately after. Output for an exhibit with a class value 'highlight' would be `class=\"listing-item ...\" highlight\">` — invalid HTML attribute syntax.",
       "implication": "Most browsers will tolerate the malformed attribute by treating 'highlight' as a boolean attribute and discarding the stray `\"` (with possibly varying outcomes per browser). Functionally bounded but a markup defect. The rebuild should escape the expression and quote it correctly."
     },
     {
       "id": "E11",
       "category": "DEAD_IMPORT",
-      "title": "auto_complete namespace has zero textual invocations \u2014 closes Phase C C8 definitively",
+      "title": "auto_complete namespace has zero textual invocations — closes Phase C C8 definitively",
       "evidence": "grep for `@auto_complete\\.` across all 27 in-scope templates returns no matches. The Configuration macro in auto_complete.ftl (which initializes Twitter Typeahead via `jQuery('#query').autocompletion({...})` with datasets configured from stencils.auto-completion.* profile config) is never invoked from any reached site. The import at partial.ftl:52 binds the namespace but no consumer references it.",
       "implication": "Twitter Typeahead is fully dead code on Seattle University's template set. Combined with Phase C Finding C10's enumeration of the universal-stencils-cluster (which includes the Typeahead bundle at typeahead.bundle.min.js loaded from cdnjs), the Typeahead bundle becomes a CONFIRMED strip-out candidate for the rebuild's universal-stencils-cluster experiment. Closes Phase C C8. Provisional E11 in brief v1.1 is confirmed."
     },
@@ -1294,7 +1294,7 @@
       "category": "CONTRACT_SURFACE",
       "title": "tier_bars.ftl L19 has duplicate class attribute on same element",
       "evidence": "tier_bars.ftl:19 `<div class=\"tier-bar\" class=\"sr-only search-tier\">Fully-matching results</div>`. Two `class` attributes on the same element.",
-      "implication": "HTML5 specifies that the FIRST class attribute wins and subsequent duplicates are ignored; browsers consistently follow this. The intended `sr-only` (visually-hidden) treatment for fully-matching tier bars is silently dropped \u2014 the 'Fully-matching results' label renders identically to the partial-match label. Behavioral inconsistency in current production: the partial-match label is visible (intended) but the fully-match label is ALSO visible (unintended). The rebuild should consolidate to a single class attribute and decide whether fully-match bars should be visually hidden or visually rendered."
+      "implication": "HTML5 specifies that the FIRST class attribute wins and subsequent duplicates are ignored; browsers consistently follow this. The intended `sr-only` (visually-hidden) treatment for fully-matching tier bars is silently dropped — the 'Fully-matching results' label renders identically to the partial-match label. Behavioral inconsistency in current production: the partial-match label is visible (intended) but the fully-match label is ALSO visible (unintended). The rebuild should consolidate to a single class attribute and decide whether fully-match bars should be visually hidden or visually rendered."
     },
     {
       "id": "E15",
@@ -1308,7 +1308,7 @@
       "category": "CONTRACT_SURFACE",
       "title": "hero_banner.SearchForm references label[for='bannerQuery'] for an ID that does not exist as written",
       "evidence": "hero_banner.ftl L22 `<label for=\"bannerQuery\" class=\"visuallyhidden\">Search:</label>`. The label references id='bannerQuery'. The combobox div has id='autocomplete-search-combobox' (L30). The actual input element is emitted by auto_complete.concierge.Concierge (invoked at L39), and per auto_complete.concierge.ftl L29 the input id defaults to 'query' (or the value of stencils.auto-completion.input_id profile config). No element with id='bannerQuery' is emitted by any reached path.",
-      "implication": "Accessibility seam contract is broken: screen readers traversing label associations will not find the input. Functionally the page is usable (the input has its own placeholder, the visually-hidden label is announced when the input gains focus only if the for/id pair matches, which it does not). WCAG 2.1 compliance concern. Either the label's `for` should target 'query' (or the configured input_id), or the input emitter should be reconfigured to emit id='bannerQuery'. Rebuild should normalize the contract \u2014 likely best to have the label live near the input emitter rather than in the wrapper template."
+      "implication": "Accessibility seam contract is broken: screen readers traversing label associations will not find the input. Functionally the page is usable (the input has its own placeholder, the visually-hidden label is announced when the input gains focus only if the for/id pair matches, which it does not). WCAG 2.1 compliance concern. Either the label's `for` should target 'query' (or the configured input_id), or the input emitter should be reconfigured to emit id='bannerQuery'. Rebuild should normalize the contract — likely best to have the label live near the input emitter rather than in the wrapper template."
     },
     {
       "id": "E17",
@@ -1322,7 +1322,7 @@
       "category": "CONTRACT_SURFACE",
       "title": "Tab-conditional CTA region contains product-fixed REQUIRED content",
       "evidence": "partial.ftl L130-172 emits the promotional CTA region. Heading, body text, link URL, and button text vary by selected tab. Defaults to '/visit Visit our Campus'. Programs branch: '/academics/all-programs Discover Programs'. Faculty & Staff: SharePoint URL Redhawk Hub Explore Resources. News: '/newsroom Latest Updates The Newsroom'. All values are inline string literals in the template.",
-      "implication": "Content-fixture rebuild requirement: the rebuild needs an externalized representation of these CTA values (likely a per-tab CMS-managed copy block, or a config table) rather than inline FTL string literals. Content is product-decision REQUIRED \u2014 changes require product sign-off. Where the values live should be a rebuild decision."
+      "implication": "Content-fixture rebuild requirement: the rebuild needs an externalized representation of these CTA values (likely a per-tab CMS-managed copy block, or a config table) rather than inline FTL string literals. Content is product-decision REQUIRED — changes require product sign-off. Where the values live should be a rebuild decision."
     },
     {
       "id": "E19",
@@ -1336,7 +1336,7 @@
       "category": "CONTRACT_SURFACE",
       "title": "Cross-renderer markup-envelope shared contract: listing-item BEM envelope plus per-renderer modifier and data-class",
       "evidence": "All five renderers (results.ftl fallback + four active) emit `<article class='listing-item listing-item--<modifier> listing-item--background-grey10 listing-item--color-black dataListing <typeData>' data-fb-result='${result.indexUrl}'>` with the inner structure: `.listing-item__content > .listing-item__header > h3.listing-item__title > a.listing-item__title-link > .listing-item__body > .listing-item__summary > .listing-item__footer > .listing-item__footer-block`. Variations: modifier class (--generic, --course, --program, --people; note --course on news renderer per E9), data-class suffix (genericData, lawData, newsData, programData, peopleData), optional .listing-item__image-wrapper before .listing-item__content, optional .listing-item__subtitle inside __header, footer content per-renderer.",
-      "implication": "The shared envelope is a stable contract for the rebuild. CSS rules likely select on `.listing-item` (envelope), `.listing-item--<modifier>` (per-renderer styling), and `.<typeData>` (dataListing.dataListing.newsData etc. \u2014 JS hooks). The rebuild can either preserve this contract verbatim (low CSS risk) or refactor into a normalized component shape (higher CSS migration cost). The `dataListing` suffix appears redundant with `.listing-item` \u2014 possible cleanup."
+      "implication": "The shared envelope is a stable contract for the rebuild. CSS rules likely select on `.listing-item` (envelope), `.listing-item--<modifier>` (per-renderer styling), and `.<typeData>` (dataListing.dataListing.newsData etc. — JS hooks). The rebuild can either preserve this contract verbatim (low CSS risk) or refactor into a normalized component shape (higher CSS migration cost). The `dataListing` suffix appears redundant with `.listing-item` — possible cleanup."
     },
     {
       "id": "E21",
@@ -1355,7 +1355,7 @@
     {
       "id": "E23",
       "category": "CONTRACT_SURFACE",
-      "title": "data-pnp-component seam contracts \u2014 plug-and-play team component-naming convention",
+      "title": "data-pnp-component seam contracts — plug-and-play team component-naming convention",
       "evidence": "search_tools.ftl:13 `data-pnp-component=\"stencils-search-tools\"` on the form. sessions.search_history.ftl:58 `data-pnp-component=\"link-tracker\"` on the link-tracker span (with adjacent `data-search-form='.autocomplete-concierge__form-wrapper'`, `data-link-query='.listing-item__title-link,.quickview__action'`, `data-search-term`, `data-results-count`, `data-history-size`, `data-delay` configuration attributes). The 'pnp' prefix is the Squiz Plug-and-Play team component-naming convention per auto_complete.concierge.ftl's docstring at L7-19.",
       "implication": "The PNP-namespaced attributes are seam contracts to Squiz framework JS. Two distinct PNP component types are referenced from partial-response templates: stencils-search-tools (form behavior) and link-tracker (click-tracking on result-anchor selectors). The rebuild's interaction with Squiz framework JS depends on whether these PNP components are retained as behavioral consumers. If retained, the rebuild needs to reproduce the data-pnp-component attribute set and the selectors that link-tracker watches."
     },
@@ -1363,13 +1363,13 @@
       "id": "E24",
       "category": "DEAD_IMPORT",
       "title": "a-z_listing namespace has zero textual invocations",
-      "evidence": "Zero `@az_listing.` invocations across all 27 in-scope templates. The a-z_listing.ftl file defines BrowseModeToggle, BrowseModeToggleOff, BrowseModeToggleOn, BrowseByFilter \u2014 none invoked. The file itself carries an explicit `<#--  TODO - Update to suit the new design system  -->` comment at L2.",
-      "implication": "The whole 'browse-mode' / A-Z directory listing feature is dead in current production. Two internal calls to @facets.DropdownFacet (a-z_listing.ftl L117, L119, L121, L123 \u2014 within a commented-out section) and @facets.ListFacets (L127) are transitively dead. Rebuild can drop the file entirely; the corresponding profile-config keys stencils.tabs.browse_mode.* become unused."
+      "evidence": "Zero `@az_listing.` invocations across all 27 in-scope templates. The a-z_listing.ftl file defines BrowseModeToggle, BrowseModeToggleOff, BrowseModeToggleOn, BrowseByFilter — none invoked. The file itself carries an explicit `<#--  TODO - Update to suit the new design system  -->` comment at L2.",
+      "implication": "The whole 'browse-mode' / A-Z directory listing feature is dead in current production. Two internal calls to @facets.DropdownFacet (a-z_listing.ftl L117, L119, L121, L123 — within a commented-out section) and @facets.ListFacets (L127) are transitively dead. Rebuild can drop the file entirely; the corresponding profile-config keys stencils.tabs.browse_mode.* become unused."
     },
     {
       "id": "E25",
       "category": "DEAD_IMPORT",
-      "title": "auto_complete namespace dead \u2014 Typeahead bundle is confirmed strip-out candidate",
+      "title": "auto_complete namespace dead — Typeahead bundle is confirmed strip-out candidate",
       "evidence": "See E11. Zero textual invocations across all 27 in-scope templates.",
       "implication": "Phase C C10's universal-stencils-cluster strip-out experiment has a confirmed first candidate: the typeahead.bundle.min.js file from cdnjs. Caveat: cluster includes jQuery and Handlebars which Typeahead depends on; strip-out feasibility for Typeahead-the-library may depend on whether the design system or other Squiz JS components also use jQuery+Handlebars independently. The auto_complete.ftl FTL template itself can be removed from the rebuild's template set."
     },
@@ -1378,26 +1378,26 @@
       "category": "DEAD_IMPORT",
       "title": "extra_search namespace dead",
       "evidence": "Zero `@extra_search.` invocations across all 27 in-scope templates. extra_search.ftl defines a Preview macro that is uninvoked (and is near-duplicate to tabs.Preview which is also uninvoked).",
-      "implication": "The 'extra search results preview' feature is dead. Both Preview macros (in extra_search.ftl and in tabs.ftl) can be removed. Note: extra_search.Preview uses `<@fb.ExtraResults>` (Squiz core macro from funnelback.ftl) \u2014 that import path is then transitively unused on the partial-response side. The rebuild can drop the file."
+      "implication": "The 'extra search results preview' feature is dead. Both Preview macros (in extra_search.ftl and in tabs.ftl) can be removed. Note: extra_search.Preview uses `<@fb.ExtraResults>` (Squiz core macro from funnelback.ftl) — that import path is then transitively unused on the partial-response side. The rebuild can drop the file."
     },
     {
       "id": "E27",
       "category": "DEAD_IMPORT",
-      "title": "client_includes namespace dead \u2014 partial does not own header/footer chrome",
-      "evidence": "Zero `@client_includes.` invocations across all 27 in-scope templates. The file defines HTMLHeader/ContentHeader/ContentFooter/ClientInclude \u2014 all uninvoked.",
+      "title": "client_includes namespace dead — partial does not own header/footer chrome",
+      "evidence": "Zero `@client_includes.` invocations across all 27 in-scope templates. The file defines HTMLHeader/ContentHeader/ContentFooter/ClientInclude — all uninvoked.",
       "implication": "T4 PageLayout (Phase D territory) owns the page chrome. The Funnelback partial response does not need to emit header/footer regions. The client_includes feature with its 11 profile-config keys (stencils.client_includes.<elementName>.{url,start,end,expiry,timeout,relative,username,password,useragent,cssSelector,removeByCssSelectors}) is fully unused on this side. The rebuild can drop the file."
     },
     {
       "id": "E28",
       "category": "DEAD_IMPORT",
-      "title": "Five inactive renderer imports \u2014 no crawler feeds these content types",
+      "title": "Five inactive renderer imports — no crawler feeds these content types",
       "evidence": "partial.ftl L75-79 imports results.video.ftl, results.facebook.ftl, results.events.ftl, results.twitter.ftl, results.instagram.ftl. Per Vic's confirmed input, no crawler feeds these five content types on Seattle U's collection set. The .main[<namespace>].Result dispatch in result_list.ftl is reachable in principle but never triggered in practice.",
       "implication": "Five FTL files plus their import statements are dead at the namespace-binding level. The rebuild reduces from nine documented renderer types to four (news/law/programs/people) as the active set. This matches the CLAUDE.md framing of 'four live content-type renderers, not nine'."
     },
     {
       "id": "E29",
       "category": "UNUSED_FEATURE",
-      "title": "Sessions Tier 2 \u2014 Controls/Configuration/Templates/Drawers wholly unwired (closes E4)",
+      "title": "Sessions Tier 2 — Controls/Configuration/Templates/Drawers wholly unwired (closes E4)",
       "evidence": "See E4 and entry sessions-tier-2-unwired. Six macros plus the Funnelback.SessionCart JS init plus two drawer markups defined but not invoked from any reached site. sessions.Controls is COMMENTED OUT in hero_banner.ftl:46.",
       "implication": "The rebuild can either: (a) implement the shortlist + search-history features natively if product retains them as requirements, (b) discard them entirely. Either way, the existing FTL implementation is not load-bearing. The Funnelback.SessionCart global class dependency, the .enable-cart-on-result and .fb-cart__remove selectors, and the per-renderer ShortlistTemplate hooks all become free of consumers in the rebuild."
     },
@@ -1405,7 +1405,7 @@
       "id": "E30",
       "category": "UNUSED_FEATURE",
       "title": "results.news.ftl ShortlistTemplate and QuickView macros are course-shaped residue",
-      "evidence": "results.news.ftl:157-268 defines ShortlistTemplate (Handlebars cart template for course data: courseCode, courseDesc, courseCredit, courseDelivery, courseTerm, courseCampus). results.news.ftl:277-382 defines QuickView (modal with course detail dl/dt/dd content). Both macros are only callable via sessions.shortlist.TemplatesForResults (which iterates .main namespaces) and result_list.QuickViewList \u2014 both of which are transitively unreached.",
+      "evidence": "results.news.ftl:157-268 defines ShortlistTemplate (Handlebars cart template for course data: courseCode, courseDesc, courseCredit, courseDelivery, courseTerm, courseCampus). results.news.ftl:277-382 defines QuickView (modal with course detail dl/dt/dd content). Both macros are only callable via sessions.shortlist.TemplatesForResults (which iterates .main namespaces) and result_list.QuickViewList — both of which are transitively unreached.",
       "implication": "Two macros, ~225 lines of FTL, dead in current production. Course-content-shaped residue inside a news-named file. Rebuild dropping the sessions Tier 2 (E29) and the QuickView feature retires these without further action. If a future product decision adds quickview-modal-on-result, the implementation should be content-type-aware rather than copy-pasted course-content."
     },
     {
@@ -1434,7 +1434,7 @@
       "category": "UNUSED_FEATURE",
       "title": "search_tools.IsDisplayMode macro is unreached",
       "evidence": "search_tools.ftl L59-63: `IsDisplayMode mode=\"LIST\"` macro that runs nested code when current display mode matches. Zero textual invocations.",
-      "implication": "Utility macro defined but unused. The getDisplayMode function (L34-54) is used by result_list.ResultList (L15 \u2014 listing-items--${view}-view class binding). IsDisplayMode appears to have been intended for conditional display elsewhere; never wired. Rebuild can drop it."
+      "implication": "Utility macro defined but unused. The getDisplayMode function (L34-54) is used by result_list.ResultList (L15 — listing-items--${view}-view class binding). IsDisplayMode appears to have been intended for conditional display elsewhere; never wired. Rebuild can drop it."
     },
     {
       "id": "E35",
@@ -1499,7 +1499,7 @@
     "phase_a_F2": {
       "status": "PARTIAL_CLOSED",
       "via": "E5",
-      "note": "Region-to-emitter map fully enumerated. Phase A F2 framing of 'tab bar + facets sidebar + results list + pagination + spelling + curator/best-bet slots \u2014 all PHASE E territory' is now backed by FTL source line numbers."
+      "note": "Region-to-emitter map fully enumerated. Phase A F2 framing of 'tab bar + facets sidebar + results list + pagination + spelling + curator/best-bet slots — all PHASE E territory' is now backed by FTL source line numbers."
     },
     "phase_c_C8": {
       "status": "CLOSED",
