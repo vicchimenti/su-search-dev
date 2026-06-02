@@ -9,7 +9,7 @@
 ## Headlines
 
 - **Four handoff items resolved:** E7 (typo IDs), E8 (CTA fixtures), E9 (`listing-item--course`), dataListing/per-type `*Data` (D7).
-- **Ten findings B1-B10** in two streams: 6 CONSUMER_ABSENT, 4 CROSS_REFERENCE. Zero CONSUMER_CONFIRMED and zero CONSUMER_EXTERNAL — every handoff item came back ABSENT on every dimension grepped this session.
+- **Ten findings B1-B10** in two streams: 7 CONSUMER_ABSENT, 3 CROSS_REFERENCE. Zero CONSUMER_CONFIRMED and zero CONSUMER_EXTERNAL — every handoff item came back ABSENT on every dimension grepped this session.
 - **Stylesheet-alignment cross-check fired in-session.** Vic provided the T4-served Funnelback stylesheet (v3.1.2, dated 2026-02-02) inline; the brief's named carried-forward documentary residual collapses to one narrower residual (RES1).
 - **One named open residual:** RES1 — the T4-shipped JS dimension of E7 (whether Squiz framework JS or T4 page-layout chrome JS targets the typo'd IDs at runtime). Vic elected to close E7 with this narrower residual rather than wait for live-page capture this session.
 - **HTML audit sequence closes** (A → C → E → D → B) with one named residual.
@@ -18,7 +18,7 @@
 
 ## Finding index
 
-### CONSUMER_ABSENT (6 findings — no consumer on the surface grepped)
+### CONSUMER_ABSENT (7 findings — no consumer on the surface grepped)
 
 | ID | Title | Where the absence was confirmed |
 |---|---|---|
