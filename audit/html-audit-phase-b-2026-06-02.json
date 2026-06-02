@@ -1,0 +1,400 @@
+{
+  "meta": {
+    "audit_date": "2026-06-02",
+    "audit_version": "1.0.0",
+    "phase": "B",
+    "phase_stage": "B.4-synthesis",
+    "phase_title": "FE external-contract consumption (final HTML audit phase)",
+    "brief": "docs/html-audit-phase-b-brief-2026-06-02-v1.1.md (ratified v1.1; provided inline by Vic this session — file is not present on disk in this repo; see meta.deliverable_gaps)",
+    "predecessor_phases": [
+      "A (canonical: audit/html-audit-phase-a-2026-05-12-v2.md + audit/html-audit-phase-a-2026-05-13-v3.json)",
+      "C (canonical: audit/html-audit-phase-c-2026-05-13.json + .md)",
+      "E (canonical: audit/html-audit-phase-e-2026-05-14.json + .md)",
+      "D (canonical per CLAUDE.md restatement; deliverable files not on disk in this repo — see meta.deliverable_gaps)"
+    ],
+    "scope": "Static consumer enumeration against FE-authored code (public/, pages/, lib/, components/) and against the T4-served Funnelback stylesheet (provided inline), resolving the four consumer-enumeration questions handed forward from Phases E and D: E7 (typo IDs funnelbach-search-facets / funnelbach-search-body), E8 (tab-conditional CTA URL and label fixtures), E9 (listing-item--course modifier), dataListing + per-type *Data suffixes (D7).",
+    "posture": "Read-and-record. Documentary outcomes only, not cleanup-deciding. Under the three architectural anchors (visual-design-immutability; preserve-DOM-contract-by-default-pending-consumer-enumeration; stylesheet-as-binding-contract), consumer enumeration documents the contract; it does not license removal. Where a class or ID has no FE consumer, preservation by default is the rebuild posture; where the stylesheet binds a class, emit-and-align is the binding rebuild posture.",
+    "finding_categories": [
+      "CONSUMER_CONFIRMED",
+      "CONSUMER_ABSENT",
+      "CONSUMER_EXTERNAL",
+      "CROSS_REFERENCE"
+    ],
+    "source_surfaces_in_scope": [
+      "FE_AUTHORED_JS_TS (public/, pages/, lib/, components/) — 12 .js + 10 .ts + 4 .tsx files",
+      "T4_SERVED_FUNNELBACK_STYLESHEET (v3.1.2 dated 2026-02-02; provided inline by Vic this session)"
+    ],
+    "source_surfaces_out_of_scope": [
+      "T4_PAGE_LAYOUT_PHP (constraint surface per Phase D D2)",
+      "SQUIZ_FRAMEWORK_COMPILED_JS (read-but-don't-modify per CLAUDE.md)",
+      "FTL_TEMPLATES (emitting surface per Phase E, canonical)",
+      "FUNNELBACK_PROFILE_CONFIG (out of repo)"
+    ],
+    "anchors_in_effect": [
+      {
+        "name": "visual-design-immutability",
+        "role": "The rebuild makes no changes to the visual design. CSS class names referenced by stylesheets, markup envelopes whose styling depends on exact class assignment, and styled chrome are all preserve-verbatim."
+      },
+      {
+        "name": "preserve-DOM-contract-by-default-pending-consumer-enumeration",
+        "role": "Every class name, data attribute, ARIA attribute, and selectable element with no audit-confirmed consumer is preserved by default. Removal requires consumer-enumeration-confirmed absence, not assumed absence."
+      },
+      {
+        "name": "stylesheet-as-binding-contract",
+        "role": "The existing Funnelback stylesheet lives in T4, is dedicated to Funnelback styles, and is itself a binding restriction on the rebuild: everything the rebuild builds must align with the existing stylesheet. The rebuild does not rename styled classes; it emits what the stylesheet targets. Established 2026-06-02; queued for v19 formalization as a paired anchor with visual-design-immutability."
+      }
+    ],
+    "deliverable_gaps": [
+      {
+        "gap_id": "GAP1",
+        "description": "Phase B brief file not present on disk",
+        "expected_path": "docs/html-audit-phase-b-brief-2026-06-02-v1.1.md",
+        "found": "Only FTL snapshots and the Phase A v3 JSON exist under docs/. The two Phase A briefs are in audit/ at html-audit-phase-a-brief-2026-05-12.md and html-audit-phase-a-capture-brief-2026-05-12.md.",
+        "resolution": "Vic provided the brief verbatim inline at session start (after the operator prompt referenced it). Operative scope, stop rules, finding taxonomy, and anchor framing for this audit were taken from the inline paste. The inline brief content is preserved in the session report. Recommendation: stage the brief into the repo retrospectively (either docs/ or audit/) so the canonical reference path resolves for future readers."
+      },
+      {
+        "gap_id": "GAP2",
+        "description": "Phase D deliverable files not present in audit/",
+        "expected_paths": [
+          "audit/html-audit-phase-d-2026-05-20.json",
+          "audit/html-audit-phase-d-2026-05-20.md",
+          "audit/session-report-2026-05-20-html-audit-phase-d.md"
+        ],
+        "found": "audit/ contains Phase A, C, E pairs plus session reports for C and E; no Phase D files exist.",
+        "resolution": "CLAUDE.md cites Phase D as completed 2026-05-20 with synthesis-and-closure and restates D1-D10. Phase B references D7 (dataListing / per-type *Data pattern hypothesis) via CLAUDE.md restatement; that dependency is satisfied. Other Phase D findings (D2 constraint framing, D3 visual-design-immutability anchor, D4 preserve-DOM-contract anchor, D8 cluster CONSUMER_MAP deferral) are likewise referenced via CLAUDE.md. Recommendation: stage the Phase D deliverable files into audit/ retrospectively. No Phase B finding changes if they are staged later."
+      },
+      {
+        "gap_id": "GAP3",
+        "description": "Phase B ratified brief is referenced in this JSON; the file at the cited path was not readable at session time. See GAP1."
+      }
+    ],
+    "cross_references": [
+      "audit/html-audit-phase-a-2026-05-12-v2.md",
+      "audit/html-audit-phase-a-2026-05-13-v3.json",
+      "audit/html-audit-phase-c-2026-05-13.json",
+      "audit/html-audit-phase-c-2026-05-13.md",
+      "audit/html-audit-phase-e-2026-05-14.json",
+      "audit/html-audit-phase-e-2026-05-14.md",
+      "audit/session-report-2026-05-13-html-audit-phase-c.md",
+      "audit/session-report-2026-05-14-html-audit-phase-e.md",
+      "audit/fe-autocomplete-audit-2026-05-05.md",
+      "audit/fe-listener-audit-2026-05-06.md",
+      "audit/fe-cache-audit-2026-05-04.md",
+      "audit/fe-endpoint-dictionary-2026-05-13.json (per CLAUDE.md)",
+      "(referenced but not present) audit/html-audit-phase-d-2026-05-20.json / .md / session-report — see GAP2",
+      "(referenced but not present) docs/html-audit-phase-b-brief-2026-06-02-v1.1.md — see GAP1"
+    ],
+    "brief_citation_corrections": {
+      "e8_button_label_redhawk_hub_vs_explore_resources": "The Phase B brief (and the operator prompt) listed 'Redhawk Hub' among the four CTA button labels. Phase E E8 finding establishes that 'Redhawk Hub' is the *heading* of the Faculty & Staff CTA branch and 'Explore Resources' is the *button label* (per partial.ftl L138-158 and Phase E correction). Phase B grep covered both strings for defensiveness ('Redhawk Hub' and 'Explore Resources'); both returned 0 hits in FE source. The brief's labeling is internally consistent with the spirit of 'tab-conditional CTA content' but the per-string identification matches the heading layer not the button layer. Recorded for v19 amendments queue."
+    }
+  },
+  "handoff_items": {
+    "E7_typo_ids": {
+      "phase_e_finding_reference": "Phase E E7 — partial.ftl:121, :211",
+      "what_is_emitted": "id=\"funnelbach-search-facets\" and id=\"funnelbach-search-body\" (typo: 'funnelbach' instead of 'funnelback'). Class names on the same elements use correctly-spelled 'funnelback'.",
+      "phase_b_question": "Does any FE or T4 surface consume the typo'd IDs as DOM selectors at runtime?",
+      "phase_b_outcome": {
+        "fe_jsts_dimension": "CONSUMER_ABSENT (finding B1)",
+        "t4_stylesheet_dimension": "CONSUMER_ABSENT (finding B2)",
+        "t4_shipped_js_dimension": "OPEN RESIDUAL (RES1; recorded under residuals_open). Vic elected at synthesis time to close E7 with the T4-JS half as a named narrower residual rather than wait for live-page capture this session."
+      }
+    },
+    "E8_cta_fixtures": {
+      "phase_e_finding_reference": "Phase E E8 + Phase E meta.brief_citation_corrections.cta_url_list — partial.ftl:130-172",
+      "what_is_emitted": "Four hardcoded tab-conditional CTA blocks. URLs (default → /visit, Programs → /academics/all-programs, Faculty & Staff → https://redhawks.sharepoint.com/sites/Intranet-Home, News → /newsroom). Headings (default → Visit our Campus, Programs → Discover Programs, Faculty & Staff → Redhawk Hub, News → Latest Updates). Button labels (default → Plan Your Visit, Programs → View Programs, Faculty & Staff → Explore Resources, News → See Latest News; exact labels per partial.ftl, not re-derived this session).",
+      "phase_b_question": "Does any FE code read, parse, or depend on the tab-conditional CTA content (URLs, headings, button labels)?",
+      "phase_b_outcome": {
+        "fe_jsts_dimension": "CONSUMER_ABSENT (finding B4)",
+        "implication_for_rebuild": "Externalization of CTA content is purely an FTL/content concern; no FE-coordination dimension."
+      }
+    },
+    "E9_listing_item_course_modifier": {
+      "phase_e_finding_reference": "Phase E E9 — results.news.ftl:47-48",
+      "what_is_emitted": "Self-id comment '<!-- results.courses::GenericView -->' at L47; news result-card article tag at L48 with classes 'listing-item listing-item--course listing-item--background-grey10 listing-item--color-black dataListing newsData'. The --course modifier is copy-paste residue from a courses template lineage.",
+      "phase_b_question": "Does any FE JS hook or T4 stylesheet selector target .listing-item--course?",
+      "phase_b_outcome": {
+        "fe_jsts_dimension": "CONSUMER_ABSENT (finding B5). Seven .listing-item consumer sites exist in FE across five files; all target the base class or the .listing-item__title BEM element; none target the --course modifier.",
+        "t4_stylesheet_dimension": "CONSUMER_ABSENT (finding B6). Stylesheet defines styled modifiers for --people, --event, --person, --document, --social-media, --video, --promoted, --background-shadow; --course is conspicuously absent from the set.",
+        "implication_for_rebuild": "Residue with no consumer on any binding-evidence surface. Under preserve-DOM-contract anchor, emit by default; no stylesheet contract to align with for the --course modifier specifically."
+      }
+    },
+    "dataListing_data_suffixes": {
+      "phase_e_finding_reference": "Phase E E20 (cross-renderer envelope contract) + Phase D D7 (camelCase hypothesis)",
+      "what_is_emitted": "Cross-renderer shared .listing-item BEM envelope plus 'dataListing' class plus per-renderer per-type *Data suffix: fallback → genericData, news → newsData, law → lawData, programs → programData, people → peopleData.",
+      "phase_b_question": "(Phase D D7 hypothesis) Does any FE JS hook or T4 stylesheet selector target .dataListing or any of the per-type *Data classes? D7 framed the camelCase pattern as suggestive of JS hook selectors more than visual or ARIA semantics; consumer enumeration is the binding evidence.",
+      "phase_b_outcome": {
+        "fe_jsts_dimension": "CONSUMER_ABSENT (finding B7). Zero hits for any of the six class names across FE source. No data-class attribute consumer pattern either.",
+        "t4_stylesheet_dimension": "CONSUMER_ABSENT (finding B8). No stylesheet rule targets any of the six class names.",
+        "d7_hypothesis_status": "Negatively confirmed on both binding-evidence surfaces."
+      }
+    }
+  },
+  "consumer_enumeration_evidence": {
+    "method": {
+      "primary_grep": "grep -rn '<token>' public/ pages/ lib/ components/",
+      "widened_recheck": "grep -rni '<token>' . --include=*.{js,ts,tsx,jsx,json,html,css,scss} --exclude-dir={node_modules,.next,audit,docs}",
+      "rationale": "Primary grep covers the four FE-authored directories per the brief's scope sharpening. Widened recheck is repo-wide case-insensitive across all source extensions (defensive — would catch a stray reference in tsx/jsx/json/html that the primary scope misses)."
+    },
+    "file_extension_inventory_in_scope_dirs": {
+      "js": 12,
+      "ts": 10,
+      "tsx": 4,
+      "total": 26,
+      "note": "No .css/.scss/.html/.jsx files in public/, pages/, lib/, or components/. Repo-wide stylesheet search outside node_modules and .next returned zero — confirming the brief's repo-shape sharpening: any CSS-consumer question is routed to the T4-served Funnelback stylesheet by construction."
+    },
+    "hits_by_token": {
+      "funnelbach-search-facets": {"hits": [], "count": 0},
+      "funnelbach-search-body": {"hits": [], "count": 0},
+      "funnelbach_substring_case_insens_repo_wide": {"hits": [], "count": 0},
+      "funnelback-search-facets_correct_spelling": {"hits": [], "count": 0},
+      "funnelback-search-body_correct_spelling": {"hits": [], "count": 0},
+      "slash_visit": {
+        "hits": ["package-lock.json: 7 matches against '@typescript-eslint/visitor-keys' substring — NOT the CTA URL"],
+        "count_cta_url": 0,
+        "count_total_noise": 7
+      },
+      "slash_academics_all_programs": {"hits": [], "count": 0},
+      "redhawks.sharepoint.com": {"hits": [], "count": 0},
+      "slash_newsroom": {"hits": [], "count": 0},
+      "Visit our Campus": {"hits": [], "count": 0},
+      "Discover Programs": {"hits": [], "count": 0},
+      "Redhawk Hub": {"hits": [], "count": 0},
+      "Explore Resources": {"hits": [], "count": 0},
+      "Latest Updates": {"hits": [], "count": 0},
+      "listing-item--course": {"hits": [], "count": 0},
+      "listing-item_base_for_context": {
+        "hits": [
+          "public/search-bundle.js:422 — '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a' (known-dead file per CLAUDE.md)",
+          "public/js/modules/analytics-manager.js:51 — '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'",
+          "public/js/modules/analytics-manager.js:133 — '.fb-result, .search-result-item, .listing-item'",
+          "public/js/modules/analytics-manager.js:138 — '.fb-result, .search-result-item, .listing-item'",
+          "public/integration.js:990 — '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'",
+          "public/search-page-autocomplete.js:801 — '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'",
+          "components/ResultList.tsx:38 — '.fb-result h3 a, .search-result-item h3 a, .listing-item__title a'"
+        ],
+        "count": 7,
+        "interpretation": "All seven sites target the base class '.listing-item' or the BEM element '.listing-item__title'. None target the '--course' modifier."
+      },
+      "dataListing": {"hits": [], "count": 0},
+      "genericData": {"hits": [], "count": 0},
+      "lawData": {"hits": [], "count": 0},
+      "newsData": {"hits": [], "count": 0},
+      "programData": {"hits": [], "count": 0},
+      "peopleData": {"hits": [], "count": 0},
+      "data-class_attribute_pattern": {
+        "hits": [],
+        "count": 0,
+        "interpretation": "No 'data-class' attribute consumer pattern in FE source. Sanity check: other data-* attribute patterns DO exist (data-type, data-index on suggestion-item elements in public/search-page-autocomplete.js:389,408,468 and public/search-bundle.js:279,289,311) — confirming the grep does find data-* patterns where they exist; it does not find data-class because data-class is not in source."
+      }
+    }
+  },
+  "stylesheet_enumeration_evidence": {
+    "source": "T4-served Funnelback Stylesheet (Version 3.1.2, dated 2025-01-05, Last Updated 2026-02-02 by Vic). Provided inline by Vic during this Phase B session.",
+    "method": "Manual full-read of the stylesheet content (the stylesheet is hand-grokable at single-pass-read scale). Token searches recorded below.",
+    "hits_by_token": {
+      "funnelbach_substring": {"count": 0, "note": "Stylesheet uses correctly-spelled 'funnelback' throughout"},
+      "hash_funnelbach-search-facets_ID_selector": {"count": 0},
+      "hash_funnelbach-search-body_ID_selector": {"count": 0},
+      "hash_funnelback-search-facets_ID_selector_correct_spelling": {"count": 0},
+      "hash_funnelback-search-body_ID_selector_correct_spelling": {"count": 0},
+      "dot_funnelback-search__body_CLASS_selector": {
+        "count_selectors_with_active_rules": 0,
+        "count_selectors_total": 3,
+        "note": "All three selector occurrences are within .stencils__main scopes; rule bodies are commented out. The selector is matched (class-on-element binding exists) but no active style rules apply."
+      },
+      "dot_funnelback-search__side_CLASS_selector": {
+        "count_selectors_with_active_rules": 0,
+        "count_selectors_total": 2,
+        "note": "Same pattern as __body — selector matched, rules commented out."
+      },
+      "dot_funnelback-search_CLASS_selector": {
+        "count_selectors_total": "multiple",
+        "note": "Most rule bodies commented out within .stencils__main scopes; some active sibling-selector rules exist elsewhere."
+      },
+      "dot_funnelback-search-facets-breadcrumb_CLASS_selector": {
+        "count_selectors_total": "many",
+        "note": "Active styled selectors. This is a DIFFERENT element (the breadcrumb element above the facets sidebar, not the typo'd ID's element)."
+      },
+      "dot_funnelback-facet_CLASS_selector": {
+        "count_selectors_total": "many",
+        "note": "Active styled selectors. This is the facet block element, not the typo'd ID's element."
+      },
+      "listing-item--course": {"count": 0, "note": "No stylesheet rule targets the modifier."},
+      "listing-item_base_class_styled_modifiers_present": {
+        "list": [
+          ".listing-item (base block — heavily styled)",
+          ".listing-item--people",
+          ".listing-item--event",
+          ".listing-item--person",
+          ".listing-item--document",
+          ".listing-item--social-media",
+          ".listing-item--video",
+          ".listing-item--promoted",
+          ".listing-item--background-shadow"
+        ],
+        "absent_from_set": [
+          ".listing-item--course (E9 modifier)",
+          ".listing-item--background-grey10 (sibling modifier on the same news article element)",
+          ".listing-item--color-black (sibling modifier on the same news article element)"
+        ]
+      },
+      "dataListing": {"count": 0},
+      "genericData": {"count": 0},
+      "lawData": {"count": 0},
+      "newsData": {"count": 0},
+      "programData": {"count": 0},
+      "peopleData": {"count": 0}
+    }
+  },
+  "residuals_open": [
+    {
+      "id": "RES1",
+      "scope": "E7 T4-shipped JS / live-page DOM consumer dimension",
+      "description": "The T4-shipped JS dimension of E7 (whether Squiz framework JS or T4 page-layout chrome JS targets #funnelbach-search-facets or #funnelbach-search-body at runtime, or whether any inline <script> block in the T4-rendered HTML references the typo'd IDs) was not closed in this session. The stylesheet half of the T4-side check is closed in B2 (CONSUMER_ABSENT). The remaining half requires a live-page DOM/inline-script check.",
+      "needed_capture": [
+        "Browser console: document.querySelectorAll('[id*=\"funnelbach\"], [id*=\"funnelback-search-facets\"], [id*=\"funnelback-search-body\"]') — record count and matches",
+        "View-source Ctrl-F for 'funnelbach' across all inline <script> blocks in the T4-rendered HTML",
+        "If feasible, fetch and grep any T4-served JS bundle URLs (visible via Array.from(document.querySelectorAll('script[src]')).map(s => s.src)) for 'funnelbach'"
+      ],
+      "rebuild_impact": "If T4-JS consumer exists: rebuild coordinates the spelling correction with T4 chrome modifications. If absent: rebuild corrects freely. Either outcome leaves Phase B's documentary classification intact; only the rebuild's coordination plan changes. No Phase B finding category changes regardless of outcome."
+    }
+  ],
+  "residuals_closed_in_session": [
+    {
+      "id": "CLOSED1",
+      "scope": "Stylesheet-alignment cross-check (the brief's named one carried-forward documentary residual)",
+      "description": "Brief v1.1's 'Stylesheet-alignment cross-check' section carved the visual-dimension cross-check for E9 (.listing-item--course) and dataListing/per-type *Data classes — i.e., which classes are live-styled vs. residue the stylesheet ignores — as one named carried-forward dependency past Phase B execution, pending stylesheet source landing. Vic provided the T4-served Funnelback stylesheet inline during this session; the cross-check fires in-session and resolves CONSUMER_ABSENT across all three subject class sets (B6 and B8). The brief's projected closure framing of 'closed-with-one-documentary-residual' is updated by execution to 'closed-with-one-narrower-documentary-residual' — RES1 (E7 T4-JS) is the only remaining residual, a smaller surface than the stylesheet-alignment cross-check the brief carried."
+    }
+  ],
+  "findings": [
+    {
+      "id": "B1",
+      "category": "CONSUMER_ABSENT",
+      "title": "E7 typo IDs have no FE consumer (public/, pages/, lib/, components/)",
+      "evidence": "grep -rn 'funnelbach-search-facets' public/ pages/ lib/ components/ returns 0 hits. grep -rn 'funnelbach-search-body' public/ pages/ lib/ components/ returns 0 hits. Repo-wide case-insensitive recheck across .js, .ts, .tsx, .jsx, .json, .html, .css, .scss (excluding node_modules, .next, audit, docs) for the bare substring 'funnelbach' returns 0 hits. The correctly-spelled equivalents ('funnelback-search-facets', 'funnelback-search-body') also return 0 hits across all FE source — confirming FE does not bind either spelling of these IDs as JS-side or CSS-side selectors.",
+      "implication": "Under preserve-DOM-contract anchor, no FE consumer means the rebuild's FE side is free of any binding to either spelling. The conditional T4-side check from the brief fires; it resolves partially via B2 (stylesheet) and remains open as RES1 (T4-shipped JS)."
+    },
+    {
+      "id": "B2",
+      "category": "CONSUMER_ABSENT",
+      "title": "E7 typo IDs are not bound by the T4-served Funnelback stylesheet (either spelling)",
+      "evidence": "Stylesheet grep against the v3.1.2 source provided inline: 'funnelbach' substring 0 occurrences; '#funnelbach-search-facets' / '#funnelbach-search-body' ID selectors 0 occurrences; '#funnelback-search-facets' / '#funnelback-search-body' ID selectors (correctly spelled) 0 occurrences. The stylesheet does target CLASSES on the same elements — '.funnelback-search__body' (3 selector occurrences, rule bodies commented out within .stencils__main scopes) and '.funnelback-search__side' (2 occurrences, same pattern) — but does not target IDs in either spelling.",
+      "implication": "The T4-stylesheet half of E7's T4-side check closes as CONSUMER_ABSENT. Under stylesheet-as-binding-contract, no rule to align with on the ID surface. The class-on-same-element contract (.funnelback-search__body, .funnelback-search__side) is still binding per the anchor regardless of ID-side outcome. The remaining T4-side surface (T4-shipped JS / page-layout chrome JS) is recorded as RES1."
+    },
+    {
+      "id": "B3",
+      "category": "CROSS_REFERENCE",
+      "title": "E7 T4-shipped JS dimension recorded as named open residual (RES1)",
+      "evidence": "Per Phase B brief v1.1's 'Scope (conditional)' section, the T4-side runtime DOM check fires when the FE-side grep returns negative. The T4-side check has two sub-surfaces: T4-served stylesheet (resolved B2, CONSUMER_ABSENT) and T4-shipped JS (open). Vic elected at synthesis time to close E7 with the T4-JS half as a named narrower residual rather than wait for live-page capture this session.",
+      "implication": "Closes E7 partially. The rebuild's coordination plan with T4 chrome cannot be finalized until the T4-JS half resolves, but this does not block any other Phase B finding or the HTML audit sequence closure. The residual is recorded as RES1 with explicit capture instructions."
+    },
+    {
+      "id": "B4",
+      "category": "CONSUMER_ABSENT",
+      "title": "E8 CTA URLs and labels have no FE consumer (read, parse, or depend)",
+      "evidence": "grep -rn for each of the four URLs ('/visit', '/academics/all-programs', 'redhawks.sharepoint.com', '/newsroom') and each of the five-plus heading and button label strings ('Visit our Campus', 'Discover Programs', 'Redhawk Hub', 'Explore Resources', 'Latest Updates') across public/, pages/, lib/, components/ returned 0 hits per token. The only '/visit' hits in the repo (7 total) are '@typescript-eslint/visitor-keys' substring matches in package-lock.json — not the CTA URL. (Note: the brief listed 'Redhawk Hub' as a button label; per Phase E E8 'Redhawk Hub' is the heading and 'Explore Resources' is the button label of the Faculty & Staff section. Both strings were grepped for defensiveness; both absent.)",
+      "implication": "Externalization of CTA content is purely an FTL/content concern; there is no FE-coordination dimension. The rebuild can move CTA content to profile config, JSON fixture, or any other emit-side location without FE coordination. Under preserve-DOM-contract, the rendered anchor elements remain user-clickable navigation; no FE-side dependency to preserve. CTA content is not a styled-class question per the brief, so the stylesheet constraint does not bear; CONSUMER_ABSENT closes E8 on its only relevant dimension."
+    },
+    {
+      "id": "B5",
+      "category": "CONSUMER_ABSENT",
+      "title": "E9 modifier .listing-item--course has no FE JS-hook consumer; base .listing-item consumers all target base or __title BEM element",
+      "evidence": "grep -rn 'listing-item--course' public/ pages/ lib/ components/ returns 0 hits. Repo-wide case-insensitive recheck across all source extensions (excluding node_modules, .next, audit, docs) returns 0 hits. For context, grep for the base 'listing-item' class returned 7 consumer sites across 5 files: public/search-bundle.js:422 (known-dead file per CLAUDE.md), public/js/modules/analytics-manager.js:51 + :133 + :138, public/integration.js:990, public/search-page-autocomplete.js:801, components/ResultList.tsx:38. All seven sites target either the base '.listing-item' class or the BEM element '.listing-item__title' selector pattern; none target the '--course' modifier.",
+      "implication": "The FE JS-hook dimension of E9 closes as CONSUMER_ABSENT. The five active sites + two more (analytics-manager :133, :138) all target the base BEM block or the __title element — confirming the base envelope is the binding FE-internal contract and the --course modifier carries no FE consumer. Combined with B6 (stylesheet dimension), E9 closes fully."
+    },
+    {
+      "id": "B6",
+      "category": "CONSUMER_ABSENT",
+      "title": "E9 modifier .listing-item--course has no T4-served stylesheet consumer; styled-modifier set on .listing-item is enumerated",
+      "evidence": "Stylesheet grep for '.listing-item--course' returns 0 occurrences. The stylesheet defines styled modifiers on the .listing-item BEM block: --people, --event, --person, --document, --social-media, --video, --promoted, --background-shadow (all heavily styled with active rule bodies). The --course modifier is conspicuously absent from this set. The two sibling modifiers on the same news article element per Phase E E9 evidence (--background-grey10, --color-black) are likewise absent from the stylesheet — they are residue at the cross-renderer envelope level, not just at --course.",
+      "implication": "Under stylesheet-as-binding-contract, no rule to align with on .listing-item--course. Under preserve-DOM-contract, the modifier is preserved by default. Combined with B5, .listing-item--course is residue with no behavioral or visual contract on any binding-evidence surface. The rebuild's posture is emit-by-default; a later optimization pass could strip --course without behavioral or visual consequence (and likewise the two sibling --background-grey10 / --color-black modifiers on the same element, though those are outside Phase B's direct scope)."
+    },
+    {
+      "id": "B7",
+      "category": "CONSUMER_ABSENT",
+      "title": "dataListing and per-type *Data suffixes have no FE JS-hook consumer (D7 hypothesis negatively confirmed for FE)",
+      "evidence": "grep -rn for each of 'dataListing', 'genericData', 'lawData', 'newsData', 'programData', 'peopleData' across public/, pages/, lib/, components/ returns 0 hits per token. Repo-wide case-insensitive recheck returns 0 hits per token. The 'data-class' attribute-consumer pattern (would target the class via attribute selector) returns 0 hits. Sanity check: other data-* attribute consumer patterns DO exist in FE source (data-type and data-index on suggestion-item elements in public/search-page-autocomplete.js:389, :408, :468 and public/search-bundle.js:279, :289, :311) — confirming the grep methodology surfaces data-* patterns where they exist; the camelCase D7 classes simply are not consumed.",
+      "implication": "Phase D D7's hypothesis that the camelCase paired generic-plus-per-type pattern 'suggests JS hook selectors more than visual or ARIA semantics' is *negatively confirmed* for the FE source surface. No FE JS hook keys off these classes. Combined with B8 (stylesheet dimension), the D7 hypothesis is fully closed."
+    },
+    {
+      "id": "B8",
+      "category": "CONSUMER_ABSENT",
+      "title": "dataListing and per-type *Data suffixes have no T4-served stylesheet consumer (D7 hypothesis fully closed)",
+      "evidence": "Stylesheet grep for 'dataListing', 'genericData', 'lawData', 'newsData', 'programData', 'peopleData' returns 0 occurrences per token. None of the six class names are bound by any stylesheet rule.",
+      "implication": "Phase D D7 closes on both binding-evidence surfaces: neither JS-hook selectors (B7) nor stylesheet selectors (B8) consume these classes. Under stylesheet-as-binding-contract, no rule to align with — there is no emit-and-align obligation specifically for these classes. Under preserve-DOM-contract, the classes are preserved by default. The 'camelCase pattern suggests JS hook selectors' hypothesis from D7 has no empirical support on either binding surface. The rebuild's posture is emit-by-default; the classes carry no behavioral or visual contract."
+    },
+    {
+      "id": "B9",
+      "category": "CROSS_REFERENCE",
+      "title": "Stylesheet-alignment cross-check fired in-session — the brief's projected residual collapses to a narrower one",
+      "evidence": "Brief v1.1's 'Stylesheet-alignment cross-check (carried-forward documentary residual)' section explicitly carved the visual-dimension cross-check for .listing-item--course and the dataListing / per-type *Data classes as the one named residual carried past Phase B execution, pending stylesheet source landing. Vic provided the T4-served Funnelback stylesheet inline during this Phase B session; the cross-check fires in-session and resolves CONSUMER_ABSENT for all three subject class sets (outputs: B6 and B8).",
+      "implication": "The HTML audit sequence's projected closure framing of 'closed-with-one-documentary-residual' (the stylesheet-alignment cross-check) is superseded by in-session execution. The remaining residual after Phase B execution is RES1 (E7 T4-shipped JS) — a smaller surface than the stylesheet-alignment cross-check the brief carried, since RES1 only covers a partial dimension of E7 rather than the full visual-dimension cross-check for three subject class sets. Closure framing for the v19 amendments queue: 'HTML audit sequence closes with one narrower residual.'"
+    },
+    {
+      "id": "B10",
+      "category": "CROSS_REFERENCE",
+      "title": "HTML audit sequence (A then C then E then D then B) closes with one named residual (RES1)",
+      "evidence": "Phase A (canonical: v2 markdown + v3 JSON), Phase C (canonical), Phase E (canonical), Phase D (canonical per CLAUDE.md restatement; deliverables not on disk per GAP2), and Phase B (this audit). All emitting and consuming surfaces enumerated to brief-scope. Prior phase closures: Phase A F2 closed via Phase E E5; Phase A F10/F11 closed via Phase C C6/C7; Phase C C8 closed via Phase E E11. Phase B closures: E7 partial via B1/B2 (FE absent + stylesheet absent), with B3 noting RES1; E8 full via B4; E9 full via B5/B6; D7 full via B7/B8.",
+      "implication": "Phase B is the final HTML audit phase per the brief; the sequence closes for documentation purposes. The v19 project-instructions revision is the queued amendment that formalizes closure, the stylesheet-as-binding-contract paired anchor, and RES1. The CLAUDE.md update is the queued single-pass edit list. Both sub-phase 5 outputs happen outside this session per the operator prompt."
+    }
+  ],
+  "closures": {
+    "phase_e_E7": {
+      "status": "PARTIAL_CLOSED",
+      "via": "B1 (FE absent) + B2 (T4 stylesheet absent) + B3 (T4-shipped JS open as RES1)",
+      "note": "Two of three E7 surfaces resolved CONSUMER_ABSENT; the third (T4-shipped JS) is RES1. Rebuild can correct typo on the FE side and stylesheet side without coordination; coordination requirement with T4 chrome is contingent on RES1 outcome."
+    },
+    "phase_e_E8": {
+      "status": "CLOSED",
+      "via": "B4",
+      "note": "CTA fixtures have no FE consumer; externalization is purely an FTL/content concern. The brief's minor labeling discrepancy ('Redhawk Hub' vs. 'Explore Resources') was recorded but does not affect closure since both strings were grepped and both absent."
+    },
+    "phase_e_E9": {
+      "status": "CLOSED",
+      "via": "B5 (FE absent) + B6 (T4 stylesheet absent)",
+      "note": ".listing-item--course is residue with no consumer on any binding-evidence surface. Preserved by default; later optimization could strip without consequence."
+    },
+    "phase_d_D7": {
+      "status": "CLOSED",
+      "via": "B7 (FE absent) + B8 (T4 stylesheet absent)",
+      "note": "Phase D D7's working hypothesis that the camelCase paired generic-plus-per-type pattern suggests JS hook selectors is negatively confirmed on both binding-evidence surfaces. dataListing and the per-type *Data classes have no behavioral or visual contract. Preserved by default."
+    },
+    "stylesheet_alignment_cross_check": {
+      "status": "CLOSED_IN_SESSION",
+      "via": "B9 (records the in-session resolution) + B6 + B8 (the actual closures)",
+      "note": "Brief v1.1's named one carried-forward documentary residual collapses to RES1 (E7 T4-JS), a narrower surface."
+    }
+  },
+  "amendments_queue_outputs": {
+    "claude_md_single_pass": {
+      "description": "The five edits CLAUDE.md needs after Phase B closure (per brief v1.1's 'Amendment queue' section). Happens in sub-phase 5, outside this session.",
+      "edits_anticipated": [
+        "Current-audit-phase line: 'Phase B (FE external-contract consumption) is the next-and-final HTML audit phase' becomes 'HTML audit sequence (A then C then E then D then B) is closed with one named residual (RES1: E7 T4-shipped JS). Phase B completed 2026-06-02.'",
+        "Add stylesheet-as-binding-contract to Key architectural facts as a paired anchor with visual-design-immutability",
+        "Update dataListing / per-type *Data D7 framing to record the Phase B closure (D7 hypothesis negatively confirmed on both surfaces)",
+        "Companion-docs v18 then v19 reference update",
+        "Audit-documents list gains the Phase B pair, session report, and ratified brief (and re-records the Phase D missing-from-disk gap as a known item if Vic decides to leave the Phase D deliverables in the broader project context rather than stage them)"
+      ]
+    },
+    "v18_to_v19_project_instructions_revision": {
+      "description": "Folds in Phase B findings, the HTML-audit-sequence closure, and the stylesheet-as-binding-contract constraint as a new key architectural anchor paired with visual-design-immutability. Happens outside this session.",
+      "elements_to_fold": [
+        "HTML-audit-sequence closure (A then C then E then D then B) with named residual RES1",
+        "Stylesheet-as-binding-contract anchor (paired with visual-design-immutability)",
+        "B1-B10 findings as consumer-enumeration evidence",
+        "GAP1 (missing brief on disk) and GAP2 (missing Phase D deliverables on disk) as housekeeping items",
+        "Brief citation correction for E8 button label ('Redhawk Hub' is heading, 'Explore Resources' is button label)"
+      ]
+    }
+  },
+  "sign_off": {
+    "execution_session": "2026-06-02 Claude Code session in /home/vic/repos/vercel/su-search-dev",
+    "execution_shape": "Single-phase per brief v1.1's ratified execution shape. No mid-write splitting. The escape hatch (broader-than-four-handoff-items surface) did not fire — grep returned exactly the four items asked for. The cross-check residual was folded into in-session resolution after Vic provided the stylesheet inline. The T4-JS dimension of E7 was elected as the one open residual.",
+    "posture_adherence": "No FE application code, dependency, or build configuration modified. No FTL modification. No stylesheet modification. Only deliverable writes under audit/** scoped permissions. No runtime captures taken in-session (stylesheet was provided inline by Vic; live-page DOM capture for RES1 was deferred per Vic's election).",
+    "deliverables": [
+      "audit/html-audit-phase-b-2026-06-02.json (this file, canonical evidence)",
+      "audit/html-audit-phase-b-2026-06-02.md (markdown companion)",
+      "audit/session-report-2026-06-02-html-audit-phase-b.md (session report)"
+    ]
+  }
+}
