@@ -43,7 +43,7 @@ B.1 (brief ratification) was already complete; the brief was its deliverable. B.
 
 10 numbered findings B1-B10 across two streams:
 
-- **CONSUMER_ABSENT (6 findings).** B1, B2, B4, B5, B6, B7, B8 — every handoff item came back ABSENT on every dimension grepped this session. (Note: that's 7 ABSENT findings if counted strictly; B1+B2 jointly cover E7's two resolvable dimensions, B5+B6 cover E9's two dimensions, B7+B8 cover D7's two dimensions, B4 covers E8.)
+- **CONSUMER_ABSENT (7 findings).** B1, B2, B4, B5, B6, B7, B8 — every handoff item came back ABSENT on every dimension grepped this session.
 - **CROSS_REFERENCE (3 findings).** B3 records RES1 (E7 T4-shipped JS residual); B9 records the stylesheet-alignment cross-check in-session resolution; B10 records the HTML audit sequence closure.
 
 Zero CONSUMER_CONFIRMED. Zero CONSUMER_EXTERNAL (in the strict per-finding sense — the T4-served stylesheet was grepped within scope this session because Vic provided it inline, so its CONSUMER_ABSENT outcomes recorded as B2, B6, B8 rather than as CONSUMER_EXTERNAL outcomes deferred to a future enumeration).
